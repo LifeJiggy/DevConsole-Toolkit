@@ -102,6 +102,7 @@
 
 
 ‎## 🤝 Contributing
+
 ‎1. **Love it? Hate a bug? Got a killer snippet to add?  I'm all ears (and code reviewers)!**
 **‎Fork the repo.**
 ‎
@@ -119,5 +120,11 @@
 ‎
 
 
-## ‎I follow the Contributor Covenant Code of Conduct. Questions? Ping us in Issues.
+## ‎I follow the Contributor Covenant Code of Conduct. Questions? Ping me in Issues.
 ‎
+
+
+## Contact: 
+      1. **X:https://x.com/ArkhLifeJiggy**
+      2. **Email: bloomtonjovish@gmail.com && emperorstephenpee001@gmail.com**
+    
