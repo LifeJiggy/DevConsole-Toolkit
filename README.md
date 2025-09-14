@@ -125,6 +125,8 @@
 
 
 ## Contact: 
-      1. **X:https://x.com/ArkhLifeJiggy**
-      2. **Email: bloomtonjovish@gmail.com && emperorstephenpee001@gmail.com**
+
+1. **X:https://x.com/ArkhLifeJiggy**
+
+2. **Email: bloomtonjovish@gmail.com && emperorstephenpee001@gmail.com**
     
