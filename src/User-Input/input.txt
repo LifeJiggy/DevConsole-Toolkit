@@ -1,0 +1,64 @@
+// ================================
+// 🔍 Initialization & Core Execution
+// ================================
+window.runAllCoreFunctions();          // Quick start: Run everything at once
+window.runAllCoreFunctionsRobust();    // Robust version to detect more inputs
+window.showAvailableFunctions();       // Display list of all available functions
+
+// ================================
+// 🛠 Individual Core Functions
+// ================================
+window.extractInteractiveInputs();     // Extract all interactive inputs (more than buttons)
+window.mapInputListenersHandlers();    // Map input event listeners and handlers
+window.mapInteractiveInputsNetwork();  // Map network activities related to inputs
+window.captureAllExistingListeners();  // Capture all existing event listeners on inputs
+window.outputUserInputsReport();       // Output report of collected user inputs
+
+// ================================
+// ✅ Test Specific Utility Functions
+// ================================
+window.isDangerousAttr('onclick');     // Check if attribute is dangerous (works with help)
+
+// ================================
+// 📊 Input Analysis Functions
+// ================================
+window.detectInputReflections();       // Detect reflections of inputs on the page with enhanced stats
+window.analyzeInputStatistics();       // Complete input breakdown and statistics
+window.analyzeUserInputField('#username');              // Analyze specific user input field by selector
+window.analyzeUserInputField('input[name="email"]');
+window.analyzeUserInputField('.search-input');
+
+// ================================
+// 📡 Live Monitoring
+// ================================
+window.startLiveInputMonitor();                                   // Start live monitoring inputs
+window.startLiveInputMonitor({ trackKeystrokes: true, maxHistory: 200 });  // With keystroke tracking and max history
+window.stopLiveInputMonitor();                                    // Stop live monitoring inputs
+window.startLiveSecurityMonitor();                                // Live monitoring for dynamic content security
+
+// ================================
+// 🔒 Security Scanning & Reporting
+// ================================
+window.scanInputSecurity();               // Scan for security issues in inputs
+window.generateSecurityReport();          // Generate professional security report
+
+// ================================
+// ⚠️ Dangerous Inputs & Critical Hotspots Analysis
+// ================================
+window.analyzeDangerousInputs();                                           // Full detailed analysis
+window.analyzeDangerousInputs({ showTop: 10, showDetails: true });          // Show top 10 dangerous with details
+window.analyzeDangerousInputs({ includeHidden: false, minReflections: 5000 });   // Only visible inputs with many reflections
+window.identifyCriticalHotspots();                                         // Highlight critical hotspots that need attention
+
+// ================================
+// 🗃 Data Export & Filtering
+// ================================
+window.exportSecurityData('json');                                         // Export collected data (json)
+window.filterReflections({ dangerousOnly: true, minReflections: 10 });    // Filter only dangerous inputs
+window.filterReflections({ visibility: 'hidden', dangerousOnly: true });  // Find hidden dangerous inputs
+
+// ================================
+// 📊 Summary & Quick Scans
+// ================================
+window.analyzeReflectionSummary();      // Organized summary of massive reflection data
+window.quickSecurityScan();              // Quick overview scan of security status
