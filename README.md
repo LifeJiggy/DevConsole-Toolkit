@@ -102,15 +102,19 @@
 
 
 ‎## 🤝 Contributing
-‎1. **Love it? Hate a bug? Got a killer snippet to add?  I'm all ears (and code reviewers)!
-‎Fork the repo.**
+‎1. **Love it? Hate a bug? Got a killer snippet to add?  I'm all ears (and code reviewers)!**
+**‎Fork the repo.**
 ‎
+
 2. **‎Create a feature branch (git checkout -b feature/amazing-new-tool).**
 ‎
+
 3. **‎Commit your changes (git commit -m "Add amazing new tool 🔥").**
 ‎
+
 4. **‎Push to the branch (git push origin feature/amazing-new-tool).**
 ‎
+
 5. **‎Open a Pull Request—describe your magic!**
 ‎
 
