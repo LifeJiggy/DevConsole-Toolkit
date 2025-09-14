@@ -1,3 +1,11 @@
+‎##🔥 Browser Dev Console Toolkit. 
+‎
+**‎A powerful open-source suite of utilities for extracting, mapping, debugging, inspection, monitoring, and rapid exploration inside the browser console.
+‎
+‎This professional collection of console-ready tools is designed for developers, researchers, and security engineers who need fast, flexible, and stealthy workflows without relying on external dependencies.**
+
+
+
 ## ‎Quick Start
 1. **‎In Chrome DevTools**
 ‎
