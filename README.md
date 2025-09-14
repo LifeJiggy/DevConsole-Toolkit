@@ -81,7 +81,6 @@
 ‎
 ‎
 
-
 ## ‎Why These Tools?
 1. **‎Zero Overhead: Pure vanilla JS—no libraries, no bloat.**
 ‎
@@ -100,13 +99,12 @@
 ‎
 
 
-
-‎## 🤝 Contributing
+‎ ## Contributing:
 
 ‎1. **Love it? Hate a bug? Got a killer snippet to add?  I'm all ears (and code reviewers)!**
-**‎Fork the repo.**
+    **‎Fork the repo.**
+    
 ‎
-
 2. **‎Create a feature branch (git checkout -b feature/amazing-new-tool).**
 ‎
 
@@ -119,10 +117,8 @@
 5. **‎Open a Pull Request—describe your magic!**
 ‎
 
-
 ## ‎I follow the Contributor Covenant Code of Conduct. Questions? Ping me in Issues.
 ‎
-
 
 ## Contact: 
 
