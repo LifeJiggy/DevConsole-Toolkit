@@ -66,7 +66,7 @@
 10. ‎**Experimenting with browser-native automation**
 ‎
 ‎
-‎
+
 ‎---
 
 ## ‎🚀 Features / Tools
@@ -121,10 +121,96 @@
 ‎
 
 
-## ‎✅ All tools are **one-liners**. No dependencies. 
+## ‎✅ All tools are **one-liners**. No dependencies.
 ‎
 ## ‎> 🧪 Tested on React, Vue, Svelte, Angular, Next.js, legacy jQuery apps, and shady ad networks.
-‎
+
+## 📁 Project Structure
+
+```
+DevConsole-Toolkit/
+├── LICENSE
+├── README.md
+└── src/
+    ├── Interactive-Mapping/
+    │   ├── claude-flow.js
+    │   ├── claude-README.md
+    │   ├── Qwen-flow.js
+    │   └── README-User-Action-Flow-Analyzer.md
+    ├── Network/
+    │   ├── GPT-NETWORK-MAPPER.js
+    │   ├── NextRay-DevTools-V2.js
+    │   ├── README-NETWORK-MAPPER.md
+    │   └── README-NextRay-V2.md
+    ├── Parameter/
+    │   ├── 🧠-Universal-Parameter-Extractor-Client-Side.js
+    │   └── README.md
+    ├── Sensitive-Disclousure/
+    │   ├── Claude-README-CRITICAL-FLAW-HUNTER.md
+    │   ├── Claude.js
+    │   ├── Qwen-Gold-README.md
+    │   └── Qwen-Gold.js
+    └── User-Input/
+        ├── 🧠-Universal-User-Input-Extractor-Client-Side.js
+        ├── Input-README.md
+        ├── input.txt
+        ├── NextRay-README.md
+        └── Validation&Exploit Helper-all‑in‑one Snippet.js
+```
+
+## 🛠️ Usage
+
+### Interactive Mapping Tools
+**Location:** `src/Interactive-Mapping/`
+
+- **`claude-flow.js`** - Interactive flow mapping for Claude AI integration
+- **`Qwen-flow.js`** - Interactive flow mapping for Qwen AI models
+- **README files** - Detailed documentation for user action flow analysis
+
+**Usage:** Copy and paste the JavaScript files directly into your browser console or DevTools snippets.
+
+### Network Analysis Tools
+**Location:** `src/Network/`
+
+- **`GPT-NETWORK-MAPPER.js`** - Advanced network mapping and monitoring
+- **`NextRay-DevTools-V2.js`** - Next-generation DevTools for network inspection
+- **README files** - Comprehensive guides for network mapping and NextRay usage
+
+**Usage:** Load these scripts in your browser console to monitor and analyze network traffic in real-time.
+
+### Parameter Extraction Tools
+**Location:** `src/Parameter/`
+
+- **`🧠-Universal-Parameter-Extractor-Client-Side.js`** - Extract parameters from any web application
+- **README.md** - Documentation for parameter extraction techniques
+
+**Usage:** Run the extractor script in your browser console to automatically identify and extract all parameters from the current page.
+
+### Security & Vulnerability Tools
+**Location:** `src/Sensitive-Disclousure/`
+
+- **`Claude.js`** - Security analysis tool powered by Claude AI
+- **`Qwen-Gold.js`** - Advanced vulnerability detection using Qwen models
+- **README files** - Critical security documentation and flaw hunting guides
+
+**Usage:** Use these tools to detect XSS vulnerabilities, logic flaws, and other security issues in web applications.
+
+### User Input Analysis Tools
+**Location:** `src/User-Input/`
+
+- **`🧠-Universal-User-Input-Extractor-Client-Side.js`** - Extract all user input fields and data
+- **`Validation&Exploit Helper-all‑in‑one Snippet.js`** - Comprehensive validation and exploit testing
+- **`input.txt`** - Sample input data for testing
+- **README files** - Guides for input analysis and NextRay integration
+
+**Usage:** Deploy these scripts to analyze user inputs, test validation bypasses, and identify potential injection points.
+
+### Quick Start for Any Tool:
+1. Navigate to the desired tool directory
+2. Copy the JavaScript file content
+3. Paste into browser DevTools Console or Snippets
+4. Execute and analyze the results
+5. Refer to accompanying README files for detailed usage instructions
 
 ## Contributing:
 
