@@ -1,91 +1,94 @@
 ## ‎Quick Start
 ‎
-**‎In Chrome DevTools**
+1. **‎In Chrome DevTools**
 ‎
-**‎Open DevTools (F12 or Cmd+Option+I).**
+2. **‎Open DevTools (F12 or Cmd+Option+I).**
 
-**‎Navigate to the Sources tab > Snippets panel.**
+3. **‎Navigate to the Sources tab > Snippets panel.**
 ‎
-**‎Create a new snippet, paste the code from any tool below, and hit Run (Ctrl+Enter).**
+4. **‎Create a new snippet, paste the code from any tool below, and hit Run (Ctrl+Enter).**
 ‎
-**‎Save snippets for reuse—boom, instant toolkit!**
+5. **‎Save snippets for reuse—boom, instant toolkit!**
 ‎
+
 
 
 
 ## Universal Console Paste
 ‎
+
 **For one-off use: Just open the Console tab and paste the snippet directly. Instant gratification!**
 ‎
 
 
+
 ## ‎Perfect for:
 ‎
-**‎Extracting all interactive elements**
+1. **‎Extracting all interactive elements**
 ‎
-**‎Detecting All User Inputs & check for reflection via (Body, Dom, sink)**
+2. **‎Detecting All User Inputs & check for reflection via (Body, Dom, sink)**
 ‎
-**‎Extracting Parameters across the globe**
+3. **‎Extracting Parameters across the globe**
 ‎
-**‎Debugging hidden behaviors**
+4. **‎Debugging hidden behaviors**
 ‎
-**‎Full-mapping  user's functionality**
+5. **‎Full-mapping  user's functionality**
 ‎
-‎**DOM manipulation & event listener inspection**
+6. ‎**DOM manipulation & event listener inspection**
 ‎
-‎**All Network flows  and monitoring**
+7. ‎**All Network flows  and monitoring**
 ‎
-‎**Detecting vulnerabilities (XSS, bypass, logic flaws, etc.)**
+8. ‎**Detecting vulnerabilities (XSS, bypass, logic flaws, etc.)**
 ‎
-‎**Hunting hidden URLs & flows**
+‎9. **Hunting hidden URLs & flows**
 ‎
-‎**Experimenting with browser-native automation**
+10. ‎**Experimenting with browser-native automation**
 ‎
 ‎
-
 ‎
 ‎---
 ‎
+
 ## ‎🚀 Features / Tools
 ‎
-‎**Over 10+ custom tools already built, including:**
+‎1. **Over 10+ custom tools already built, including:**
 ‎
-**‎Event Listener Tracker → Inspect and hook into dynamic event listeners.**
+2. **‎Event Listener Tracker → Inspect and hook into dynamic event listeners.**
 ‎
-‎**DOM Manipulator → Live overwrite, inject, and trace DOM changes.**
+‎3. **DOM Manipulator → Live overwrite, inject, and trace DOM changes.**
 ‎
-**‎Hidden URL Detector → Surface hidden/obfuscated endpoints.**
+4. **‎Hidden URL Detector → Surface hidden/obfuscated endpoints.**
 ‎
-**‎Console Flow Logger → Stealthy dynamic logging with full trace.**
+5. **‎Console Flow Logger → Stealthy dynamic logging with full trace.**
 ‎
-‎**Source Breakpoint Helper → Script-friendly breakpoint manager.**
+‎6. **Source Breakpoint Helper → Script-friendly breakpoint manager.**
 ‎
-**‎Obfuscation Mapper → Detect patterns & behaviors in obfuscated JS.**
+7. **‎Obfuscation Mapper → Detect patterns & behaviors in obfuscated JS.**
 ‎
-**‎Payload Injector → Test sanitization & validation bypasses.**
+8. **‎Payload Injector → Test sanitization & validation bypasses.**
 ‎
-‎**Session Explorer → Inspect storage, cookies, tokens in real time.**
+‎9. **Session Explorer → Inspect storage, cookies, tokens in real time.**
 ‎
-‎**XHR/Fetch Interceptor → Hook into requests & responses dynamically.**
+‎10. XHR/Fetch Interceptor → Hook into requests & responses dynamically.**
 ‎
-**‎Bug Hunter Utilities → Advanced snippets for edge-case testing.**
+11. **‎Bug Hunter Utilities → Advanced snippets for edge-case testing.**
 ‎
-‎**and more 🔥**
+‎12. **and more 🔥**
 ‎
 ‎
 
 
 ## ‎Why These Tools?
 ‎
-**‎Zero Overhead: Pure vanilla JS—no libraries, no bloat.**
+1. **‎Zero Overhead: Pure vanilla JS—no libraries, no bloat.**
 ‎
-**‎Cross-Browser: Tested on Chrome 100+, Firefox 70+, Safari 15+, Edge 100+.**
+2. **‎Cross-Browser: Tested on Chrome 100+, Firefox 70+, Safari 15+, Edge 100+.**
 ‎
-**‎Extensible: Modular design—mix, match, or chain them for custom workflows.**
+3. **‎Extensible: Modular design—mix, match, or chain them for custom workflows.**
 ‎
-**‎Community-Driven: Built from our shared dev war stories; evolve it with us!**
+4. **‎Community-Driven: Built from our shared dev war stories; evolve it with us!**
 ‎
-**‎If you've ever muttered "There must be a better way..." while staring at a console, this is it.**
+5. **‎If you've ever muttered "There must be a better way..." while staring at a console, this is it.**
 ‎
 
 ## ‎✅ All tools are **one-liners**. No dependencies. 
@@ -98,16 +101,16 @@
 
 ‎## 🤝 Contributing
 ‎
-‎**Love it? Hate a bug? Got a killer snippet to add?  I'm all ears (and code reviewers)!
+‎1. **Love it? Hate a bug? Got a killer snippet to add?  I'm all ears (and code reviewers)!
 ‎Fork the repo.**
 ‎
-**‎Create a feature branch (git checkout -b feature/amazing-new-tool).**
+2. **‎Create a feature branch (git checkout -b feature/amazing-new-tool).**
 ‎
-**‎Commit your changes (git commit -m "Add amazing new tool 🔥").**
+3. **‎Commit your changes (git commit -m "Add amazing new tool 🔥").**
 ‎
-**‎Push to the branch (git push origin feature/amazing-new-tool).**
+4. **‎Push to the branch (git push origin feature/amazing-new-tool).**
 ‎
-**‎Open a Pull Request—describe your magic!**
+5. **‎Open a Pull Request—describe your magic!**
 ‎
 
 
