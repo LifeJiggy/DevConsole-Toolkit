@@ -45,27 +45,38 @@
 
 ## ‎🚀 Features / Tools
 ‎1. **Over 10+ custom tools already built, including:**
+
 ‎
 2. **‎Event Listener Tracker → Inspect and hook into dynamic event listeners.**
 ‎
+
 ‎3. **DOM Manipulator → Live overwrite, inject, and trace DOM changes.**
+
 ‎
 4. **‎Hidden URL Detector → Surface hidden/obfuscated endpoints.**
 ‎
+
 5. **‎Console Flow Logger → Stealthy dynamic logging with full trace.**
 ‎
+
 ‎6. **Source Breakpoint Helper → Script-friendly breakpoint manager.**
 ‎
+
 7. **‎Obfuscation Mapper → Detect patterns & behaviors in obfuscated JS.**
 ‎
+
 8. **‎Payload Injector → Test sanitization & validation bypasses.**
+
 ‎
 ‎9. **Session Explorer → Inspect storage, cookies, tokens in real time.**
 ‎
-‎10. XHR/Fetch Interceptor → Hook into requests & responses dynamically.**
+
+‎10. **XHR/Fetch Interceptor → Hook into requests & responses dynamically.**
 ‎
+
 11. **‎Bug Hunter Utilities → Advanced snippets for edge-case testing.**
 ‎
+
 ‎12. **and more 🔥**
 ‎
 ‎
