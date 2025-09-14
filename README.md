@@ -1,4 +1,4 @@
-‎Quick Start
+## ‎Quick Start
 ‎
 ‎In Chrome DevTools
 ‎
@@ -13,13 +13,15 @@
 ‎
 ‎
 
-Universal Console Paste
+
+## Universal Console Paste
 ‎
-‎For one-off use: Just open the Console tab and paste the snippet directly. Instant gratification!
+For one-off use: Just open the Console tab and paste the snippet directly. Instant gratification!
 ‎
 
 
-‎Perfect for:
+
+## ‎Perfect for:
 ‎
 ‎Extracting all interactive elements 
 ‎
@@ -42,10 +44,11 @@ Universal Console Paste
 ‎Experimenting with browser-native automation
 ‎
 ‎
+
 ‎
 ‎---
 ‎
-‎🚀 Features / Tools
+## ‎🚀 Features / Tools
 ‎
 ‎Over 10+ custom tools already built, including:
 ‎
@@ -72,7 +75,9 @@ Universal Console Paste
 ‎…and more 🔥
 ‎
 ‎
-‎Why These Tools?
+
+
+## ‎Why These Tools?
 ‎
 ‎Zero Overhead: Pure vanilla JS—no libraries, no bloat.
 ‎
@@ -85,14 +90,15 @@ Universal Console Paste
 ‎If you've ever muttered "There must be a better way..." while staring at a console, this is it.
 ‎
 
-‎✅ All tools are **one-liners**. No dependencies. 
+## ‎✅ All tools are **one-liners**. No dependencies. 
 ‎
 
 ‎> 🧪 Tested on React, Vue, Svelte, Angular, Next.js, legacy jQuery apps, and shady ad networks.
 ‎
 
 
-‎🤝 Contributing
+
+‎## 🤝 Contributing
 ‎
 ‎Love it? Hate a bug? Got a killer snippet to add?  I'm all ears (and code reviewers)!
 ‎Fork the repo.
@@ -107,5 +113,5 @@ Universal Console Paste
 ‎
 
 
-‎I follow the Contributor Covenant Code of Conduct. Questions? Ping us in Issues.
+## ‎I follow the Contributor Covenant Code of Conduct. Questions? Ping us in Issues.
 ‎
