@@ -1,6 +1,6 @@
 ## ‎🔥 Browser Dev Console Toolkit.
 ‎
-**‎A powerful open-source suite of utilities for extracting, mapping, debugging, inspection, monitoring, and rapid exploration inside the browser console.**
+**‎A powerful open-source suite of utilities for extracting, mapping, debugging, inspecting, monitoring, and rapid exploration inside the browser console.**
 
 
 **‎This professional collection of console-ready tools is designed for developers, researchers, and security engineers who need fast, flexible, and stealthy workflows without relying on external dependencies.**
@@ -230,7 +230,7 @@ DevConsole-Toolkit/
 5. **‎Open a Pull Request—describe your magic!**
 ‎
 
-## ‎I follow the Contributor Covenant Code of Conduct. Questions? Ping me in Issues.
+## ‎I follow the Contributor Covenant Code of Conduct. Questions? Ping me in for a Issues.
 ‎
 
 ## Contact: 
