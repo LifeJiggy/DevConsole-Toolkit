@@ -38,7 +38,39 @@
 ‎
 
 
-## 💯Universal Console Paste!!!
+## 📦 NPM Installation
+
+For programmatic access and easy distribution:
+
+```bash
+npm install devconsole-toolkit
+```
+
+Then in your Node.js code:
+
+```javascript
+const toolkit = require('devconsole-toolkit');
+
+// Get any tool's code as a string
+const code = toolkit.interactiveMappingClaude;
+
+// Available tools:
+// - interactiveMappingClaude
+// - interactiveMappingQwen
+// - networkMapperGPT
+// - networkMapperNextRay
+// - parameterExtractor
+// - sensitiveDisclosureClaude
+// - sensitiveDisclosureQwen
+// - userInputExtractor
+// - validationExploitHelper
+
+// Copy to clipboard, save to file, or integrate into your workflow
+```
+
+Perfect for automation, CI/CD pipelines, or distributing tools programmatically!
+
+## �Universal Console Paste!!!
 
 ## For one-off use: Just open the Console tab and paste the snippet directly. Instant gratification!**
 ‎
@@ -131,6 +163,9 @@
 DevConsole-Toolkit/
 ├── LICENSE
 ├── README.md
+├── NPM_PUBLISH_GUIDE.md
+├── package.json
+├── index.js
 ├── .qodo/
 └── src/
     ├── Interactive-Mapping/

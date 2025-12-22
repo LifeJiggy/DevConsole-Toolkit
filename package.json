@@ -1,0 +1,32 @@
+{
+  "name": "devconsole-toolkit",
+  "version": "6.0.1",
+  "description": "A powerful open-source suite of utilities for extracting, mapping, debugging, inspection, monitoring, and rapid exploration inside the browser console.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "browser",
+    "console",
+    "toolkit",
+    "debugging",
+    "security",
+    "development",
+    "web",
+    "javascript",
+    "dom",
+    "network",
+    "inspection"
+  ],
+  "author": "ArkhAngelLifeJiggy",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LifeJiggy/DevConsole-Toolkit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LifeJiggy/DevConsole-Toolkit/issues"
+  },
+  "homepage": "https://github.com/LifeJiggy/DevConsole-Toolkit#readme"
+}
