@@ -110,22 +110,22 @@
       totalFindings: 0,
     };
 
-    console.log("%c1/6 - 🔑 Extracting API Keys & Tokens...", styles.info);
+    console.log("%c1/7 - 🔑 Extracting API Keys & Tokens...", styles.info);
     extraction.secrets.apiKeys = extractAPIKeys();
 
-    console.log("%c2/6 - 🌐 Extracting Hidden Endpoints...", styles.info);
+    console.log("%c2/7 - 🌐 Extracting Hidden Endpoints...", styles.info);
     extraction.secrets.endpoints = extractHiddenEndpoints();
 
-    console.log("%c3/6 - 🔐 Extracting Credentials & Secrets...", styles.info);
+    console.log("%c3/7 - 🔐 Extracting Credentials & Secrets...", styles.info);
     extraction.secrets.credentials = extractCredentials();
 
-    console.log("%c4/6 - ⚙️ Extracting Configuration Data...", styles.info);
+    console.log("%c4/7 - ⚙️ Extracting Configuration Data...", styles.info);
     extraction.secrets.configurations = extractConfigurations();
 
-    console.log("%c5/6 - 👂 Mapping Event Listeners...", styles.info);
+    console.log("%c5/7 - 👂 Mapping Event Listeners...", styles.info);
     extraction.secrets.listeners = mapEventListeners();
 
-    console.log("%c6/6 - 🗺️ Creating Disclosure Map...", styles.info);
+    console.log("%c6/7 - 🗺️ Creating Disclosure Map...", styles.info);
     extraction.secrets.mapping = createDisclosureMap();
 
     console.log("%c7/7 - 🚩 Scanning Advanced Flags...", styles.info);
@@ -308,8 +308,10 @@
           }
         });
       });
+    });
 
-      // Extract from global variables
+    // Extract from global variables (run once, not per script)
+    try {
       const globalVars = Object.keys(window);
       globalVars.forEach((varName) => {
         try {
@@ -322,7 +324,7 @@
                   apiKeys.push({
                     type: keyType,
                     value: match,
-                    location: `window.${varName}`,
+                    location: "window." + varName,
                     source: "global_variable",
                     context: varValue.substring(0, 100),
                     risk: getKeyRiskLevel(keyType),
@@ -332,16 +334,14 @@
               }
             });
           }
-        } catch (e) {
-          // Skip inaccessible variables
-        }
+        } catch (e) {}
       });
+    } catch (e) {}
 
-      console.log(
-        `%c🔑 Found ${apiKeys.length} potential API keys/tokens`,
-        apiKeys.length > 0 ? styles.secret : styles.info
-      );
-    });
+    console.log(
+      "%c🔑 Found " + apiKeys.length + " potential API keys/tokens",
+      apiKeys.length > 0 ? styles.secret : styles.info
+    );
 
     return apiKeys;
   }
@@ -1325,69 +1325,73 @@
   function mapEventListeners() {
     const listeners = [];
 
-    // Override addEventListener to capture new listeners
-    const originalAddEventListener = EventTarget.prototype.addEventListener;
-    const capturedListeners = [];
+    // Override addEventListener to capture new listeners (only once)
+    if (!window.__HG_LISTENER_PATCHED) {
+      window.__HG_LISTENER_PATCHED = true;
+      const originalAddEventListener = EventTarget.prototype.addEventListener;
+      const capturedListeners = [];
 
-    EventTarget.prototype.addEventListener = function (
-      type,
-      listener,
-      options
-    ) {
-      try {
-        const listenerInfo = {
-          element: this,
-          eventType: String(type),
-          listenerFunction:
-            (listener && listener.toString
-              ? listener.toString().substring(0, 280)
-              : String(listener)
-            ).replace(/\n+/g, " ") + "...",
-          options: options,
-          targetTag: this.tagName || "Window/Document",
-          targetId: this.id || "no-id",
-          targetClass: this.className || "no-class",
-          stack: (new Error().stack || "").split("\n").slice(1, 5),
-          timestamp: new Date().toISOString(),
-          source: "addEventListener",
-        };
+      EventTarget.prototype.addEventListener = function (
+        type,
+        listener,
+        options
+      ) {
+        try {
+          const listenerInfo = {
+            element: this,
+            eventType: String(type),
+            listenerFunction:
+              (listener && listener.toString
+                ? listener.toString().substring(0, 280)
+                : String(listener)
+              ).replace(/\n+/g, " ") + "...",
+            options: options,
+            targetTag: this.tagName || "Window/Document",
+            targetId: this.id || "no-id",
+            targetClass: this.className || "no-class",
+            stack: (new Error().stack || "").split("\n").slice(1, 5),
+            timestamp: new Date().toISOString(),
+            source: "addEventListener",
+          };
 
-        capturedListeners.push(listenerInfo);
-      } catch (_) {}
+          capturedListeners.push(listenerInfo);
+        } catch (_) {}
 
-      return originalAddEventListener.call(this, type, listener, options);
-    };
+        return originalAddEventListener.call(this, type, listener, options);
+      };
 
-    // Capture removeEventListener to know when listeners go away
-    const originalRemoveEventListener =
-      EventTarget.prototype.removeEventListener;
-    EventTarget.prototype.removeEventListener = function (
-      type,
-      listener,
-      options
-    ) {
-      try {
-        capturedListeners.push({
-          element: this,
-          eventType: String(type),
-          listenerFunction:
-            (listener && listener.toString
-              ? listener.toString().substring(0, 200)
-              : String(listener)) + "...",
-          options,
-          targetTag: this.tagName || "Window/Document",
-          targetId: this.id || "no-id",
-          targetClass: this.className || "no-class",
-          removed: true,
-          timestamp: new Date().toISOString(),
-          source: "removeEventListener",
-        });
-      } catch (_) {}
-      return originalRemoveEventListener.call(this, type, listener, options);
-    };
+      // Capture removeEventListener to know when listeners go away
+      const originalRemoveEventListener =
+        EventTarget.prototype.removeEventListener;
+      EventTarget.prototype.removeEventListener = function (
+        type,
+        listener,
+        options
+      ) {
+        try {
+          capturedListeners.push({
+            element: this,
+            eventType: String(type),
+            listenerFunction:
+              (listener && listener.toString
+                ? listener.toString().substring(0, 200)
+                : String(listener)) + "...",
+            options,
+            targetTag: this.tagName || "Window/Document",
+            targetId: this.id || "no-id",
+            targetClass: this.className || "no-class",
+            removed: true,
+            timestamp: new Date().toISOString(),
+            source: "removeEventListener",
+          });
+        } catch (_) {}
+        return originalRemoveEventListener.call(this, type, listener, options);
+      };
+    }
 
     // Scan existing inline event handlers
     const allElements = document.querySelectorAll("*");
+    const maxEl = Math.min(allElements.length, 5000);
     allElements.forEach((element, index) => {
       const eventAttributes = [
         // Mouse Events
@@ -2304,9 +2308,9 @@
       extraction.secrets.listeners = dedupeBySignature(
         extraction.secrets.listeners || [],
         (l) =>
-          `${l.event || l.type}|${
-            l.targetId || l.targetClass || l.selector || "unknown"
-          }|${(l.handler || "").toString().slice(0, 120)}`
+          `${l.eventType || l.event || l.type}|${
+            l.targetId || l.targetClass || "unknown"
+          }|${(l.listenerFunction || l.handler || "").toString().slice(0, 120)}`
       );
 
       // --- Advanced Flags: dedupe by type + (value|context) ---
@@ -3440,6 +3444,13 @@
       adminPanel: [],
       apiInternal: [],
       development: [],
+      userManagement: [],
+      payment: [],
+      analytics: [],
+      webhook: [],
+      configuration: [],
+      backupRestore: [],
+      execution: [],
     };
 
     const endpointPatterns = {
@@ -3567,15 +3578,9 @@
       },
       findings: findings,
       summary: {
-        totalFindings: Object.values(findings).reduce((sum, arr) => {
-          return (
-            sum +
-            (Array.isArray(arr)
-              ? arr.length
-              : typeof arr === "object"
-              ? Object.keys(arr).length
-              : 0)
-          );
+        totalFindings: Object.values(findings).reduce((sum, val) => {
+          if (Array.isArray(val)) return sum + val.length;
+          return sum;
         }, 0),
         criticalCount: [
           ...(findings.apiKeys || []).filter((k) => k.risk === "CRITICAL"),
@@ -3611,6 +3616,13 @@
   }
 
   function convertFindingsToCSV(findings) {
+    function csvEscape(val) {
+      const s = String(val == null ? "" : val);
+      if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }
     const headers = [
       "Type",
       "Category",
@@ -3661,7 +3673,7 @@
       ]);
     });
 
-    return [headers, ...rows].map((row) => row.join(",")).join("\n");
+    return [headers, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
   }
 
   function downloadFile(content, filename, mimeType) {
