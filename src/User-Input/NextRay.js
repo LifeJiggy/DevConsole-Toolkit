@@ -1586,213 +1586,265 @@ Validation&Exploit Helper-all‑in‑one Snippet
   // 10 ENHANCEMENT SCANS - Passive Security Analysis
   // ===================================================================
 
+  // --- Hardening utilities ---
+  const _NR_SAFE = {
+    MAX_ELEMENTS: 5000,
+    domReady() { return !!(document && document.body && document.querySelectorAll); },
+    queryAll(sel, limit) {
+      if (!this.domReady()) return [];
+      try {
+        const els = document.querySelectorAll(sel);
+        return Array.from(els).slice(0, limit || this.MAX_ELEMENTS);
+      } catch (_) { return []; }
+    },
+    safe(fn, label) {
+      try { return fn(); } catch (e) { console.warn(`[NextRay:${label}]`, e.message || e); return undefined; }
+    },
+    safeArr(fn, label) { const r = this.safe(fn, label); return Array.isArray(r) ? r : []; },
+  };
+
   // Enhancement N1: Detect CORS misconfigurations
   function scanCORS() {
-    const findings = [];
-    const scripts = Array.from(document.querySelectorAll("script:not([src])"));
-    scripts.forEach((s) => {
-      const code = s.textContent || "";
-      if (/cors|Access-Control-Allow-Origin|withCredentials/i.test(code)) {
-        findings.push({ type: "cors-in-script", risk: "MEDIUM" });
-      }
-    });
-    document.querySelectorAll("a[href^='//'], a[href^='http']").forEach((a) => {
-      try {
-        const u = new URL(a.href);
-        if (u.hostname !== location.hostname && u.protocol === "http:") {
-          findings.push({ type: "http-link", href: a.href.slice(0, 80), risk: "LOW" });
+    return _NR_SAFE.safeArr(() => {
+      if (!_NR_SAFE.domReady()) return [];
+      const findings = [];
+      _NR_SAFE.queryAll("script:not([src])", 200).forEach((s) => {
+        const code = s.textContent || "";
+        if (/cors|Access-Control-Allow-Origin|withCredentials/i.test(code)) {
+          findings.push({ type: "cors-in-script", risk: "MEDIUM" });
         }
-      } catch (_) {}
-    });
-    return findings;
+      });
+      _NR_SAFE.queryAll("a[href^='//'], a[href^='http']", 2000).forEach((a) => {
+        try {
+          const u = new URL(a.href);
+          if (u.hostname !== location.hostname && u.protocol === "http:") {
+            findings.push({ type: "http-link", href: a.href.slice(0, 80), risk: "LOW" });
+          }
+        } catch (_) {}
+      });
+      return findings;
+    }, "scanCORS");
   }
 
   // Enhancement N2: Detect exposed debug/error endpoints
   function scanDebugEndpoints() {
-    const findings = [];
-    const debugPaths = ["/debug", "/trace", "/actuator", "/console", "/.env", "/config", "/swagger", "/api-docs", "/graphql", "/__debug__", "/elmah.axd", "/trace.axd", "/status", "/health", "/info", "/phpinfo.php"];
-    const allLinks = Array.from(document.querySelectorAll("a[href]"));
-    allLinks.forEach((a) => {
-      const href = a.getAttribute("href") || "";
-      debugPaths.forEach((p) => {
-        if (href.toLowerCase().includes(p)) {
-          findings.push({ type: "debug-link", path: p, href: href.slice(0, 80), risk: "MEDIUM" });
-        }
+    return _NR_SAFE.safeArr(() => {
+      if (!_NR_SAFE.domReady()) return [];
+      const findings = [];
+      const debugPaths = ["/debug", "/trace", "/actuator", "/console", "/.env", "/config", "/swagger", "/api-docs", "/graphql", "/__debug__", "/elmah.axd", "/trace.axd", "/status", "/health", "/info", "/phpinfo.php"];
+      _NR_SAFE.queryAll("a[href]", 3000).forEach((a) => {
+        try {
+          const href = a.getAttribute("href") || "";
+          debugPaths.forEach((p) => {
+            if (href.toLowerCase().includes(p)) {
+              findings.push({ type: "debug-link", path: p, href: href.slice(0, 80), risk: "MEDIUM" });
+            }
+          });
+        } catch (_) {}
       });
-    });
-    document.querySelectorAll("script:not([src])").forEach((s) => {
-      const code = s.textContent || "";
-      debugPaths.forEach((p) => {
-        if (code.includes(`"${p}"`) || code.includes(`'${p}'`)) {
-          findings.push({ type: "debug-in-script", path: p, risk: "LOW" });
-        }
+      _NR_SAFE.queryAll("script:not([src])", 200).forEach((s) => {
+        const code = s.textContent || "";
+        debugPaths.forEach((p) => {
+          if (code.includes(`"${p}"`) || code.includes(`'${p}'`)) {
+            findings.push({ type: "debug-in-script", path: p, risk: "LOW" });
+          }
+        });
       });
-    });
-    return findings;
+      return findings;
+    }, "scanDebugEndpoints");
   }
 
   // Enhancement N3: Detect information disclosure in forms
   function scanInfoDisclosure() {
-    const findings = [];
-    const sensitivePatterns = [/password/i, /secret/i, /token/i, /api[_-]?key/i, /private[_-]?key/i, /ssn/i, /credit[_-]?card/i, /auth/i];
-    document.querySelectorAll("input").forEach((input) => {
-      const name = input.name || "";
-      const id = input.id || "";
-      const isSensitive = sensitivePatterns.some((p) => p.test(name) || p.test(id));
-      if (isSensitive && input.type !== "password") {
-        findings.push({ type: "sensitive-not-masked", name, id, inputType: input.type, risk: "MEDIUM" });
-      }
-      if (input.type === "hidden" && input.value && input.value.length > 5) {
-        const highEntropy = new Set(input.value).size > 10 && input.value.length > 20;
-        if (highEntropy) {
-          findings.push({ type: "hidden-high-entropy", name, id, length: input.value.length, risk: "LOW" });
-        }
-      }
-    });
-    return findings;
+    return _NR_SAFE.safeArr(() => {
+      if (!_NR_SAFE.domReady()) return [];
+      const findings = [];
+      const sensitivePatterns = [/password/i, /secret/i, /token/i, /api[_-]?key/i, /private[_-]?key/i, /ssn/i, /credit[_-]?card/i, /auth/i];
+      _NR_SAFE.queryAll("input", 1000).forEach((input) => {
+        try {
+          const name = input.name || "";
+          const id = input.id || "";
+          const isSensitive = sensitivePatterns.some((p) => p.test(name) || p.test(id));
+          if (isSensitive && input.type !== "password") {
+            findings.push({ type: "sensitive-not-masked", name, id, inputType: input.type, risk: "MEDIUM" });
+          }
+          if (input.type === "hidden" && input.value && input.value.length > 5) {
+            const highEntropy = new Set(input.value).size > 10 && input.value.length > 20;
+            if (highEntropy) {
+              findings.push({ type: "hidden-high-entropy", name, id, length: input.value.length, risk: "LOW" });
+            }
+          }
+        } catch (_) {}
+      });
+      return findings;
+    }, "scanInfoDisclosure");
   }
 
   // Enhancement N4: Detect jQuery/Angular/Vue security patterns
   function scanFrameworkPatterns() {
-    const findings = [];
-    document.querySelectorAll("script:not([src])").forEach((s) => {
-      const code = s.textContent || "";
-      if (/\.html\s*\(/.test(code)) findings.push({ type: "jquery-html", risk: "MEDIUM", issue: "jQuery .html() usage (XSS risk)" });
-      if (/\.append\s*\(/.test(code)) findings.push({ type: "jquery-append", risk: "MEDIUM", issue: "jQuery .append() usage" });
-      if (/\$eval|ng-init|ng-bind-html/.test(code)) findings.push({ type: "angular-unsafe", risk: "HIGH", issue: "Unsafe Angular directive" });
-      if (/v-html/.test(code)) findings.push({ type: "vue-unsafe", risk: "HIGH", issue: "Vue v-html directive (XSS risk)" });
-      if (/dangerouslySetInnerHTML/.test(code)) findings.push({ type: "react-unsafe", risk: "HIGH", issue: "React dangerouslySetInnerHTML" });
-      if (/\.innerHTML\s*=/.test(code)) findings.push({ type: "vanilla-innerhtml", risk: "HIGH", issue: "Direct innerHTML assignment" });
-    });
-    return findings;
+    return _NR_SAFE.safeArr(() => {
+      if (!_NR_SAFE.domReady()) return [];
+      const findings = [];
+      _NR_SAFE.queryAll("script:not([src])", 200).forEach((s) => {
+        const code = s.textContent || "";
+        if (/\.html\s*\(/.test(code)) findings.push({ type: "jquery-html", risk: "MEDIUM", issue: "jQuery .html() usage (XSS risk)" });
+        if (/\.append\s*\(/.test(code)) findings.push({ type: "jquery-append", risk: "MEDIUM", issue: "jQuery .append() usage" });
+        if (/\$eval|ng-init|ng-bind-html/.test(code)) findings.push({ type: "angular-unsafe", risk: "HIGH", issue: "Unsafe Angular directive" });
+        if (/v-html/.test(code)) findings.push({ type: "vue-unsafe", risk: "HIGH", issue: "Vue v-html directive (XSS risk)" });
+        if (/dangerouslySetInnerHTML/.test(code)) findings.push({ type: "react-unsafe", risk: "HIGH", issue: "React dangerouslySetInnerHTML" });
+        if (/\.innerHTML\s*=/.test(code)) findings.push({ type: "vanilla-innerhtml", risk: "HIGH", issue: "Direct innerHTML assignment" });
+      });
+      return findings;
+    }, "scanFrameworkPatterns");
   }
 
   // Enhancement N5: Detect mixed content and protocol issues
   function scanMixedContent() {
-    const findings = [];
-    if (location.protocol === "https:") {
-      document.querySelectorAll("script[src^='http:'], link[href^='http:'], img[src^='http:'], iframe[src^='http:']").forEach((el) => {
-        const src = el.src || el.href || "";
-        if (src.startsWith("http:")) {
-          findings.push({ type: "mixed-content", tag: el.tagName, src: src.slice(0, 80), risk: "MEDIUM" });
+    return _NR_SAFE.safeArr(() => {
+      if (!_NR_SAFE.domReady()) return [];
+      const findings = [];
+      if (location.protocol === "https:") {
+        _NR_SAFE.queryAll("script[src^='http:'], link[href^='http:'], img[src^='http:'], iframe[src^='http:']", 1000).forEach((el) => {
+          const src = el.src || el.href || "";
+          if (src.startsWith("http:")) {
+            findings.push({ type: "mixed-content", tag: el.tagName, src: src.slice(0, 80), risk: "MEDIUM" });
+          }
+        });
+      }
+      _NR_SAFE.queryAll("a[href^='http:']", 2000).forEach((a) => {
+        if (location.protocol === "https:") {
+          findings.push({ type: "http-link-on-https", href: a.href.slice(0, 80), risk: "LOW" });
         }
       });
-    }
-    document.querySelectorAll("a[href^='http:']").forEach((a) => {
-      if (location.protocol === "https:") {
-        findings.push({ type: "http-link-on-https", href: a.href.slice(0, 80), risk: "LOW" });
-      }
-    });
-    return findings;
+      return findings;
+    }, "scanMixedContent");
   }
 
   // Enhancement N6: Detect third-party script risks
   function scanThirdPartyScripts() {
-    const findings = [];
-    const ownDomain = location.hostname;
-    document.querySelectorAll("script[src]").forEach((s) => {
-      try {
-        const u = new URL(s.src);
-        if (u.hostname !== ownDomain) {
-          const isKnownCDN = /cdn\.|unpkg\.|jsdelivr\.|cloudflare\.|googleapis\.|bootstrapcdn\./i.test(u.hostname);
-          findings.push({ type: "third-party-script", src: s.src.slice(0, 100), knownCDN: isKnownCDN, risk: isKnownCDN ? "LOW" : "MEDIUM" });
-        }
-      } catch (_) {}
-    });
-    document.querySelectorAll("iframe[src]").forEach((f) => {
-      try {
-        const u = new URL(f.src);
-        if (u.hostname !== ownDomain) {
-          findings.push({ type: "third-party-iframe", src: f.src.slice(0, 100), risk: "MEDIUM" });
-        }
-      } catch (_) {}
-    });
-    return findings;
+    return _NR_SAFE.safeArr(() => {
+      if (!_NR_SAFE.domReady()) return [];
+      const findings = [];
+      const ownDomain = location.hostname;
+      _NR_SAFE.queryAll("script[src]", 500).forEach((s) => {
+        try {
+          const u = new URL(s.src);
+          if (u.hostname !== ownDomain) {
+            const isKnownCDN = /cdn\.|unpkg\.|jsdelivr\.|cloudflare\.|googleapis\.|bootstrapcdn\./i.test(u.hostname);
+            findings.push({ type: "third-party-script", src: s.src.slice(0, 100), knownCDN: isKnownCDN, risk: isKnownCDN ? "LOW" : "MEDIUM" });
+          }
+        } catch (_) {}
+      });
+      _NR_SAFE.queryAll("iframe[src]", 200).forEach((f) => {
+        try {
+          const u = new URL(f.src);
+          if (u.hostname !== ownDomain) {
+            findings.push({ type: "third-party-iframe", src: f.src.slice(0, 100), risk: "MEDIUM" });
+          }
+        } catch (_) {}
+      });
+      return findings;
+    }, "scanThirdPartyScripts");
   }
 
   // Enhancement N7: Detect insecure form actions
   function scanInsecureFormActions() {
-    const findings = [];
-    document.querySelectorAll("form").forEach((f) => {
-      const action = f.action || location.href;
-      if (action.startsWith("http:") && location.protocol === "https:") {
-        findings.push({ type: "http-form-action", action: action.slice(0, 80), method: (f.method || "GET").toUpperCase(), risk: "HIGH" });
-      }
-      if (action.startsWith("javascript:")) {
-        findings.push({ type: "javascript-form-action", action: action.slice(0, 80), risk: "CRITICAL" });
-      }
-      const target = f.getAttribute("target") || "";
-      if (target === "_blank" && !f.getAttribute("rel")?.includes("noopener")) {
-        findings.push({ type: "target-blank-noopener", action: action.slice(0, 80), risk: "LOW" });
-      }
-    });
-    return findings;
+    return _NR_SAFE.safeArr(() => {
+      if (!_NR_SAFE.domReady()) return [];
+      const findings = [];
+      _NR_SAFE.queryAll("form", 200).forEach((f) => {
+        try {
+          const action = f.action || location.href;
+          if (action.startsWith("http:") && location.protocol === "https:") {
+            findings.push({ type: "http-form-action", action: action.slice(0, 80), method: (f.method || "GET").toUpperCase(), risk: "HIGH" });
+          }
+          if (action.startsWith("javascript:")) {
+            findings.push({ type: "javascript-form-action", action: action.slice(0, 80), risk: "CRITICAL" });
+          }
+          const target = f.getAttribute("target") || "";
+          if (target === "_blank" && !f.getAttribute("rel")?.includes("noopener")) {
+            findings.push({ type: "target-blank-noopener", action: action.slice(0, 80), risk: "LOW" });
+          }
+        } catch (_) {}
+      });
+      return findings;
+    }, "scanInsecureFormActions");
   }
 
   // Enhancement N8: Detect inline script patterns
   function scanInlineScriptPatterns() {
-    const findings = [];
-    document.querySelectorAll("script:not([src])").forEach((s) => {
-      const code = s.textContent || "";
-      if (/document\.cookie/.test(code)) findings.push({ type: "cookie-access", risk: "MEDIUM", issue: "document.cookie access" });
-      if (/localStorage|sessionStorage/.test(code)) findings.push({ type: "storage-access", risk: "LOW", issue: "Web storage access" });
-      if (/navigator\.userAgent/.test(code)) findings.push({ type: "ua-spoofing-potential", risk: "LOW", issue: "UserAgent access (spoofing potential)" });
-      if (/\.execCommand|\.paste|clipboard/.test(code)) findings.push({ type: "clipboard-access", risk: "MEDIUM", issue: "Clipboard/execCommand usage" });
-      if (/WebSocket|EventSource/.test(code)) findings.push({ type: "ws-es-in-script", risk: "INFO", issue: "WebSocket/EventSource in inline script" });
-      if (/atob|btoa|TextDecoder|TextEncoder/.test(code)) findings.push({ type: "encoding-func", risk: "INFO", issue: "Encoding/decoding functions" });
-    });
-    return findings;
+    return _NR_SAFE.safeArr(() => {
+      if (!_NR_SAFE.domReady()) return [];
+      const findings = [];
+      _NR_SAFE.queryAll("script:not([src])", 200).forEach((s) => {
+        const code = s.textContent || "";
+        if (/document\.cookie/.test(code)) findings.push({ type: "cookie-access", risk: "MEDIUM", issue: "document.cookie access" });
+        if (/localStorage|sessionStorage/.test(code)) findings.push({ type: "storage-access", risk: "LOW", issue: "Web storage access" });
+        if (/navigator\.userAgent/.test(code)) findings.push({ type: "ua-spoofing-potential", risk: "LOW", issue: "UserAgent access (spoofing potential)" });
+        if (/\.execCommand|\.paste|clipboard/.test(code)) findings.push({ type: "clipboard-access", risk: "MEDIUM", issue: "Clipboard/execCommand usage" });
+        if (/WebSocket|EventSource/.test(code)) findings.push({ type: "ws-es-in-script", risk: "INFO", issue: "WebSocket/EventSource in inline script" });
+        if (/atob|btoa|TextDecoder|TextEncoder/.test(code)) findings.push({ type: "encoding-func", risk: "INFO", issue: "Encoding/decoding functions" });
+      });
+      return findings;
+    }, "scanInlineScriptPatterns");
   }
 
   // Enhancement N9: Detect password manager bypass risks
   function scanPasswordManagerRisks() {
-    const findings = [];
-    document.querySelectorAll("input[type='password']").forEach((p) => {
-      const form = p.form;
-      if (form) {
-        const hasAutocompleteOff = form.getAttribute("autocomplete") === "off" || p.getAttribute("autocomplete") === "off";
-        if (hasAutocompleteOff) {
-          findings.push({ type: "autocomplete-off", name: p.name || "unnamed", risk: "LOW", issue: "Autocomplete disabled (password manager bypass)" });
-        }
-        const emailField = form.querySelector("input[type='email'], input[name*='email'], input[name*='user']");
-        if (!emailField) {
-          findings.push({ type: "no-username-field", name: p.name || "unnamed", risk: "INFO", issue: "Password field without visible username field" });
-        }
-      }
-    });
-    return findings;
+    return _NR_SAFE.safeArr(() => {
+      if (!_NR_SAFE.domReady()) return [];
+      const findings = [];
+      _NR_SAFE.queryAll("input[type='password']", 100).forEach((p) => {
+        try {
+          const form = p.form;
+          if (form) {
+            const hasAutocompleteOff = form.getAttribute("autocomplete") === "off" || p.getAttribute("autocomplete") === "off";
+            if (hasAutocompleteOff) {
+              findings.push({ type: "autocomplete-off", name: p.name || "unnamed", risk: "LOW", issue: "Autocomplete disabled (password manager bypass)" });
+            }
+            const emailField = form.querySelector("input[type='email'], input[name*='email'], input[name*='user']");
+            if (!emailField) {
+              findings.push({ type: "no-username-field", name: p.name || "unnamed", risk: "INFO", issue: "Password field without visible username field" });
+            }
+          }
+        } catch (_) {}
+      });
+      return findings;
+    }, "scanPasswordManagerRisks");
   }
 
   // Enhancement N10: Comprehensive vulnerability summary
   function scanVulnerabilitySummary() {
-    const summary = {
-      cors: scanCORS(),
-      debugEndpoints: scanDebugEndpoints(),
-      infoDisclosure: scanInfoDisclosure(),
-      framework: scanFrameworkPatterns(),
-      mixedContent: scanMixedContent(),
-      thirdParty: scanThirdPartyScripts(),
-      formActions: scanInsecureFormActions(),
-      inlineScripts: scanInlineScriptPatterns(),
-      passwordRisks: scanPasswordManagerRisks(),
-    };
-    const totals = {};
-    let totalFindings = 0;
-    Object.entries(summary).forEach(([category, findings]) => {
-      totals[category] = findings.length;
-      totalFindings += findings.length;
-    });
-    console.log("=== Vulnerability Summary ===");
-    console.table(Object.entries(totals).map(([cat, count]) => ({ category: cat, findings: count })));
-    console.log(`Total findings: ${totalFindings}`);
-    Object.entries(summary).forEach(([cat, findings]) => {
-      if (findings.length > 0) {
-        console.groupCollapsed(`[${cat}] ${findings.length} findings`);
-        console.table(findings);
-        console.groupEnd();
-      }
-    });
-    return { summary: totals, total: totalFindings, details: summary };
+    return _NR_SAFE.safe(() => {
+      const summary = {};
+      const scans = [
+        ["cors", scanCORS], ["debugEndpoints", scanDebugEndpoints],
+        ["infoDisclosure", scanInfoDisclosure], ["framework", scanFrameworkPatterns],
+        ["mixedContent", scanMixedContent], ["thirdParty", scanThirdPartyScripts],
+        ["formActions", scanInsecureFormActions], ["inlineScripts", scanInlineScriptPatterns],
+        ["passwordRisks", scanPasswordManagerRisks],
+      ];
+      scans.forEach(([name, fn]) => {
+        try { summary[name] = fn(); } catch (_) { summary[name] = []; }
+      });
+      const totals = {};
+      let totalFindings = 0;
+      Object.entries(summary).forEach(([category, findings]) => {
+        totals[category] = findings.length;
+        totalFindings += findings.length;
+      });
+      console.log("=== Vulnerability Summary ===");
+      console.table(Object.entries(totals).map(([cat, count]) => ({ category: cat, findings: count })));
+      console.log(`Total findings: ${totalFindings}`);
+      Object.entries(summary).forEach(([cat, findings]) => {
+        if (findings.length > 0) {
+          console.groupCollapsed(`[${cat}] ${findings.length} findings`);
+          console.table(findings);
+          console.groupEnd();
+        }
+      });
+      return { summary: totals, total: totalFindings, details: summary };
+    }, "scanVulnerabilitySummary") || { summary: {}, total: 0, details: {} };
   }
 
   // ---------------------------

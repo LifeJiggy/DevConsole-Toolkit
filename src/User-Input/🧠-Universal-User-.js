@@ -4220,368 +4220,460 @@
   // 20 ENHANCEMENTS - Advanced Security Analysis Functions
   // ===================================================================
 
+  // --- Hardening utilities ---
+  const _HARDEN = {
+    MAX_ELEMENTS: 5000,
+    safe(fn, label) {
+      try {
+        return fn();
+      } catch (e) {
+        console.warn(`[Harden] ${label} failed:`, e.message || e);
+        return undefined;
+      }
+    },
+    safeArr(fn, label) {
+      const r = this.safe(fn, label);
+      return Array.isArray(r) ? r : [];
+    },
+    domReady() {
+      return !!(document && document.body && document.querySelectorAll);
+    },
+    queryAll(selector, limit) {
+      if (!this.domReady()) return [];
+      try {
+        const els = document.querySelectorAll(selector);
+        const max = limit || this.MAX_ELEMENTS;
+        return Array.from(els).slice(0, max);
+      } catch (_) {
+        return [];
+      }
+    },
+    freshRegex(pattern) {
+      return new RegExp(pattern.source, pattern.flags);
+    },
+  };
+
   // Enhancement 1: Detect dangerous DOM sinks (eval, innerHTML, document.write, etc.)
   function detectDangerousSinks() {
-    console.log("sink === Detecting Dangerous DOM Sinks ===");
-    const sinks = [];
-    const sinkPatterns = [
-      { pattern: /\beval\s*\(/gi, name: "eval()", risk: "CRITICAL" },
-      { pattern: /\bFunction\s*\(/gi, name: "Function()", risk: "CRITICAL" },
-      { pattern: /\.innerHTML\s*=/gi, name: "innerHTML=", risk: "HIGH" },
-      { pattern: /\.outerHTML\s*=/gi, name: "outerHTML=", risk: "HIGH" },
-      { pattern: /document\.write\s*\(/gi, name: "document.write()", risk: "HIGH" },
-      { pattern: /document\.writeln\s*\(/gi, name: "document.writeln()", risk: "HIGH" },
-      { pattern: /\.insertAdjacentHTML\s*\(/gi, name: "insertAdjacentHTML()", risk: "HIGH" },
-      { pattern: /\.srcdoc\s*=/gi, name: "srcdoc=", risk: "HIGH" },
-      { pattern: /\.href\s*=\s*['"]javascript:/gi, name: "javascript: href", risk: "CRITICAL" },
-      { pattern: /setTimeout\s*\(\s*['"]/gi, name: "setTimeout(string)", risk: "HIGH" },
-      { pattern: /setInterval\s*\(\s*['"]/gi, name: "setInterval(string)", risk: "HIGH" },
-      { pattern: /\.dataset\s*\[/gi, name: "dataset[]", risk: "MEDIUM" },
-      { pattern: /window\.location\s*=/gi, name: "location=", risk: "MEDIUM" },
-      { pattern: /location\.assign\s*\(/gi, name: "location.assign()", risk: "MEDIUM" },
-      { pattern: /location\.replace\s*\(/gi, name: "location.replace()", risk: "MEDIUM" },
-      { pattern: /\.postMessage\s*\(/gi, name: "postMessage()", risk: "MEDIUM" },
-    ];
-    document.querySelectorAll("script:not([src])").forEach((scr) => {
-      const code = scr.textContent || "";
-      sinkPatterns.forEach(({ pattern, name, risk }) => {
-        if (pattern.test(code)) {
-          const matches = code.match(pattern) || [];
-          sinks.push({ type: "script", sink: name, count: matches.length, risk });
-        }
+    return _HARDEN.safeArr(() => {
+      if (!_HARDEN.domReady()) return [];
+      console.log("sink === Detecting Dangerous DOM Sinks ===");
+      const sinks = [];
+      const sinkPatterns = [
+        { name: "eval()", risk: "CRITICAL", src: /\beval\s*\(/i },
+        { name: "Function()", risk: "CRITICAL", src: /\bFunction\s*\(/i },
+        { name: "innerHTML=", risk: "HIGH", src: /\.innerHTML\s*=/i },
+        { name: "outerHTML=", risk: "HIGH", src: /\.outerHTML\s*=/i },
+        { name: "document.write()", risk: "HIGH", src: /document\.write\s*\(/i },
+        { name: "document.writeln()", risk: "HIGH", src: /document\.writeln\s*\(/i },
+        { name: "insertAdjacentHTML()", risk: "HIGH", src: /\.insertAdjacentHTML\s*\(/i },
+        { name: "srcdoc=", risk: "HIGH", src: /\.srcdoc\s*=/i },
+        { name: "javascript: href", risk: "CRITICAL", src: /\.href\s*=\s*['"]javascript:/i },
+        { name: "setTimeout(string)", risk: "HIGH", src: /setTimeout\s*\(\s*['"]/i },
+        { name: "setInterval(string)", risk: "HIGH", src: /setInterval\s*\(\s*['"]/i },
+        { name: "dataset[]", risk: "MEDIUM", src: /\.dataset\s*\[/i },
+        { name: "location=", risk: "MEDIUM", src: /window\.location\s*=/i },
+        { name: "location.assign()", risk: "MEDIUM", src: /location\.assign\s*\(/i },
+        { name: "location.replace()", risk: "MEDIUM", src: /location\.replace\s*\(/i },
+        { name: "postMessage()", risk: "MEDIUM", src: /\.postMessage\s*\(/i },
+      ];
+      const scripts = _HARDEN.queryAll("script:not([src])", 200);
+      scripts.forEach((scr) => {
+        const code = scr.textContent || "";
+        sinkPatterns.forEach(({ src, name, risk }) => {
+          const re = _HARDEN.freshRegex(src);
+          if (re.test(code)) {
+            const matches = code.match(_HARDEN.freshRegex(src)) || [];
+            sinks.push({ type: "script", sink: name, count: matches.length, risk });
+          }
+        });
       });
-    });
-    document.querySelectorAll("[onclick],[onload],[onerror],[onmouseover],[onfocus],[onblur],[onchange],[onsubmit],[oninput],[onkeydown],[onkeyup]").forEach((el) => {
-      Array.from(el.attributes).forEach((attr) => {
-        if (/^on[a-z]+$/i.test(attr.name)) {
-          const val = attr.value || "";
-          sinkPatterns.forEach(({ pattern, name, risk }) => {
-            if (pattern.test(val)) {
-              sinks.push({ type: "inline-handler", element: el.tagName, attr: attr.name, sink: name, risk });
-            }
-          });
-        }
+      const handlers = _HARDEN.queryAll("[onclick],[onload],[onerror],[onmouseover],[onfocus],[onblur],[onchange],[onsubmit],[oninput],[onkeydown],[onkeyup]", 500);
+      handlers.forEach((el) => {
+        Array.from(el.attributes).forEach((attr) => {
+          if (/^on[a-z]+$/i.test(attr.name)) {
+            const val = attr.value || "";
+            sinkPatterns.forEach(({ src, name, risk }) => {
+              if (_HARDEN.freshRegex(src).test(val)) {
+                sinks.push({ type: "inline-handler", element: el.tagName, attr: attr.name, sink: name, risk });
+              }
+            });
+          }
+        });
       });
-    });
-    console.log(`sink Found ${sinks.length} dangerous sink usages`);
-    if (sinks.length) console.table(sinks);
-    return sinks;
+      console.log(`sink Found ${sinks.length} dangerous sink usages`);
+      if (sinks.length) console.table(sinks);
+      return sinks;
+    }, "detectDangerousSinks");
   }
   window.detectDangerousSinks = detectDangerousSinks;
 
   // Enhancement 2: Detect SSRF patterns (internal URLs, IPs, localhost)
   function detectSSRFPatterns() {
-    console.log("ssrf === Detecting SSRF Patterns ===");
-    const findings = [];
-    const ssrfRegex = /(?:https?:\/\/)?(?:localhost|127\.0\.0\.1|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|\[::1\]|metadata\.google\.internal|169\.254\.169\.254)/gi;
-    const allElements = document.querySelectorAll("input, textarea, a[href], form[action], script[src], img[src], iframe[src]");
-    allElements.forEach((el) => {
-      const values = [el.value, el.getAttribute("action"), el.getAttribute("href"), el.getAttribute("src"), el.getAttribute("data-url")].filter(Boolean);
-      values.forEach((val) => {
-        if (val && ssrfRegex.test(val)) {
-          findings.push({ element: el.tagName, name: el.name || el.id || "unknown", value: val.slice(0, 100), pattern: "Internal URL/IP detected" });
-        }
+    return _HARDEN.safeArr(() => {
+      if (!_HARDEN.domReady()) return [];
+      console.log("ssrf === Detecting SSRF Patterns ===");
+      const findings = [];
+      const ssrfBase = /(?:https?:\/\/)?(?:localhost|127\.0\.0\.1|0\.0\.0\.0|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+|192\.168\.\d+\.\d+|169\.254\.\d+\.\d+|\[::1\]|metadata\.google\.internal|169\.254\.169\.254)/i;
+      const allElements = _HARDEN.queryAll("input, textarea, a[href], form[action], script[src], img[src], iframe[src]", 3000);
+      allElements.forEach((el) => {
+        const values = [el.value, el.getAttribute("action"), el.getAttribute("href"), el.getAttribute("src"), el.getAttribute("data-url")].filter(Boolean);
+        values.forEach((val) => {
+          if (val && _HARDEN.freshRegex(ssrfBase).test(val)) {
+            findings.push({ element: el.tagName, name: el.name || el.id || "unknown", value: val.slice(0, 100), pattern: "Internal URL/IP detected" });
+          }
+        });
       });
-    });
-    document.querySelectorAll("script:not([src])").forEach((scr) => {
-      const code = scr.textContent || "";
-      const matches = code.match(ssrfRegex) || [];
-      matches.forEach((m) => {
-        findings.push({ element: "script", value: m, pattern: "Internal URL in script" });
+      const scripts = _HARDEN.queryAll("script:not([src])", 200);
+      scripts.forEach((scr) => {
+        const code = scr.textContent || "";
+        const matches = code.match(_HARDEN.freshRegex(ssrfBase)) || [];
+        matches.forEach((m) => {
+          findings.push({ element: "script", value: m, pattern: "Internal URL in script" });
+        });
       });
-    });
-    console.log(`ssrf Found ${findings.length} SSRF patterns`);
-    if (findings.length) console.table(findings);
-    return findings;
+      console.log(`ssrf Found ${findings.length} SSRF patterns`);
+      if (findings.length) console.table(findings);
+      return findings;
+    }, "detectSSRFPatterns");
   }
   window.detectSSRFPatterns = detectSSRFPatterns;
 
   // Enhancement 3: Detect CSRF protection status
   function detectCSRFProtection() {
-    console.log("csrf === Detecting CSRF Protection ===");
-    const results = [];
-    document.querySelectorAll("form").forEach((form) => {
-      const method = (form.method || "GET").toUpperCase();
-      const hasToken = form.querySelector('input[name*="csrf"],input[name*="token"],input[name*="_token"],input[name*="authenticity"],input[name*="nonce"],input[name*="xsrf"],input[type="hidden"][name*="token"]');
-      const hasCustomHeader = false;
-      const action = form.action || location.href;
-      results.push({
-        action: action.slice(0, 80),
-        method,
-        hasCSRFToken: !!hasToken,
-        tokenField: hasToken ? hasToken.name : null,
-        risk: method !== "GET" && !hasToken ? "HIGH" : method !== "GET" && hasToken ? "LOW" : "INFO",
+    return _HARDEN.safeArr(() => {
+      if (!_HARDEN.domReady()) return [];
+      console.log("csrf === Detecting CSRF Protection ===");
+      const results = [];
+      _HARDEN.queryAll("form", 200).forEach((form) => {
+        try {
+          const method = (form.method || "GET").toUpperCase();
+          const hasToken = form.querySelector('input[name*="csrf"],input[name*="token"],input[name*="_token"],input[name*="authenticity"],input[name*="nonce"],input[name*="xsrf"],input[type="hidden"][name*="token"]');
+          const action = form.action || location.href;
+          results.push({
+            action: action.slice(0, 80),
+            method,
+            hasCSRFToken: !!hasToken,
+            tokenField: hasToken ? hasToken.name : null,
+            risk: method !== "GET" && !hasToken ? "HIGH" : method !== "GET" && hasToken ? "LOW" : "INFO",
+          });
+        } catch (_) {}
       });
-    });
-    console.log(`csrf Analyzed ${results.length} forms`);
-    if (results.length) console.table(results);
-    return results;
+      console.log(`csrf Analyzed ${results.length} forms`);
+      if (results.length) console.table(results);
+      return results;
+    }, "detectCSRFProtection");
   }
   window.detectCSRFProtection = detectCSRFProtection;
 
   // Enhancement 4: Analyze token entropy in hidden fields
   function analyzeTokenEntropy() {
-    console.log("entropy === Analyzing Token Entropy ===");
-    const findings = [];
-    document.querySelectorAll('input[type="hidden"], input:not([type])').forEach((el) => {
-      const val = el.value || "";
-      if (val.length < 8) return;
-      const uniqueChars = new Set(val).size;
-      const entropy = Math.log2(Math.pow(uniqueChars, val.length)) || 0;
-      const hasAlpha = /[a-zA-Z]/.test(val);
-      const hasNum = /[0-9]/.test(val);
-      const hasSpecial = /[^a-zA-Z0-9]/.test(val);
-      const isHighEntropy = entropy > 40 && val.length > 16;
-      const isToken = /token|session|jwt|auth|key|secret|nonce|csrf/i.test(el.name || el.id || "");
-      if (isHighEntropy || isToken) {
-        findings.push({
-          name: el.name || "unnamed",
-          id: el.id || "no-id",
-          length: val.length,
-          uniqueChars,
-          entropy: Math.round(entropy),
-          format: `${hasAlpha ? "A" : ""}${hasNum ? "N" : ""}${hasSpecial ? "S" : ""}`,
-          risk: isHighEntropy && isToken ? "HIGH" : isHighEntropy ? "MEDIUM" : "INFO",
-          preview: val.slice(0, 8) + "...",
-        });
-      }
-    });
-    console.log(`entropy Found ${findings.length} high-entropy/token fields`);
-    if (findings.length) console.table(findings);
-    return findings;
+    return _HARDEN.safeArr(() => {
+      if (!_HARDEN.domReady()) return [];
+      console.log("entropy === Analyzing Token Entropy ===");
+      const findings = [];
+      _HARDEN.queryAll('input[type="hidden"], input:not([type])', 1000).forEach((el) => {
+        try {
+          const val = el.value || "";
+          if (val.length < 8) return;
+          const uniqueChars = new Set(val).size;
+          const safeLen = Math.min(val.length, 200);
+          const entropy = uniqueChars > 0 ? Math.log2(Math.pow(uniqueChars, safeLen)) : 0;
+          if (!isFinite(entropy)) return;
+          const hasAlpha = /[a-zA-Z]/.test(val);
+          const hasNum = /[0-9]/.test(val);
+          const hasSpecial = /[^a-zA-Z0-9]/.test(val);
+          const isHighEntropy = entropy > 40 && val.length > 16;
+          const isToken = /token|session|jwt|auth|key|secret|nonce|csrf/i.test(el.name || el.id || "");
+          if (isHighEntropy || isToken) {
+            findings.push({
+              name: el.name || "unnamed",
+              id: el.id || "no-id",
+              length: val.length,
+              uniqueChars,
+              entropy: Math.round(entropy),
+              format: `${hasAlpha ? "A" : ""}${hasNum ? "N" : ""}${hasSpecial ? "S" : ""}`,
+              risk: isHighEntropy && isToken ? "HIGH" : isHighEntropy ? "MEDIUM" : "INFO",
+              preview: val.slice(0, 8) + "...",
+            });
+          }
+        } catch (_) {}
+      });
+      console.log(`entropy Found ${findings.length} high-entropy/token fields`);
+      if (findings.length) console.table(findings);
+      return findings;
+    }, "analyzeTokenEntropy");
   }
   window.analyzeTokenEntropy = analyzeTokenEntropy;
 
   // Enhancement 5: Detect open redirect patterns
   function detectOpenRedirects() {
-    console.log("redirect === Detecting Open Redirect Patterns ===");
-    const findings = [];
-    const redirectParams = ["redirect", "redirect_url", "redirect_uri", "return", "return_to", "next", "url", "goto", "target", "dest", "destination", "redir", "continue", "rurl"];
-    const forms = document.querySelectorAll("form");
-    forms.forEach((form) => {
-      const action = form.action || "";
-      redirectParams.forEach((param) => {
-        if (action.toLowerCase().includes(param)) {
-          findings.push({ type: "form-action", action: action.slice(0, 100), param, risk: "MEDIUM" });
-        }
+    return _HARDEN.safeArr(() => {
+      if (!_HARDEN.domReady()) return [];
+      console.log("redirect === Detecting Open Redirect Patterns ===");
+      const findings = [];
+      const redirectParams = ["redirect", "redirect_url", "redirect_uri", "return", "return_to", "next", "url", "goto", "target", "dest", "destination", "redir", "continue", "rurl"];
+      _HARDEN.queryAll("form", 200).forEach((form) => {
+        try {
+          const action = (form.action || "").toLowerCase();
+          redirectParams.forEach((param) => {
+            if (action.includes(param)) {
+              findings.push({ type: "form-action", action: form.action.slice(0, 100), param, risk: "MEDIUM" });
+            }
+          });
+        } catch (_) {}
       });
-    });
-    document.querySelectorAll("a[href]").forEach((a) => {
-      const href = a.href || "";
-      redirectParams.forEach((param) => {
-        if (href.toLowerCase().includes(param + "=")) {
-          findings.push({ type: "link", href: href.slice(0, 100), param, risk: "MEDIUM" });
-        }
+      _HARDEN.queryAll("a[href]", 2000).forEach((a) => {
+        try {
+          const href = (a.href || "").toLowerCase();
+          redirectParams.forEach((param) => {
+            if (href.includes(param + "=")) {
+              findings.push({ type: "link", href: a.href.slice(0, 100), param, risk: "MEDIUM" });
+            }
+          });
+        } catch (_) {}
       });
-    });
-    document.querySelectorAll("script:not([src])").forEach((scr) => {
-      const code = scr.textContent || "";
-      redirectParams.forEach((param) => {
-        if (code.includes(param)) {
-          findings.push({ type: "script", param, risk: "LOW" });
-        }
+      _HARDEN.queryAll("script:not([src])", 200).forEach((scr) => {
+        const code = scr.textContent || "";
+        redirectParams.forEach((param) => {
+          if (code.includes(param)) {
+            findings.push({ type: "script", param, risk: "LOW" });
+          }
+        });
       });
-    });
-    console.log(`redirect Found ${findings.length} open redirect patterns`);
-    if (findings.length) console.table(findings);
-    return findings;
+      console.log(`redirect Found ${findings.length} open redirect patterns`);
+      if (findings.length) console.table(findings);
+      return findings;
+    }, "detectOpenRedirects");
   }
   window.detectOpenRedirects = detectOpenRedirects;
 
   // Enhancement 6: Detect DOM clobbering vectors
   function detectDOMClobbering() {
-    console.log("clobber === Detecting DOM Clobbering Vectors ===");
-    const findings = [];
-    document.querySelectorAll("[id],[name]").forEach((el) => {
-      const id = el.id || "";
-      const name = el.name || "";
+    return _HARDEN.safeArr(() => {
+      if (!_HARDEN.domReady()) return [];
+      console.log("clobber === Detecting DOM Clobbering Vectors ===");
+      const findings = [];
       const dangerousNames = ["__proto__", "constructor", "prototype", "window", "document", "location", "top", "self", "parent", "frames", "opener"];
-      [id, name].forEach((n) => {
-        if (n && dangerousNames.includes(n)) {
-          findings.push({ tag: el.tagName, id, name, risk: "CRITICAL", issue: "Prototype polluting name" });
-        } else if (n && n.includes(".") && !n.startsWith("data-")) {
-          findings.push({ tag: el.tagName, id, name, risk: "MEDIUM", issue: "Dot in name (property access)" });
-        }
+      _HARDEN.queryAll("[id],[name]", 3000).forEach((el) => {
+        try {
+          const id = el.id || "";
+          const name = el.name || "";
+          [id, name].forEach((n) => {
+            if (n && dangerousNames.includes(n)) {
+              findings.push({ tag: el.tagName, id, name, risk: "CRITICAL", issue: "Prototype polluting name" });
+            } else if (n && n.includes(".") && !n.startsWith("data-")) {
+              findings.push({ tag: el.tagName, id, name, risk: "MEDIUM", issue: "Dot in name (property access)" });
+            }
+          });
+        } catch (_) {}
       });
-    });
-    document.querySelectorAll("a[id], form[id], img[id]").forEach((el) => {
-      const id = el.id || "";
-      if (id && (id === "length" || id === "item" || id === "namedItem")) {
-        findings.push({ tag: el.tagName, id, risk: "HIGH", issue: "Overriding built-in property" });
-      }
-    });
-    console.log(`clobber Found ${findings.length} DOM clobbering vectors`);
-    if (findings.length) console.table(findings);
-    return findings;
+      _HARDEN.queryAll("a[id], form[id], img[id]", 1000).forEach((el) => {
+        try {
+          const id = el.id || "";
+          if (id && (id === "length" || id === "item" || id === "namedItem")) {
+            findings.push({ tag: el.tagName, id, risk: "HIGH", issue: "Overriding built-in property" });
+          }
+        } catch (_) {}
+      });
+      console.log(`clobber Found ${findings.length} DOM clobbering vectors`);
+      if (findings.length) console.table(findings);
+      return findings;
+    }, "detectDOMClobbering");
   }
   window.detectDOMClobbering = detectDOMClobbering;
 
   // Enhancement 7: Detect prototype pollution sinks
   function detectPrototypePollution() {
-    console.log("proto === Detecting Prototype Pollution Sinks ===");
-    const findings = [];
-    const patterns = [
-      { regex: /__proto__\s*\[/g, name: "__proto__[]", risk: "CRITICAL" },
-      { regex: /constructor\s*\[/g, name: "constructor[]", risk: "CRITICAL" },
-      { regex: /Object\.assign\s*\(/g, name: "Object.assign()", risk: "MEDIUM" },
-      { regex: /\.merge\s*\(/g, name: ".merge()", risk: "MEDIUM" },
-      { regex: /\.\.\.\s*\w+/g, name: "spread operator", risk: "LOW" },
-      { regex: /JSON\.parse\s*\(/g, name: "JSON.parse()", risk: "INFO" },
-    ];
-    document.querySelectorAll("script:not([src])").forEach((scr) => {
-      const code = scr.textContent || "";
-      patterns.forEach(({ regex, name, risk }) => {
-        const re = new RegExp(regex.source, regex.flags);
-        const matches = code.match(re) || [];
-        if (matches.length > 0) {
-          findings.push({ type: "script", sink: name, count: matches.length, risk });
-        }
+    return _HARDEN.safeArr(() => {
+      if (!_HARDEN.domReady()) return [];
+      console.log("proto === Detecting Prototype Pollution Sinks ===");
+      const findings = [];
+      const patterns = [
+        { src: /__proto__\s*\[/g, name: "__proto__[]", risk: "CRITICAL" },
+        { src: /constructor\s*\[/g, name: "constructor[]", risk: "CRITICAL" },
+        { src: /Object\.assign\s*\(/g, name: "Object.assign()", risk: "MEDIUM" },
+        { src: /\.merge\s*\(/g, name: ".merge()", risk: "MEDIUM" },
+        { src: /\.\.\.\s*\w+/g, name: "spread operator", risk: "LOW" },
+        { src: /JSON\.parse\s*\(/g, name: "JSON.parse()", risk: "INFO" },
+      ];
+      _HARDEN.queryAll("script:not([src])", 200).forEach((scr) => {
+        const code = scr.textContent || "";
+        patterns.forEach(({ src, name, risk }) => {
+          const re = _HARDEN.freshRegex(src);
+          const matches = code.match(re) || [];
+          if (matches.length > 0) {
+            findings.push({ type: "script", sink: name, count: matches.length, risk });
+          }
+        });
       });
-    });
-    document.querySelectorAll("input, textarea").forEach((el) => {
-      const val = el.value || "";
-      if (val.includes("__proto__") || val.includes("constructor")) {
-        findings.push({ type: "input-value", name: el.name || "unnamed", value: val.slice(0, 60), risk: "HIGH" });
-      }
-    });
-    console.log(`proto Found ${findings.length} prototype pollution sinks`);
-    if (findings.length) console.table(findings);
-    return findings;
+      _HARDEN.queryAll("input, textarea", 1000).forEach((el) => {
+        try {
+          const val = el.value || "";
+          if (val.includes("__proto__") || val.includes("constructor")) {
+            findings.push({ type: "input-value", name: el.name || "unnamed", value: val.slice(0, 60), risk: "HIGH" });
+          }
+        } catch (_) {}
+      });
+      console.log(`proto Found ${findings.length} prototype pollution sinks`);
+      if (findings.length) console.table(findings);
+      return findings;
+    }, "detectPrototypePollution");
   }
   window.detectPrototypePollution = detectPrototypePollution;
 
   // Enhancement 8: Detect sanitization functions
   function detectSanitizationFunctions() {
-    console.log("sanitize === Detecting Sanitization Functions ===");
-    const findings = [];
-    const sanitizers = [
-      { regex: /\bDOMPurify\b/g, name: "DOMPurify" },
-      { regex: /\bsanitize\s*\(/g, name: "sanitize()" },
-      { regex: /\bescape\s*\(/g, name: "escape()" },
-      { regex: /\bencodeURI\s*\(/g, name: "encodeURI()" },
-      { regex: /\bencodeURIComponent\s*\(/g, name: "encodeURIComponent()" },
-      { regex: /\bhtmlspecialchars\b/g, name: "htmlspecialchars()" },
-      { regex: /\bhtmlEntities\b/g, name: "htmlEntities()" },
-      { regex: /\bxssFilters?\b/g, name: "xssFilter()" },
-      { regex: /\bpurify\b/gi, name: "purify" },
-      { regex: /\bsanitizeHTML\b/g, name: "sanitizeHTML()" },
-      { regex: /\bDOMPurify\.sanitize\b/g, name: "DOMPurify.sanitize()" },
-      { regex: /\bcreatePolicy\b/g, name: "Trusted Types createPolicy()" },
-    ];
-    document.querySelectorAll("script:not([src])").forEach((scr) => {
-      const code = scr.textContent || "";
-      sanitizers.forEach(({ regex, name }) => {
-        const re = new RegExp(regex.source, regex.flags);
-        if (re.test(code)) {
-          findings.push({ type: "script", sanitizer: name, risk: "INFO" });
+    return _HARDEN.safeArr(() => {
+      if (!_HARDEN.domReady()) return [];
+      console.log("sanitize === Detecting Sanitization Functions ===");
+      const findings = [];
+      const sanitizers = [
+        { src: /\bDOMPurify\b/, name: "DOMPurify" },
+        { src: /\bsanitize\s*\(/, name: "sanitize()" },
+        { src: /\bescape\s*\(/, name: "escape()" },
+        { src: /\bencodeURI\s*\(/, name: "encodeURI()" },
+        { src: /\bencodeURIComponent\s*\(/, name: "encodeURIComponent()" },
+        { src: /\bhtmlspecialchars\b/, name: "htmlspecialchars()" },
+        { src: /\bhtmlEntities\b/, name: "htmlEntities()" },
+        { src: /\bxssFilters?\b/, name: "xssFilter()" },
+        { src: /\bpurify\b/i, name: "purify" },
+        { src: /\bsanitizeHTML\b/, name: "sanitizeHTML()" },
+        { src: /\bDOMPurify\.sanitize\b/, name: "DOMPurify.sanitize()" },
+        { src: /\bcreatePolicy\b/, name: "Trusted Types createPolicy()" },
+      ];
+      _HARDEN.queryAll("script:not([src])", 200).forEach((scr) => {
+        const code = scr.textContent || "";
+        sanitizers.forEach(({ src, name }) => {
+          if (_HARDEN.freshRegex(src).test(code)) {
+            findings.push({ type: "script", sanitizer: name, risk: "INFO" });
+          }
+        });
+      });
+      _HARDEN.queryAll("script[src]", 500).forEach((scr) => {
+        const src = scr.src || "";
+        if (/purify|sanitize|dompurify/i.test(src)) {
+          findings.push({ type: "external-script", sanitizer: src.slice(0, 80), risk: "INFO" });
         }
       });
-    });
-    document.querySelectorAll("script[src]").forEach((scr) => {
-      const src = scr.src || "";
-      if (/purify|sanitize|dompurify/i.test(src)) {
-        findings.push({ type: "external-script", sanitizer: src.slice(0, 80), risk: "INFO" });
-      }
-    });
-    console.log(`sanitize Found ${findings.length} sanitization functions`);
-    if (findings.length) console.table(findings);
-    return findings;
+      console.log(`sanitize Found ${findings.length} sanitization functions`);
+      if (findings.length) console.table(findings);
+      return findings;
+    }, "detectSanitizationFunctions");
   }
   window.detectSanitizationFunctions = detectSanitizationFunctions;
 
   // Enhancement 9: Detect mass assignment risk (forms with many editable fields)
   function detectMassAssignment() {
-    console.log("massassign === Detecting Mass Assignment Risk ===");
-    const findings = [];
-    document.querySelectorAll("form").forEach((form) => {
-      const fields = form.querySelectorAll("input:not([type=submit]):not([type=button]):not([type=reset]):not([type=file]):not([type=image]), textarea, select");
-      const hiddenFields = form.querySelectorAll('input[type="hidden"]');
-      const editableFields = Array.from(fields).filter((f) => !f.disabled && f.readOnly !== true);
-      if (editableFields.length > 3) {
-        const fieldNames = editableFields.map((f) => f.name || f.id || "unnamed");
-        const sensitivePatterns = /admin|role|permission|is_admin|user_id|account|price|amount|discount|verified|active|status/i;
-        const sensitiveFields = fieldNames.filter((n) => sensitivePatterns.test(n));
-        findings.push({
-          action: (form.action || location.href).slice(0, 60),
-          method: (form.method || "GET").toUpperCase(),
-          totalFields: fields.length,
-          editableFields: editableFields.length,
-          hiddenFields: hiddenFields.length,
-          fieldNames: fieldNames.slice(0, 10).join(", "),
-          sensitiveFields: sensitiveFields.join(", "),
-          risk: sensitiveFields.length > 0 ? "HIGH" : editableFields.length > 8 ? "MEDIUM" : "LOW",
-        });
-      }
-    });
-    console.log(`massassign Found ${findings.length} mass assignment risks`);
-    if (findings.length) console.table(findings);
-    return findings;
+    return _HARDEN.safeArr(() => {
+      if (!_HARDEN.domReady()) return [];
+      console.log("massassign === Detecting Mass Assignment Risk ===");
+      const findings = [];
+      _HARDEN.queryAll("form", 200).forEach((form) => {
+        try {
+          const fields = form.querySelectorAll("input:not([type=submit]):not([type=button]):not([type=reset]):not([type=file]):not([type=image]), textarea, select");
+          const hiddenFields = form.querySelectorAll('input[type="hidden"]');
+          const editableFields = Array.from(fields).filter((f) => !f.disabled && f.readOnly !== true);
+          if (editableFields.length > 3) {
+            const sensitivePatterns = /admin|role|permission|is_admin|user_id|account|price|amount|discount|verified|active|status/i;
+            const fieldNames = editableFields.map((f) => f.name || f.id || "unnamed");
+            const sensitiveFields = fieldNames.filter((n) => sensitivePatterns.test(n));
+            findings.push({
+              action: (form.action || location.href).slice(0, 60),
+              method: (form.method || "GET").toUpperCase(),
+              totalFields: fields.length,
+              editableFields: editableFields.length,
+              hiddenFields: hiddenFields.length,
+              fieldNames: fieldNames.slice(0, 10).join(", "),
+              sensitiveFields: sensitiveFields.join(", "),
+              risk: sensitiveFields.length > 0 ? "HIGH" : editableFields.length > 8 ? "MEDIUM" : "LOW",
+            });
+          }
+        } catch (_) {}
+      });
+      console.log(`massassign Found ${findings.length} mass assignment risks`);
+      if (findings.length) console.table(findings);
+      return findings;
+    }, "detectMassAssignment");
   }
   window.detectMassAssignment = detectMassAssignment;
 
   // Enhancement 10: Discover API endpoints from forms/scripts
   function discoverAPIEndpoints() {
-    console.log("api === Discovering API Endpoints ===");
-    const endpoints = [];
-    document.querySelectorAll("form[action]").forEach((form) => {
-      const action = form.action;
-      if (action && !action.startsWith("javascript:") && action !== location.href) {
-        endpoints.push({ type: "form-action", method: (form.method || "GET").toUpperCase(), url: action, risk: "INFO" });
-      }
-    });
-    const apiRegex = /(?:fetch|XMLHttpRequest|\.ajax|axios|\.post|\.get|\.put|\.delete|\.patch)\s*\(\s*['"`]([^'"`]+)['"`]/g;
-    document.querySelectorAll("script:not([src])").forEach((scr) => {
-      const code = scr.textContent || "";
-      let match;
-      while ((match = apiRegex.exec(code)) !== null) {
-        endpoints.push({ type: "js-fetch", url: match[1].slice(0, 100), risk: "INFO" });
-      }
-    });
-    document.querySelectorAll("a[href^='http'], a[href^='/api'], a[href*='api.']").forEach((a) => {
-      const href = a.href || "";
-      if (/\/api\/|\/v\d+\/|\.json|graphql|endpoint/i.test(href)) {
-        endpoints.push({ type: "link", url: href.slice(0, 100), risk: "INFO" });
-      }
-    });
-    console.log(`api Found ${endpoints.length} API endpoints`);
-    if (endpoints.length) console.table(endpoints);
-    return endpoints;
+    return _HARDEN.safeArr(() => {
+      if (!_HARDEN.domReady()) return [];
+      console.log("api === Discovering API Endpoints ===");
+      const endpoints = [];
+      _HARDEN.queryAll("form[action]", 200).forEach((form) => {
+        try {
+          const action = form.action;
+          if (action && !action.startsWith("javascript:") && action !== location.href) {
+            endpoints.push({ type: "form-action", method: (form.method || "GET").toUpperCase(), url: action, risk: "INFO" });
+          }
+        } catch (_) {}
+      });
+      const apiRegex = /(?:fetch|XMLHttpRequest|\.ajax|axios|\.post|\.get|\.put|\.delete|\.patch)\s*\(\s*['"`]([^'"`]+)['"`]/g;
+      _HARDEN.queryAll("script:not([src])", 200).forEach((scr) => {
+        const code = scr.textContent || "";
+        let match;
+        const re = _HARDEN.freshRegex(apiRegex);
+        while ((match = re.exec(code)) !== null) {
+          endpoints.push({ type: "js-fetch", url: match[1].slice(0, 100), risk: "INFO" });
+        }
+      });
+      _HARDEN.queryAll("a[href^='http'], a[href^='/api'], a[href*='api.']", 2000).forEach((a) => {
+        try {
+          const href = a.href || "";
+          if (/\/api\/|\/v\d+\/|\.json|graphql|endpoint/i.test(href)) {
+            endpoints.push({ type: "link", url: href.slice(0, 100), risk: "INFO" });
+          }
+        } catch (_) {}
+      });
+      console.log(`api Found ${endpoints.length} API endpoints`);
+      if (endpoints.length) console.table(endpoints);
+      return endpoints;
+    }, "discoverAPIEndpoints");
   }
   window.discoverAPIEndpoints = discoverAPIEndpoints;
 
   // Enhancement 11: Enhanced MutationObserver for dynamic content
   function startDynamicContentTracker() {
-    if (window._dynamicTracker) {
-      console.log("tracker Already running. Use stopDynamicContentTracker() first.");
-      return;
-    }
-    const changes = [];
-    const handler = _upeThrottle((mutations) => {
-      mutations.forEach((m) => {
-        m.addedNodes.forEach((node) => {
-          if (node.nodeType === 1) {
-            const inputs = node.querySelectorAll ? node.querySelectorAll("input, textarea, select, [contenteditable]") : [];
-            inputs.forEach((el) => {
-              if (!inputMap.has(el)) {
-                extractAndWrapSingleInput(el, el.form || null);
-                changes.push({ time: Date.now(), action: "input-added", tag: el.tagName, name: el.name || "unnamed", id: el.id || "" });
-              }
-            });
-          }
+    return _HARDEN.safe(() => {
+      if (!_HARDEN.domReady()) { console.warn("tracker DOM not ready"); return; }
+      if (window._dynamicTracker) {
+        console.log("tracker Already running. Use stopDynamicContentTracker() first.");
+        return;
+      }
+      const changes = [];
+      const handler = _upeThrottle((mutations) => {
+        mutations.forEach((m) => {
+          m.addedNodes.forEach((node) => {
+            if (node.nodeType === 1) {
+              try {
+                const inputs = node.querySelectorAll ? node.querySelectorAll("input, textarea, select, [contenteditable]") : [];
+                inputs.forEach((el) => {
+                  if (!inputMap.has(el)) {
+                    extractAndWrapSingleInput(el, el.form || null);
+                    changes.push({ time: Date.now(), action: "input-added", tag: el.tagName, name: el.name || "unnamed", id: el.id || "" });
+                  }
+                });
+              } catch (_) {}
+            }
+          });
+          m.removedNodes.forEach((node) => {
+            if (node.nodeType === 1 && inputMap.has(node)) {
+              inputMap.delete(node);
+              changes.push({ time: Date.now(), action: "input-removed", tag: node.tagName, name: node.name || "unnamed" });
+            }
+          });
         });
-        m.removedNodes.forEach((node) => {
-          if (node.nodeType === 1 && inputMap.has(node)) {
-            inputMap.delete(node);
-            changes.push({ time: Date.now(), action: "input-removed", tag: node.tagName, name: node.name || "unnamed" });
-          }
-        });
-      });
-    }, UPE_CONFIG.throttleMs || 250);
-    const mo = new MutationObserver(handler);
-    mo.observe(document.documentElement, { childList: true, subtree: true });
-    window._dynamicTracker = { observer: mo, changes };
-    console.log("tracker Dynamic content tracker started. View changes: window._dynamicTracker.changes");
-    return window._dynamicTracker;
+      }, UPE_CONFIG.throttleMs || 250);
+      const mo = new MutationObserver(handler);
+      mo.observe(document.documentElement, { childList: true, subtree: true });
+      window._dynamicTracker = { observer: mo, changes };
+      console.log("tracker Dynamic content tracker started. View changes: window._dynamicTracker.changes");
+      return window._dynamicTracker;
+    }, "startDynamicContentTracker");
   }
   window.startDynamicContentTracker = startDynamicContentTracker;
 
@@ -4600,82 +4692,93 @@
 
   // Enhancement 12: Deep CSP analysis
   function analyzeCSPDeep() {
-    console.log("csp === Deep CSP Analysis ===");
-    const report = { headers: [], meta: [], issues: [], recommendations: [] };
-    const cspMeta = Array.from(document.querySelectorAll('meta[http-equiv="Content-Security-Policy"]')).map((m) => m.getAttribute("content") || "");
-    report.meta = cspMeta;
-    if (cspMeta.length === 0) {
-      report.issues.push({ severity: "HIGH", issue: "No CSP meta tag found" });
-      report.recommendations.push("Add Content-Security-Policy meta tag or HTTP header");
-    }
-    cspMeta.forEach((policy) => {
-      if (policy.includes("'unsafe-inline'")) report.issues.push({ severity: "HIGH", issue: "unsafe-inline allows inline scripts" });
-      if (policy.includes("'unsafe-eval'")) report.issues.push({ severity: "CRITICAL", issue: "unsafe-eval allows eval()" });
-      if (policy.includes("*")) report.issues.push({ severity: "HIGH", issue: "Wildcard * in source list" });
-      if (policy.includes("data:")) report.issues.push({ severity: "MEDIUM", issue: "data: URI allowed" });
-      if (policy.includes("blob:")) report.issues.push({ severity: "MEDIUM", issue: "blob: URI allowed" });
-      if (!policy.includes("frame-ancestors")) report.issues.push({ severity: "MEDIUM", issue: "Missing frame-ancestors directive" });
-      if (!policy.includes("object-src")) report.issues.push({ severity: "MEDIUM", issue: "Missing object-src directive" });
-    });
-    console.log(`csp Issues: ${report.issues.length}`);
-    if (report.issues.length) console.table(report.issues);
-    return report;
+    return _HARDEN.safe(() => {
+      if (!_HARDEN.domReady()) return { headers: [], meta: [], issues: [], recommendations: [] };
+      console.log("csp === Deep CSP Analysis ===");
+      const report = { headers: [], meta: [], issues: [], recommendations: [] };
+      const cspMeta = _HARDEN.queryAll('meta[http-equiv="Content-Security-Policy"]', 10).map((m) => m.getAttribute("content") || "");
+      report.meta = cspMeta;
+      if (cspMeta.length === 0) {
+        report.issues.push({ severity: "HIGH", issue: "No CSP meta tag found" });
+        report.recommendations.push("Add Content-Security-Policy meta tag or HTTP header");
+      }
+      cspMeta.forEach((policy) => {
+        if (policy.includes("'unsafe-inline'")) report.issues.push({ severity: "HIGH", issue: "unsafe-inline allows inline scripts" });
+        if (policy.includes("'unsafe-eval'")) report.issues.push({ severity: "CRITICAL", issue: "unsafe-eval allows eval()" });
+        if (policy.includes("*")) report.issues.push({ severity: "HIGH", issue: "Wildcard * in source list" });
+        if (policy.includes("data:")) report.issues.push({ severity: "MEDIUM", issue: "data: URI allowed" });
+        if (policy.includes("blob:")) report.issues.push({ severity: "MEDIUM", issue: "blob: URI allowed" });
+        if (!policy.includes("frame-ancestors")) report.issues.push({ severity: "MEDIUM", issue: "Missing frame-ancestors directive" });
+        if (!policy.includes("object-src")) report.issues.push({ severity: "MEDIUM", issue: "Missing object-src directive" });
+      });
+      console.log(`csp Issues: ${report.issues.length}`);
+      if (report.issues.length) console.table(report.issues);
+      return report;
+    }, "analyzeCSPDeep");
   }
   window.analyzeCSPDeep = analyzeCSPDeep;
 
   // Enhancement 13: Visualize input→handler→sink event chains
   function visualizeEventChains() {
-    console.log("chains === Visualizing Event Chains ===");
-    const chains = [];
-    inputMap.forEach((meta, el) => {
-      const handlers = el._upe_eventHandlers || [];
-      if (handlers.length === 0) return;
-      handlers.forEach((h) => {
-        const handlerSource = getHandlerSourceInfo(h.handler);
-        const hasFetch = /fetch\s*\(|\.ajax|XMLHttpRequest|\.post|\.get/i.test(handlerSource);
-        const hasSink = /innerHTML|outerHTML|document\.write|eval\s*\(|\.src\s*=|\.href\s*=|insertAdjacentHTML/i.test(handlerSource);
-        const hasRedirect = /location\s*=|location\.href|location\.assign|location\.replace|window\.open/i.test(handlerSource);
-        chains.push({
-          input: meta.name || meta.id || meta.type,
-          event: h.event,
-          method: h.method,
-          callsNetwork: hasFetch,
-          hasDangerousSink: hasSink,
-          hasRedirect,
-          risk: hasSink ? "HIGH" : hasRedirect ? "MEDIUM" : hasFetch ? "LOW" : "INFO",
-          handlerSnippet: handlerSource.slice(0, 80),
-        });
+    return _HARDEN.safeArr(() => {
+      console.log("chains === Visualizing Event Chains ===");
+      const chains = [];
+      inputMap.forEach((meta, el) => {
+        try {
+          const handlers = el._upe_eventHandlers || [];
+          if (handlers.length === 0) return;
+          handlers.forEach((h) => {
+            try {
+              const handlerSource = getHandlerSourceInfo(h.handler);
+              const hasFetch = /fetch\s*\(|\.ajax|XMLHttpRequest|\.post|\.get/i.test(handlerSource);
+              const hasSink = /innerHTML|outerHTML|document\.write|eval\s*\(|\.src\s*=|\.href\s*=|insertAdjacentHTML/i.test(handlerSource);
+              const hasRedirect = /location\s*=|location\.href|location\.assign|location\.replace|window\.open/i.test(handlerSource);
+              chains.push({
+                input: meta.name || meta.id || meta.type,
+                event: h.event,
+                method: h.method,
+                callsNetwork: hasFetch,
+                hasDangerousSink: hasSink,
+                hasRedirect,
+                risk: hasSink ? "HIGH" : hasRedirect ? "MEDIUM" : hasFetch ? "LOW" : "INFO",
+                handlerSnippet: handlerSource.slice(0, 80),
+              });
+            } catch (_) {}
+          });
+        } catch (_) {}
       });
-    });
-    console.log(`chains Found ${chains.length} event chains`);
-    if (chains.length) console.table(chains);
-    return chains;
+      console.log(`chains Found ${chains.length} event chains`);
+      if (chains.length) console.table(chains);
+      return chains;
+    }, "visualizeEventChains");
   }
   window.visualizeEventChains = visualizeEventChains;
 
   // Enhancement 14: Cross-tab state tracking via BroadcastChannel
   function startCrossTabTracker() {
-    if (window._crossTabChannel) {
-      console.log("crosstab Already tracking. Use stopCrossTabTracker() first.");
-      return;
-    }
-    try {
-      const channel = new BroadcastChannel("upe-cross-tab");
-      const messages = [];
-      channel.onmessage = (e) => {
-        messages.push({ time: Date.now(), data: e.data });
-        console.log("crosstab Message:", e.data);
-      };
-      window._crossTabChannel = channel;
-      window._crossTabMessages = messages;
-      window.crossTabBroadcast = (msg) => channel.postMessage(msg);
-      console.log("crosstab Cross-tab tracker active. Broadcast: window.crossTabBroadcast({type:'test'})");
-      console.log("crosstab View messages: window._crossTabMessages");
-      return channel;
-    } catch (e) {
-      console.log("crosstab BroadcastChannel not supported");
-      return null;
-    }
+    return _HARDEN.safe(() => {
+      if (window._crossTabChannel) {
+        console.log("crosstab Already tracking. Use stopCrossTabTracker() first.");
+        return;
+      }
+      try {
+        const channel = new BroadcastChannel("upe-cross-tab");
+        const messages = [];
+        channel.onmessage = (e) => {
+          messages.push({ time: Date.now(), data: e.data });
+          console.log("crosstab Message:", e.data);
+        };
+        window._crossTabChannel = channel;
+        window._crossTabMessages = messages;
+        window.crossTabBroadcast = (msg) => channel.postMessage(msg);
+        console.log("crosstab Cross-tab tracker active. Broadcast: window.crossTabBroadcast({type:'test'})");
+        console.log("crosstab View messages: window._crossTabMessages");
+        return channel;
+      } catch (e) {
+        console.log("crosstab BroadcastChannel not supported");
+        return null;
+      }
+    }, "startCrossTabTracker");
   }
   window.startCrossTabTracker = startCrossTabTracker;
 
@@ -4693,194 +4796,233 @@
 
   // Enhancement 15: Generate actionable remediation report
   function generateRemediationReport() {
-    console.log("remediation === Generating Remediation Report ===");
-    const report = { timestamp: new Date().toISOString(), url: location.href, findings: [], remediations: [] };
-    inputMap.forEach((meta, el) => {
-      if (meta.dangerousSink === "yes") {
-        report.findings.push({ selector: el.id ? `#${el.id}` : el.name || el.tagName, issue: "Dangerous DOM sink reflection", severity: "HIGH" });
-        report.remediations.push({ finding: "Dangerous DOM sink", fix: "Use textContent instead of innerHTML, or sanitize with DOMPurify", priority: "P1" });
-      }
-      if (meta.hasDangerousAttrs) {
-        report.findings.push({ selector: el.id ? `#${el.id}` : el.name || el.tagName, issue: "Dangerous event handler attributes", severity: "MEDIUM" });
-        report.remediations.push({ finding: "Inline event handlers", fix: "Move event handlers to addEventListener, remove inline onclick/onerror", priority: "P2" });
-      }
-    });
-    const csrfResults = detectCSRFProtection();
-    const unprotected = csrfResults.filter((f) => f.risk === "HIGH");
-    if (unprotected.length) {
-      report.findings.push({ issue: `${unprotected.length} forms without CSRF tokens`, severity: "HIGH" });
-      report.remediations.push({ finding: "Missing CSRF tokens", fix: "Add anti-CSRF tokens to all state-changing forms", priority: "P1" });
-    }
-    const entropyResults = analyzeTokenEntropy();
-    const exposedTokens = entropyResults.filter((f) => f.risk === "HIGH");
-    if (exposedTokens.length) {
-      report.findings.push({ issue: `${exposedTokens.length} high-entropy tokens in hidden fields`, severity: "MEDIUM" });
-      report.remediations.push({ finding: "Exposed tokens in hidden fields", fix: "Use httpOnly cookies or secure session storage instead of hidden fields", priority: "P2" });
-    }
-    console.log(`remediation Report generated: ${report.findings.length} findings, ${report.remediations.length} remediations`);
-    if (report.findings.length) console.table(report.findings);
-    if (report.remediations.length) console.table(report.remediations);
-    return report;
+    return _HARDEN.safe(() => {
+      console.log("remediation === Generating Remediation Report ===");
+      const report = { timestamp: new Date().toISOString(), url: location.href, findings: [], remediations: [] };
+      inputMap.forEach((meta, el) => {
+        try {
+          if (meta.dangerousSink === "yes") {
+            report.findings.push({ selector: el.id ? `#${el.id}` : el.name || el.tagName, issue: "Dangerous DOM sink reflection", severity: "HIGH" });
+            report.remediations.push({ finding: "Dangerous DOM sink", fix: "Use textContent instead of innerHTML, or sanitize with DOMPurify", priority: "P1" });
+          }
+          if (meta.hasDangerousAttrs) {
+            report.findings.push({ selector: el.id ? `#${el.id}` : el.name || el.tagName, issue: "Dangerous event handler attributes", severity: "MEDIUM" });
+            report.remediations.push({ finding: "Inline event handlers", fix: "Move event handlers to addEventListener, remove inline onclick/onerror", priority: "P2" });
+          }
+        } catch (_) {}
+      });
+      try {
+        const csrfResults = detectCSRFProtection();
+        const unprotected = csrfResults.filter((f) => f.risk === "HIGH");
+        if (unprotected.length) {
+          report.findings.push({ issue: `${unprotected.length} forms without CSRF tokens`, severity: "HIGH" });
+          report.remediations.push({ finding: "Missing CSRF tokens", fix: "Add anti-CSRF tokens to all state-changing forms", priority: "P1" });
+        }
+      } catch (_) {}
+      try {
+        const entropyResults = analyzeTokenEntropy();
+        const exposedTokens = entropyResults.filter((f) => f.risk === "HIGH");
+        if (exposedTokens.length) {
+          report.findings.push({ issue: `${exposedTokens.length} high-entropy tokens in hidden fields`, severity: "MEDIUM" });
+          report.remediations.push({ finding: "Exposed tokens in hidden fields", fix: "Use httpOnly cookies or secure session storage instead of hidden fields", priority: "P2" });
+        }
+      } catch (_) {}
+      console.log(`remediation Report generated: ${report.findings.length} findings, ${report.remediations.length} remediations`);
+      if (report.findings.length) console.table(report.findings);
+      if (report.remediations.length) console.table(report.remediations);
+      return report;
+    }, "generateRemediationReport");
   }
   window.generateRemediationReport = generateRemediationReport;
 
   // Enhancement 16: Detect GraphQL endpoints
   function detectGraphQLEndpoints() {
-    console.log("graphql === Detecting GraphQL Endpoints ===");
-    const findings = [];
-    const gqlRegex = /graphql|gql|\/query|\/mutation|\/subscription/i;
-    document.querySelectorAll("script:not([src])").forEach((scr) => {
-      const code = scr.textContent || "";
-      if (gqlRegex.test(code)) {
-        const urlMatches = code.match(/['"`](https?:\/\/[^'"`]*graphql[^'"`]*|\/graphql[^'"`]*)/gi) || [];
-        urlMatches.forEach((u) => findings.push({ type: "script", endpoint: u.slice(0, 100), risk: "INFO" }));
-        if (/\bquery\s+\w+|mutation\s+\w+|subscription\s+\w+/.test(code)) {
-          findings.push({ type: "inline-gql", detail: "Inline GraphQL query/mutation detected", risk: "MEDIUM" });
+    return _HARDEN.safeArr(() => {
+      if (!_HARDEN.domReady()) return [];
+      console.log("graphql === Detecting GraphQL Endpoints ===");
+      const findings = [];
+      const gqlRegex = /graphql|gql|\/query|\/mutation|\/subscription/i;
+      _HARDEN.queryAll("script:not([src])", 200).forEach((scr) => {
+        const code = scr.textContent || "";
+        if (_HARDEN.freshRegex(gqlRegex).test(code)) {
+          const urlMatches = code.match(/['"`](https?:\/\/[^'"`]*graphql[^'"`]*|\/graphql[^'"`]*)/gi) || [];
+          urlMatches.forEach((u) => findings.push({ type: "script", endpoint: u.slice(0, 100), risk: "INFO" }));
+          if (/\bquery\s+\w+|mutation\s+\w+|subscription\s+\w+/.test(code)) {
+            findings.push({ type: "inline-gql", detail: "Inline GraphQL query/mutation detected", risk: "MEDIUM" });
+          }
         }
-      }
-    });
-    document.querySelectorAll("script[src]").forEach((scr) => {
-      if (gqlRegex.test(scr.src)) {
-        findings.push({ type: "external-gql-script", src: scr.src.slice(0, 100), risk: "INFO" });
-      }
-    });
-    document.querySelectorAll("[data-query], [data-mutation]").forEach((el) => {
-      findings.push({ type: "data-attr-gql", tag: el.tagName, risk: "INFO" });
-    });
-    console.log(`graphql Found ${findings.length} GraphQL patterns`);
-    if (findings.length) console.table(findings);
-    return findings;
+      });
+      _HARDEN.queryAll("script[src]", 500).forEach((scr) => {
+        if (_HARDEN.freshRegex(gqlRegex).test(scr.src)) {
+          findings.push({ type: "external-gql-script", src: scr.src.slice(0, 100), risk: "INFO" });
+        }
+      });
+      _HARDEN.queryAll("[data-query], [data-mutation]", 500).forEach((el) => {
+        findings.push({ type: "data-attr-gql", tag: el.tagName, risk: "INFO" });
+      });
+      console.log(`graphql Found ${findings.length} GraphQL patterns`);
+      if (findings.length) console.table(findings);
+      return findings;
+    }, "detectGraphQLEndpoints");
   }
   window.detectGraphQLEndpoints = detectGraphQLEndpoints;
 
   // Enhancement 17: Detect JWT/token exposure
   function detectJWTExposure() {
-    console.log("jwt === Detecting JWT/Token Exposure ===");
-    const findings = [];
-    const jwtRegex = /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+/g;
-    document.querySelectorAll("input, textarea").forEach((el) => {
-      const val = el.value || "";
-      if (jwtRegex.test(val)) {
-        findings.push({ type: "input-field", name: el.name || "unnamed", id: el.id || "", risk: "HIGH", issue: "JWT token in input value" });
-      }
-    });
-    document.querySelectorAll("script:not([src])").forEach((scr) => {
-      const code = scr.textContent || "";
-      const jwtMatches = code.match(jwtRegex) || [];
-      jwtMatches.forEach(() => {
-        findings.push({ type: "script", risk: "HIGH", issue: "JWT token hardcoded in script" });
+    return _HARDEN.safeArr(() => {
+      if (!_HARDEN.domReady()) return [];
+      console.log("jwt === Detecting JWT/Token Exposure ===");
+      const findings = [];
+      const jwtBase = /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+/;
+      _HARDEN.queryAll("input, textarea", 1000).forEach((el) => {
+        try {
+          const val = el.value || "";
+          if (_HARDEN.freshRegex(jwtBase).test(val)) {
+            findings.push({ type: "input-field", name: el.name || "unnamed", id: el.id || "", risk: "HIGH", issue: "JWT token in input value" });
+          }
+        } catch (_) {}
       });
-      if (/(?:bearer|token|jwt|api[_-]?key|secret|auth)[\s:=]+['"][A-Za-z0-9_\-\.]{20,}/i.test(code)) {
-        findings.push({ type: "script", risk: "HIGH", issue: "Hardcoded token/key in script" });
-      }
-    });
-    const cookies = document.cookie.split(";").map((c) => c.trim());
-    cookies.forEach((c) => {
-      const val = c.split("=").slice(1).join("=");
-      if (jwtRegex.test(val)) {
-        findings.push({ type: "cookie", name: c.split("=")[0], risk: "MEDIUM", issue: "JWT in cookie" });
-      }
-    });
-    console.log(`jwt Found ${findings.length} token exposures`);
-    if (findings.length) console.table(findings);
-    return findings;
+      _HARDEN.queryAll("script:not([src])", 200).forEach((scr) => {
+        const code = scr.textContent || "";
+        const jwtMatches = code.match(_HARDEN.freshRegex(jwtBase)) || [];
+        jwtMatches.forEach(() => {
+          findings.push({ type: "script", risk: "HIGH", issue: "JWT token hardcoded in script" });
+        });
+        if (/(?:bearer|token|jwt|api[_-]?key|secret|auth)[\s:=]+['"][A-Za-z0-9_\-\.]{20,}/i.test(code)) {
+          findings.push({ type: "script", risk: "HIGH", issue: "Hardcoded token/key in script" });
+        }
+      });
+      try {
+        const cookies = document.cookie.split(";").map((c) => c.trim());
+        cookies.forEach((c) => {
+          const val = c.split("=").slice(1).join("=");
+          if (_HARDEN.freshRegex(jwtBase).test(val)) {
+            findings.push({ type: "cookie", name: c.split("=")[0], risk: "MEDIUM", issue: "JWT in cookie" });
+          }
+        });
+      } catch (_) {}
+      console.log(`jwt Found ${findings.length} token exposures`);
+      if (findings.length) console.table(findings);
+      return findings;
+    }, "detectJWTExposure");
   }
   window.detectJWTExposure = detectJWTExposure;
 
   // Enhancement 18: Detect SSTI (Server-Side Template Injection) vectors
   function detectSSTIVectors() {
-    console.log("ssti === Detecting SSTI Vectors ===");
-    const findings = [];
-    const sstiPatterns = [
-      { regex: /\{\{.*\}\}/g, name: "Mustache/Handlebars" },
-      { regex: /\$\{.*\}/g, name: "EL/SpEL" },
-      { regex: /<%=.*%>/g, name: "ERB/EJS" },
-      { regex: /#\{.*\}/g, name: "Ruby interpolation" },
-      { regex: /\{%.*%\}/g, name: "Jinja2/Django" },
-      { regex: /\[\[.*\]\]/g, name: "Angular expression" },
-    ];
-    document.querySelectorAll("input, textarea").forEach((el) => {
-      const val = el.value || "";
-      sstiPatterns.forEach(({ regex, name }) => {
-        const re = new RegExp(regex.source, regex.flags);
-        if (re.test(val)) {
-          findings.push({ type: "input-value", name: el.name || "unnamed", template: name, value: val.slice(0, 50), risk: "MEDIUM" });
+    return _HARDEN.safeArr(() => {
+      if (!_HARDEN.domReady()) return [];
+      console.log("ssti === Detecting SSTI Vectors ===");
+      const findings = [];
+      const sstiPatterns = [
+        { src: /\{\{.*\}\}/g, name: "Mustache/Handlebars" },
+        { src: /\$\{.*\}/g, name: "EL/SpEL" },
+        { src: /<%=.*%>/g, name: "ERB/EJS" },
+        { src: /#\{.*\}/g, name: "Ruby interpolation" },
+        { src: /\{%.*%\}/g, name: "Jinja2/Django" },
+        { src: /\[\[.*\]\]/g, name: "Angular expression" },
+      ];
+      _HARDEN.queryAll("input, textarea", 1000).forEach((el) => {
+        try {
+          const val = el.value || "";
+          sstiPatterns.forEach(({ src, name }) => {
+            const re = _HARDEN.freshRegex(src);
+            if (re.test(val)) {
+              findings.push({ type: "input-value", name: el.name || "unnamed", template: name, value: val.slice(0, 50), risk: "MEDIUM" });
+            }
+          });
+        } catch (_) {}
+      });
+      _HARDEN.queryAll("script:not([src])", 200).forEach((scr) => {
+        const code = scr.textContent || "";
+        if (/\btemplate\b|\brender\b|\bcompile\b/i.test(code) && /\{\{|\$\{|<%|<#/.test(code)) {
+          findings.push({ type: "script", risk: "MEDIUM", issue: "Template rendering logic detected" });
         }
       });
-    });
-    document.querySelectorAll("script:not([src])").forEach((scr) => {
-      const code = scr.textContent || "";
-      if (/\btemplate\b|\brender\b|\bcompile\b/i.test(code) && /\{\{|\$\{|<%|<#/.test(code)) {
-        findings.push({ type: "script", risk: "MEDIUM", issue: "Template rendering logic detected" });
-      }
-    });
-    console.log(`ssti Found ${findings.length} SSTI vectors`);
-    if (findings.length) console.table(findings);
-    return findings;
+      console.log(`ssti Found ${findings.length} SSTI vectors`);
+      if (findings.length) console.table(findings);
+      return findings;
+    }, "detectSSTIVectors");
   }
   window.detectSSTIVectors = detectSSTIVectors;
 
   // Enhancement 19: Map WebSocket connections
   function mapWebSocketEndpoints() {
-    console.log("ws === Mapping WebSocket Endpoints ===");
-    const findings = [];
-    networkTriggers.forEach((trigger) => {
-      if (trigger.networkType && trigger.networkType.includes("websocket")) {
-        findings.push({ type: trigger.networkType, url: trigger.networkArgs?.[0] || "unknown", time: new Date(trigger.networkTime).toLocaleTimeString(), data: typeof trigger.networkArgs?.[1] === "string" ? trigger.networkArgs[1].slice(0, 60) : "" });
+    return _HARDEN.safeArr(() => {
+      console.log("ws === Mapping WebSocket Endpoints ===");
+      const findings = [];
+      try {
+        (networkTriggers || []).forEach((trigger) => {
+          try {
+            if (trigger.networkType && trigger.networkType.includes("websocket")) {
+              findings.push({ type: trigger.networkType, url: trigger.networkArgs?.[0] || "unknown", time: new Date(trigger.networkTime).toLocaleTimeString(), data: typeof trigger.networkArgs?.[1] === "string" ? trigger.networkArgs[1].slice(0, 60) : "" });
+            }
+          } catch (_) {}
+        });
+      } catch (_) {}
+      if (_HARDEN.domReady()) {
+        _HARDEN.queryAll("script:not([src])", 200).forEach((scr) => {
+          const code = scr.textContent || "";
+          const wsMatches = code.match(/wss?:\/\/[^\s'"`]+/g) || [];
+          wsMatches.forEach((u) => findings.push({ type: "ws-in-script", url: u.slice(0, 100), risk: "INFO" }));
+        });
       }
-    });
-    document.querySelectorAll("script:not([src])").forEach((scr) => {
-      const code = scr.textContent || "";
-      const wsMatches = code.match(/wss?:\/\/[^\s'"`]+/g) || [];
-      wsMatches.forEach((u) => findings.push({ type: "ws-in-script", url: u.slice(0, 100), risk: "INFO" }));
-    });
-    console.log(`ws Found ${findings.length} WebSocket endpoints`);
-    if (findings.length) console.table(findings);
-    return findings;
+      console.log(`ws Found ${findings.length} WebSocket endpoints`);
+      if (findings.length) console.table(findings);
+      return findings;
+    }, "mapWebSocketEndpoints");
   }
   window.mapWebSocketEndpoints = mapWebSocketEndpoints;
 
   // Enhancement 20: Auto-generate exploit suggestions based on analysis
   function generateExploitSuggestions() {
-    console.log("exploit === Generating Exploit Suggestions ===");
-    const suggestions = [];
-    inputMap.forEach((meta, el) => {
-      if (meta.dangerousSink === "yes") {
-        const handlers = el._upe_eventHandlers || [];
-        handlers.forEach((h) => {
-          const src = getHandlerSourceInfo(h.handler);
-          if (/innerHTML|outerHTML|insertAdjacentHTML/.test(src)) {
-            suggestions.push({ input: meta.name || meta.id || meta.type, vuln: "DOM XSS", vector: "Inject HTML via input → innerHTML sink", payload: '<img src=x onerror=alert(1)>', severity: "CRITICAL" });
+    return _HARDEN.safeArr(() => {
+      console.log("exploit === Generating Exploit Suggestions ===");
+      const suggestions = [];
+      inputMap.forEach((meta, el) => {
+        try {
+          if (meta.dangerousSink === "yes") {
+            const handlers = el._upe_eventHandlers || [];
+            handlers.forEach((h) => {
+              try {
+                const src = getHandlerSourceInfo(h.handler);
+                if (/innerHTML|outerHTML|insertAdjacentHTML/.test(src)) {
+                  suggestions.push({ input: meta.name || meta.id || meta.type, vuln: "DOM XSS", vector: "Inject HTML via input → innerHTML sink", payload: '<img src=x onerror=alert(1)>', severity: "CRITICAL" });
+                }
+                if (/eval\s*\(|Function\s*\(/.test(src)) {
+                  suggestions.push({ input: meta.name || meta.id || meta.type, vuln: "Eval Injection", vector: "Inject JS code via input → eval() sink", payload: "alert(document.cookie)", severity: "CRITICAL" });
+                }
+                if (/document\.write/.test(src)) {
+                  suggestions.push({ input: meta.name || meta.id || meta.type, vuln: "Document.Write XSS", vector: "Inject payload via input → document.write()", payload: '<script>alert(1)</script>', severity: "CRITICAL" });
+                }
+                if (/location\s*=|\.href\s*=/.test(src)) {
+                  suggestions.push({ input: meta.name || meta.id || meta.type, vuln: "Open Redirect", vector: "Redirect via input → location assignment", payload: "https://evil.com", severity: "HIGH" });
+                }
+                if (/fetch\s*\(|\.ajax|XMLHttpRequest/.test(src)) {
+                  suggestions.push({ input: meta.name || meta.id || meta.type, vuln: "SSRF Potential", vector: "Server request via input → fetch/XHR", payload: "http://169.254.169.254/latest/meta-data/", severity: "MEDIUM" });
+                }
+              } catch (_) {}
+            });
+            if (meta.reflectionDetail && meta.reflectionDetail.includes("body-attr:src")) {
+              suggestions.push({ input: meta.name || meta.id || meta.type, vuln: "Attribute Injection", vector: "Break out of src attribute", payload: '" onerror="alert(1)"', severity: "HIGH" });
+            }
+            if (meta.reflectionDetail && meta.reflectionDetail.includes("body-attr:href")) {
+              suggestions.push({ input: meta.name || meta.id || meta.type, vuln: "JavaScript URI", vector: "Inject javascript: protocol", payload: "javascript:alert(1)", severity: "HIGH" });
+            }
           }
-          if (/eval\s*\(|Function\s*\(/.test(src)) {
-            suggestions.push({ input: meta.name || meta.id || meta.type, vuln: "Eval Injection", vector: "Inject JS code via input → eval() sink", payload: "alert(document.cookie)", severity: "CRITICAL" });
-          }
-          if (/document\.write/.test(src)) {
-            suggestions.push({ input: meta.name || meta.id || meta.type, vuln: "Document.Write XSS", vector: "Inject payload via input → document.write()", payload: '<script>alert(1)</script>', severity: "CRITICAL" });
-          }
-          if (/location\s*=|\.href\s*=/.test(src)) {
-            suggestions.push({ input: meta.name || meta.id || meta.type, vuln: "Open Redirect", vector: "Redirect via input → location assignment", payload: "https://evil.com", severity: "HIGH" });
-          }
-          if (/fetch\s*\(|\.ajax|XMLHttpRequest/.test(src)) {
-            suggestions.push({ input: meta.name || meta.id || meta.type, vuln: "SSRF Potential", vector: "Server request via input → fetch/XHR", payload: "http://169.254.169.254/latest/meta-data/", severity: "MEDIUM" });
-          }
-        });
-        if (meta.reflectionDetail && meta.reflectionDetail.includes("body-attr:src")) {
-          suggestions.push({ input: meta.name || meta.id || meta.type, vuln: "Attribute Injection", vector: "Break out of src attribute", payload: '" onerror="alert(1)"', severity: "HIGH" });
+        } catch (_) {}
+      });
+      try {
+        const csrfResults = detectCSRFProtection();
+        const unprotected = csrfResults.filter((f) => f.risk === "HIGH");
+        if (unprotected.length) {
+          suggestions.push({ input: `${unprotected.length} forms`, vuln: "CSRF", vector: "Submit state-changing form without token", payload: '<form method="POST" action="..."><input name="param" value="malicious"></form>', severity: "HIGH" });
         }
-        if (meta.reflectionDetail && meta.reflectionDetail.includes("body-attr:href")) {
-          suggestions.push({ input: meta.name || meta.id || meta.type, vuln: "JavaScript URI", vector: "Inject javascript: protocol", payload: "javascript:alert(1)", severity: "HIGH" });
-        }
-      }
-    });
-    const csrfResults = detectCSRFProtection();
-    const unprotected = csrfResults.filter((f) => f.risk === "HIGH");
-    if (unprotected.length) {
-      suggestions.push({ input: `${unprotected.length} forms`, vuln: "CSRF", vector: "Submit state-changing form without token", payload: '<form method="POST" action="..."><input name="param" value="malicious"></form>', severity: "HIGH" });
-    }
-    console.log(`exploit Generated ${suggestions.length} exploit suggestions`);
-    if (suggestions.length) console.table(suggestions);
-    return suggestions;
+      } catch (_) {}
+      console.log(`exploit Generated ${suggestions.length} exploit suggestions`);
+      if (suggestions.length) console.table(suggestions);
+      return suggestions;
+    }, "generateExploitSuggestions");
   }
   window.generateExploitSuggestions = generateExploitSuggestions;
 
