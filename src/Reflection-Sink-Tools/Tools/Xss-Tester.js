@@ -1846,8 +1846,600 @@
   }
   window.fullXSSAudit = fullXSSAudit;
 
-  console.log("%c🚀 20 NEW XSS FEATURES LOADED", "color: #e74c3c; font-weight: bold;");
-  console.log("Commands: testHashXSS, watchForXSSReflections, scanClobberingXSS, testJavascriptURI, testCookieXSS, testStorageXSS, assessCSPBypass, testPostMessageXSS, testTemplateInjectionXSS, scanShadowDOMXSS, detectDangerousAttributes, detectOpenRedirectXSS, detectIframeXSS, detectBaseTagHijack, checkServiceWorkerXSS, detectWAF, detectFrameworkSinks, exportXSSReport, generateXSSPoCURL, fullXSSAudit");
+  // ===========================================
+  // 20 MORE ENHANCEMENTS (Features 21-40)
+  // ===========================================
+
+  // Feature 21: Deep Form Action XSS Testing
+  function testFormActionXSSDeep() {
+    const findings = [];
+    document.querySelectorAll("form").forEach((form) => {
+      const action = form.getAttribute("action") || form.action;
+      const method = (form.method || "GET").toUpperCase();
+      const enctype = form.enctype || "application/x-www-form-urlencoded";
+      if (action && /^\s*javascript\s*:/i.test(action)) findings.push({ type: "javascript-action", action: action.substring(0, 80), risk: "CRITICAL" });
+      if (action && /^\s*data\s*:/i.test(action)) findings.push({ type: "data-action", action: action.substring(0, 80), risk: "HIGH" });
+      if (action && /redirect|return|next|url|back/i.test(action)) findings.push({ type: "open-redirect-action", action: action.substring(0, 80), method, risk: "HIGH" });
+      if (method === "POST" && enctype === "text/plain") findings.push({ type: "post-text-plain", action: action.substring(0, 80), risk: "MEDIUM", note: "text/plain enctype can bypass WAF" });
+      if (form.hasAttribute("target") && form.getAttribute("target") === "_blank") {
+        const rel = form.getAttribute("rel") || "";
+        if (!rel.includes("noopener")) findings.push({ type: "reverse-tabnabbing", form: form.id || form.name || "form", risk: "MEDIUM" });
+      }
+    });
+    console.log("%c📋 Deep Form Action XSS:", "color: #e74c3c; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo form action XSS vectors.", "color: #27ae60;");
+    return findings;
+  }
+  window.testFormActionXSSDeep = testFormActionXSSDeep;
+
+  // Feature 22: Encoded Sink Detection
+  function scanEncodedSinksXSS() {
+    const findings = [];
+    const patterns = [
+      { name: "eval(atob(...))", regex: /eval\s*\(\s*atob\s*\(/g, risk: "CRITICAL" },
+      { name: "Function(atob(...))", regex: /Function\s*\(\s*atob\s*\(/g, risk: "CRITICAL" },
+      { name: "unescape(...)", regex: /unescape\s*\(/g, risk: "HIGH" },
+      { name: "decodeURIComponent(...)", regex: /decodeURIComponent\s*\(/g, risk: "MEDIUM" },
+      { name: "String.fromCharCode(...)", regex: /String\.fromCharCode\s*\(/g, risk: "HIGH" },
+      { name: "atob(...)", regex: /atob\s*\(/g, risk: "MEDIUM" },
+      { name: "HTML entity decode", regex: /&#x?[0-9a-f]+;/gi, risk: "LOW" },
+    ];
+    document.querySelectorAll("script:not([src])").forEach((script) => {
+      const code = script.textContent;
+      patterns.forEach(({ name, regex, risk }) => {
+        const matches = code.match(regex);
+        if (matches) findings.push({ script: script.src || "inline", encoding: name, count: matches.length, risk });
+      });
+    });
+    document.querySelectorAll("[onclick], [onload], [onerror], [onmouseover]").forEach((el) => {
+      ["onclick", "onload", "onerror", "onmouseover"].forEach((attr) => {
+        const val = el.getAttribute(attr);
+        if (val && /eval\s*\(|Function\s*\(|atob\s*\(|String\.fromCharCode/.test(val)) {
+          findings.push({ element: el.tagName + "#" + (el.id || ""), handler: attr, encoding: "event-handler", risk: "CRITICAL" });
+        }
+      });
+    });
+    console.log("%c🔐 Encoded Sink Detection:", "color: #e74c3c; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo encoded sinks.", "color: #27ae60;");
+    return findings;
+  }
+  window.scanEncodedSinksXSS = scanEncodedSinksXSS;
+
+  // Feature 23: PostMessage XSS Chain Test
+  function testPostMessageXSSChain() {
+    const findings = [];
+    document.querySelectorAll("script:not([src])").forEach((script) => {
+      const code = script.textContent;
+      if (code.includes("addEventListener") && code.includes("message")) {
+        const hasOrigin = /event\.origin|e\.origin|\.origin\s*===/.test(code);
+        const hasSource = /event\.source|e\.source/.test(code);
+        const hasData = /event\.data|e\.data/.test(code);
+        const sinks = [];
+        if (/innerHTML/.test(code)) sinks.push("innerHTML");
+        if (/document\.write/.test(code)) sinks.push("document.write");
+        if (/eval\(/.test(code)) sinks.push("eval");
+        if (/\.html\(/.test(code)) sinks.push("$.html");
+        if (/location/.test(code)) sinks.push("location");
+        if (/postMessage/.test(code)) sinks.push("postMessage-respond");
+        const chain = [];
+        if (hasData) chain.push("receives data");
+        if (sinks.length > 0) chain.push("→ " + sinks.join(", "));
+        if (!hasOrigin) chain.push("→ NO origin check");
+        findings.push({ hasOrigin, hasSource, hasData, sinks, chain: chain.join(" "), risk: !hasOrigin && sinks.length > 0 ? "CRITICAL" : sinks.length > 0 ? "HIGH" : "LOW" });
+      }
+    });
+    console.log("%c📨 PostMessage XSS Chain:", "color: #e74c3c; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo postMessage handlers.", "color: #7f8c8d;");
+    return findings;
+  }
+  window.testPostMessageXSSChain = testPostMessageXSSChain;
+
+  // Feature 24: Open Redirect Chain Detection
+  function detectOpenRedirectChains() {
+    const findings = [];
+    const url = new URL(window.location.href);
+    const redirectParams = ["redirect", "return", "next", "go", "url", "continue", "redir", "back", "forward", "to", "rurl", "dest", "destination", "checkout_url", "return_url", "redirect_uri", "redirect_url", "return_to", "out", "view", " destination", "link"];
+    url.searchParams.forEach((value, key) => {
+      if (redirectParams.some((p) => key.toLowerCase().includes(p))) {
+        let isExternal = false;
+        try { const u = new URL(value); isExternal = u.origin !== window.location.origin; } catch (e) {}
+        findings.push({ param: key, value: value.substring(0, 80), isExternal, risk: isExternal ? "CRITICAL" : "MEDIUM", testPayload: "//evil.com" });
+      }
+    });
+    document.querySelectorAll("a[href]").forEach((a) => {
+      const href = a.getAttribute("href");
+      if (href && /redirect|return|next|url|back|forward/i.test(href) && href.includes("=")) {
+        findings.push({ type: "link", href: href.substring(0, 100), risk: "MEDIUM" });
+      }
+    });
+    console.log("%c🔄 Open Redirect Chains:", "color: #f39c12; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo open redirect chains.", "color: #27ae60;");
+    return findings;
+  }
+  window.detectOpenRedirectChains = detectOpenRedirectChains;
+
+  // Feature 25: Attribute Injection XSS Test
+  function testAttributeInjectionXSS() {
+    const findings = [];
+    const testPayload = "xss_test_" + Math.random().toString(36).substring(2, 8);
+    const sinks = ["innerHTML", "outerHTML", "document.write", "eval"];
+    document.querySelectorAll("input, textarea").forEach((el) => {
+      if (["hidden", "submit", "button", "checkbox", "radio"].includes(el.type)) return;
+      const original = el.value;
+      el.value = testPayload;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    setTimeout(() => {
+      document.querySelectorAll("*").forEach((el) => {
+        if (!el || !el.tagName) return;
+        for (const attr of el.attributes) {
+          if (attr.value && attr.value.includes(testPayload) && attr.name !== "value") {
+            const isScriptable = ["href", "src", "action", "formaction", "data", "poster", "background", "dynsrc", "lowsrc"].includes(attr.name);
+            const isHandler = attr.name.startsWith("on");
+            findings.push({ element: el.tagName + "#" + (el.id || ""), attribute: attr.name, isScriptable, isHandler, risk: isScriptable || isHandler ? "CRITICAL" : "HIGH" });
+          }
+        }
+      });
+      console.log("%c💉 Attribute Injection XSS:", "color: #e74c3c; font-weight: bold;");
+      if (findings.length > 0) console.table(findings);
+      else console.log("%cNo attribute injection XSS.", "color: #27ae60;");
+      document.querySelectorAll("input, textarea").forEach((el) => { if (el.value === testPayload) el.value = ""; });
+    }, 300);
+    return findings;
+  }
+  window.testAttributeInjectionXSS = testAttributeInjectionXSS;
+
+  // Feature 26: Dangerous CSS Sink Detection
+  function detectDangerousCSSSinksXSS() {
+    const findings = [];
+    const dangerous = [
+      { regex: /expression\s*\(/gi, name: "CSS expression", risk: "CRITICAL" },
+      { regex: /behavior\s*:/gi, name: "CSS behavior", risk: "CRITICAL" },
+      { regex: /-moz-binding\s*:.*url\(/gi, name: "Mozilla binding", risk: "CRITICAL" },
+      { regex: /url\s*\(\s*['"]?\s*javascript:/gi, name: "CSS url(js:)", risk: "CRITICAL" },
+      { regex: /url\s*\(\s*['"]?\s*data:/gi, name: "CSS url(data:)", risk: "HIGH" },
+      { regex: /@import\s+['"]?http:/gi, name: "CSS @import HTTP", risk: "MEDIUM" },
+    ];
+    document.querySelectorAll("[style]").forEach((el) => {
+      const style = el.getAttribute("style");
+      dangerous.forEach(({ regex, name, risk }) => {
+        const match = style.match(regex);
+        if (match) findings.push({ element: el.tagName + "#" + (el.id || ""), pattern: name, match: match[0], risk });
+      });
+    });
+    document.querySelectorAll("style").forEach((el) => {
+      const content = el.textContent || "";
+      dangerous.forEach(({ regex, name, risk }) => {
+        const match = content.match(regex);
+        if (match) findings.push({ element: "STYLE", pattern: name, match: match[0], risk });
+      });
+    });
+    console.log("%c🎨 Dangerous CSS Sinks:", "color: #9b59b6; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo dangerous CSS sinks.", "color: #27ae60;");
+    return findings;
+  }
+  window.detectDangerousCSSSinksXSS = detectDangerousCSSSinksXSS;
+
+  // Feature 27: Storage to DOM Chain Audit
+  function auditStorageToDOMChainsXSS() {
+    const findings = [];
+    const sinks = ["innerHTML", "outerHTML", "document.write", "eval", "setTimeout", "setInterval", "Function", "location.href", "location.assign"];
+    ["localStorage", "sessionStorage"].forEach((storage) => {
+      try {
+        const store = window[storage];
+        for (let i = 0; i < store.length; i++) {
+          const key = store.key(i);
+          const value = store.getItem(key);
+          if (!value || value.length < 3) continue;
+          document.querySelectorAll("script:not([src])").forEach((script) => {
+            const code = script.textContent;
+            if (code.includes(key)) {
+              const usedSinks = sinks.filter((s) => code.includes(s));
+              if (usedSinks.length > 0) findings.push({ storage, key, sinks: usedSinks, script: script.src || "inline", risk: "CRITICAL" });
+            }
+          });
+          document.querySelectorAll("*").forEach((el) => {
+            if (el.innerHTML && el.innerHTML.includes(value)) {
+              const hasSink = sinks.some((s) => el.outerHTML.includes(s));
+              if (hasSink) findings.push({ storage, key, element: el.tagName + "#" + (el.id || ""), risk: "CRITICAL" });
+            }
+          });
+        }
+      } catch (e) {}
+    });
+    console.log("%c💾 Storage → DOM Chains:", "color: #e74c3c; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo storage → DOM XSS chains.", "color: #27ae60;");
+    return findings;
+  }
+  window.auditStorageToDOMChainsXSS = auditStorageToDOMChainsXSS;
+
+  // Feature 28: Base Tag XSS Vector Test
+  function testBaseTagXSS() {
+    const findings = [];
+    document.querySelectorAll("base").forEach((base) => {
+      const href = base.getAttribute("href");
+      if (!href) return;
+      const isExternal = !href.startsWith(window.location.origin) && !href.startsWith("/");
+      const isJS = /^\s*javascript\s*:/i.test(href);
+      const isData = /^\s*data\s*:/i.test(href);
+      findings.push({ href: href.substring(0, 100), isExternal, isJS, isData, risk: isJS ? "CRITICAL" : isData ? "HIGH" : isExternal ? "HIGH" : "MEDIUM" });
+      if (isExternal) {
+        const relLinks = document.querySelectorAll("a[href^='/'], a[href^='../'], link[href^='/']");
+        findings.push({ note: relLinks.length + " relative links affected by external base", risk: "HIGH" });
+      }
+    });
+    console.log("%c📌 Base Tag XSS:", "color: #e74c3c; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo base tag XSS vectors.", "color: #27ae60;");
+    return findings;
+  }
+  window.testBaseTagXSS = testBaseTagXSS;
+
+  // Feature 29: Service Worker XSS Chain Detection
+  function detectServiceWorkerXSSChainsXSS() {
+    const findings = { registered: false, chains: [] };
+    if ("serviceWorker" in navigator) {
+      findings.registered = true;
+      navigator.serviceWorker.getRegistrations().then((regs) => {
+        findings.registrations = regs.map((r) => ({ scope: r.scope, active: !!r.active, installing: !!r.installing, waiting: !!r.waiting }));
+        regs.forEach((reg) => {
+          if (reg.active) {
+            findings.chains.push({ scope: reg.scope, risks: ["Can intercept fetch events", "Can modify responses", "Can cache XSS payloads", "Persists across page loads"] });
+          }
+        });
+        console.log("%c⚙️ Service Worker XSS Chains:", "color: #9b59b6; font-weight: bold;");
+        if (findings.chains.length > 0) console.table(findings.chains);
+        else console.log("%cNo active Service Workers.", "color: #7f8c8d;");
+      });
+    }
+    return findings;
+  }
+  window.detectServiceWorkerXSSChainsXSS = detectServiceWorkerXSSChainsXSS;
+
+  // Feature 30: Prototype Pollution XSS Detection
+  function testPrototypePollutionXSS() {
+    const findings = [];
+    const scripts = [];
+    document.querySelectorAll("script:not([src])").forEach((s) => scripts.push(s.textContent));
+    const allCode = scripts.join("\n");
+    const patterns = [
+      { regex: /\bextend\b.*\b__proto__\b/g, name: "extend(__proto__)", risk: "CRITICAL" },
+      { regex: /\bmerge\b.*\b__proto__\b/g, name: "merge(__proto__)", risk: "CRITICAL" },
+      { regex: /Object\.assign\b/g, name: "Object.assign", risk: "MEDIUM" },
+      { regex: /\bdeepCopy\b|\bcloneDeep\b|\bdeepMerge\b/g, name: "deep-clone-functions", risk: "MEDIUM" },
+      { regex: /JSON\.parse.*JSON\.stringify/g, name: "JSON-roundtrip", risk: "LOW" },
+      { regex: /\[\s*['"]__proto__['"]\s*\]/g, name: "__proto__ bracket", risk: "HIGH" },
+      { regex: /\[\s*['"]constructor['"]\s*\]/g, name: "constructor bracket", risk: "HIGH" },
+      { regex: /prototype\s*\[/g, name: "prototype bracket", risk: "HIGH" },
+    ];
+    patterns.forEach(({ regex, name, risk }) => {
+      const matches = allCode.match(regex);
+      if (matches) findings.push({ pattern: name, count: matches.length, risk });
+    });
+    console.log("%c🔬 Prototype Pollution XSS:", "color: #e74c3c; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo prototype pollution patterns.", "color: #27ae60;");
+    return findings;
+  }
+  window.testPrototypePollutionXSS = testPrototypePollutionXSS;
+
+  // Feature 31: Existing XSS Vector Scanner
+  function scanExistingXSSVectorsXSS() {
+    const vectors = [];
+    document.querySelectorAll("a[href^='javascript:'], a[href^='data:']").forEach((a) => {
+      vectors.push({ tag: "A", href: a.getAttribute("href").substring(0, 80), risk: "CRITICAL" });
+    });
+    document.querySelectorAll("[src^='javascript:'], [src^='data:']").forEach((el) => {
+      vectors.push({ tag: el.tagName, attr: "src", value: el.getAttribute("src").substring(0, 80), risk: "CRITICAL" });
+    });
+    document.querySelectorAll("iframe[src^='javascript:'], iframe[src^='data:'], iframe[srcdoc]").forEach((el) => {
+      vectors.push({ tag: "IFRAME", src: (el.src || el.getAttribute("srcdoc") || "").substring(0, 80), risk: "CRITICAL" });
+    });
+    document.querySelectorAll("object[data^='javascript:'], embed[src^='javascript:']").forEach((el) => {
+      vectors.push({ tag: el.tagName, risk: "CRITICAL" });
+    });
+    document.querySelectorAll("*[onclick], *[onload], *[onerror], *[onmouseover], *[onfocus]").forEach((el) => {
+      ["onclick", "onload", "onerror", "onmouseover", "onfocus"].forEach((attr) => {
+        if (el.hasAttribute(attr)) {
+          const val = el.getAttribute(attr);
+          if (/alert\(|confirm\(|prompt\(|eval\(|document\.write|innerHTML/.test(val)) {
+            vectors.push({ tag: el.tagName, handler: attr, code: val.substring(0, 60), risk: "HIGH" });
+          }
+        }
+      });
+    });
+    document.querySelectorAll("form[action^='javascript:']").forEach((form) => {
+      vectors.push({ tag: "FORM", action: form.getAttribute("action").substring(0, 80), risk: "CRITICAL" });
+    });
+    console.log("%c🎯 Existing XSS Vectors:", "color: #e74c3c; font-weight: bold;");
+    if (vectors.length > 0) console.table(vectors);
+    else console.log("%cNo existing XSS vectors.", "color: #27ae60;");
+    return vectors;
+  }
+  window.scanExistingXSSVectorsXSS = scanExistingXSSVectorsXSS;
+
+  // Feature 32: DOMParser XSS Chain Test
+  function testDOMParserXSSChainXSS() {
+    const findings = [];
+    const payloads = [
+      '<img src=x onerror=alert(1)>',
+      '<svg onload=alert(1)>',
+      '<script>alert(1)</script>',
+      '<iframe src="javascript:alert(1)">',
+      '<details open ontoggle=alert(1)>',
+      '<body onload=alert(1)>',
+      '<input onfocus=alert(1) autofocus>',
+      '<marquee onstart=alert(1)>',
+    ];
+    const parser = new DOMParser();
+    payloads.forEach((payload) => {
+      try {
+        const doc = parser.parseFromString(payload, "text/html");
+        const scripts = doc.querySelectorAll("script");
+        const eventHandlers = doc.querySelectorAll("[onerror],[onload],[onclick],[onfocus],[ontoggle],[onstart]");
+        const dangerous = doc.querySelectorAll("iframe[src^='javascript:']");
+        if (scripts.length > 0 || eventHandlers.length > 0 || dangerous.length > 0) {
+          findings.push({ payload: payload.substring(0, 50), scripts: scripts.length, handlers: eventHandlers.length, iframes: dangerous.length, risk: "HIGH" });
+        }
+      } catch (e) {}
+    });
+    console.log("%c📄 DOMParser XSS Chain:", "color: #e74c3c; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cDOMParser safe.", "color: #27ae60;");
+    return findings;
+  }
+  window.testDOMParserXSSChainXSS = testDOMParserXSSChainXSS;
+
+  // Feature 33: Mixed Content Vulnerability Detection
+  function detectMixedContentVulnerabilitiesXSS() {
+    const findings = [];
+    if (window.location.protocol === "https:") {
+      const resources = [
+        { selector: "script[src^='http:']", type: "SCRIPT", risk: "BLOCKED" },
+        { selector: "link[href^='http:']", type: "STYLESHEET", risk: "WARNING" },
+        { selector: "img[src^='http:']", type: "IMAGE", risk: "WARNING" },
+        { selector: "iframe[src^='http:']", type: "IFRAME", risk: "BLOCKED" },
+        { selector: "video[src^='http:'], source[src^='http:']", type: "MEDIA", risk: "WARNING" },
+        { selector: "object[data^='http:']", type: "OBJECT", risk: "BLOCKED" },
+        { selector: "embed[src^='http:']", type: "EMBED", risk: "BLOCKED" },
+      ];
+      resources.forEach(({ selector, type, risk }) => {
+        document.querySelectorAll(selector).forEach((el) => {
+          const src = el.getAttribute("src") || el.getAttribute("href") || el.getAttribute("data");
+          findings.push({ type, src: (src || "").substring(0, 80), browserAction: risk, risk: risk === "BLOCKED" ? "HIGH" : "MEDIUM" });
+        });
+      });
+    }
+    console.log("%c🔀 Mixed Content Vulnerabilities:", "color: #f39c12; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo mixed content (or page is HTTP).", "color: #27ae60;");
+    return findings;
+  }
+  window.detectMixedContentVulnerabilitiesXSS = detectMixedContentVulnerabilitiesXSS;
+
+  // Feature 34: URL Validation Bypass XSS Test
+  function testURLValidationBypassXSS() {
+    const findings = [];
+    const bypassPayloads = [
+      { payload: "javascript:alert(1)", technique: "direct", risk: "CRITICAL" },
+      { payload: "jAvAsCrIpT:alert(1)", technique: "case-mixing", risk: "CRITICAL" },
+      { payload: "javascript%3Aalert(1)", technique: "url-encoding", risk: "CRITICAL" },
+      { payload: "javascript&#58;alert(1)", technique: "html-entity", risk: "CRITICAL" },
+      { payload: "javascript&#x3A;alert(1)", technique: "hex-entity", risk: "CRITICAL" },
+      { payload: "javascript%09:alert(1)", technique: "tab-bypass", risk: "CRITICAL" },
+      { payload: "javascript%0a:alert(1)", technique: "newline-bypass", risk: "CRITICAL" },
+      { payload: "data:text/html,<script>alert(1)</script>", technique: "data-uri", risk: "HIGH" },
+      { payload: "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==", technique: "data-base64", risk: "HIGH" },
+      { payload: "vbscript:MsgBox(1)", technique: "vbscript", risk: "CRITICAL" },
+    ];
+    document.querySelectorAll("a[href]").forEach((a) => {
+      const href = a.getAttribute("href");
+      if (!href) return;
+      bypassPayloads.forEach(({ payload, technique, risk }) => {
+        if (href.toLowerCase().includes(payload.toLowerCase().substring(0, 8))) {
+          findings.push({ element: "A#" + (a.id || ""), href: href.substring(0, 80), technique, risk });
+        }
+      });
+    });
+    document.querySelectorAll("[action]").forEach((el) => {
+      const action = el.getAttribute("action");
+      if (action && /^\s*javascript\s*:/i.test(action)) findings.push({ element: el.tagName + "#" + (el.id || ""), technique: "direct", risk: "CRITICAL" });
+    });
+    console.log("%c🔗 URL Validation Bypass XSS:", "color: #e74c3c; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo URL bypass patterns.", "color: #27ae60;");
+    return findings;
+  }
+  window.testURLValidationBypassXSS = testURLValidationBypassXSS;
+
+  // Feature 35: Clickjacking Vulnerability Scanner
+  function scanClickjackingVulnerabilitiesXSS() {
+    const findings = [];
+    const frameOptions = document.querySelector('meta[http-equiv="X-Frame-Options"]');
+    const cspMeta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    const hasFrameAncestors = cspMeta && /frame-ancestors/.test(cspMeta.getAttribute("content"));
+    if (!frameOptions && !hasFrameAncestors) {
+      findings.push({ type: "no-frame-protection", risk: "HIGH", note: "No X-Frame-Options or CSP frame-ancestors - page can be framed" });
+    }
+    document.querySelectorAll("iframe").forEach((iframe) => {
+      const src = iframe.src || "";
+      const sandbox = iframe.sandbox;
+      const hasSandbox = sandbox && sandbox.length > 0;
+      findings.push({ type: "iframe", src: src.substring(0, 80), sandboxed: hasSandbox, risk: !hasSandbox ? "MEDIUM" : "LOW" });
+    });
+    document.querySelectorAll("form[target='_blank'], a[target='_blank']").forEach((el) => {
+      const rel = el.getAttribute("rel") || "";
+      if (!rel.includes("noopener")) findings.push({ type: "reverse-tabnabbing", element: el.tagName + "#" + (el.id || ""), risk: "MEDIUM" });
+    });
+    console.log("%c🎯 Clickjacking Vulnerabilities:", "color: #e67e22; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo clickjacking vulnerabilities.", "color: #27ae60;");
+    return findings;
+  }
+  window.scanClickjackingVulnerabilitiesXSS = scanClickjackingVulnerabilitiesXSS;
+
+  // Feature 36: Deep Storage XSS Chain Analysis
+  function testStorageXSSDeepChainXSS() {
+    const findings = [];
+    const sinks = ["innerHTML", "outerHTML", "document.write", "eval", "setTimeout", "setInterval", "Function", "location.href", "location.assign", "location.replace"];
+    ["localStorage", "sessionStorage"].forEach((storage) => {
+      try {
+        const store = window[storage];
+        for (let i = 0; i < store.length; i++) {
+          const key = store.key(i);
+          const value = store.getItem(key);
+          if (!value || value.length < 3) continue;
+          document.querySelectorAll("*").forEach((el) => {
+            if (!el || !el.tagName) return;
+            if (el.innerHTML && el.innerHTML.includes(value)) {
+              const outerHTML = el.outerHTML || "";
+              const usedSinks = sinks.filter((s) => outerHTML.includes(s));
+              const hasInlineHandler = Array.from(el.attributes).some((a) => a.name.startsWith("on"));
+              findings.push({ storage, key, element: el.tagName + "#" + (el.id || ""), sinks: usedSinks, hasInlineHandler, risk: usedSinks.length > 0 || hasInlineHandler ? "CRITICAL" : "HIGH" });
+            }
+          });
+        }
+      } catch (e) {}
+    });
+    console.log("%c💾 Deep Storage XSS Chains:", "color: #e74c3c; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo deep storage XSS chains.", "color: #27ae60;");
+    return findings;
+  }
+  window.testStorageXSSDeepChainXSS = testStorageXSSDeepChainXSS;
+
+  // Feature 37: CSP Violation Report Analysis
+  function detectCSPViolationReportsXSS() {
+    const findings = { meta: null, header: null, violations: [], recommendations: [] };
+    const meta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    if (meta) findings.meta = meta.getAttribute("content");
+    try {
+      const entries = performance.getEntriesByType ? performance.getEntriesByType("csp-violation") : [];
+      findings.violations = entries.map((e) => ({ directive: e.disposition, blocked: e.blockedURI, policy: e.originalPolicy }));
+    } catch (e) {}
+    if (window.SecurityPolicyViolationEvent) {
+      findings.recommendations.push("Add document.addEventListener('securitypolicyviolation', e => console.log(e)) to capture live violations");
+    }
+    if (!findings.meta && findings.violations.length === 0) {
+      findings.recommendations.push("No CSP detected - page vulnerable to XSS");
+    }
+    console.log("%c📋 CSP Violation Reports:", "color: #f39c12; font-weight: bold;");
+    if (findings.meta) console.log("CSP: " + findings.meta.substring(0, 100));
+    if (findings.violations.length > 0) console.table(findings.violations);
+    if (findings.recommendations.length > 0) findings.recommendations.forEach((r) => console.log("%c💡 " + r, "color: #f39c12;"));
+    return findings;
+  }
+  window.detectCSPViolationReportsXSS = detectCSPViolationReportsXSS;
+
+  // Feature 38: Redirect Chain XSS Audit
+  function auditRedirectChainXSS() {
+    const findings = [];
+    const url = new URL(window.location.href);
+    const redirectParams = ["redirect", "return", "next", "go", "url", "continue", "redir", "back", "forward", "to", "rurl", "dest", "destination", "checkout_url", "return_url", "redirect_uri", "redirect_url", "return_to", "out", "view", "link"];
+    url.searchParams.forEach((value, key) => {
+      if (redirectParams.some((p) => key.toLowerCase().includes(p))) {
+        let targetUrl;
+        try { targetUrl = new URL(value); } catch (e) {}
+        if (targetUrl) {
+          const isExternal = targetUrl.origin !== window.location.origin;
+          const isJS = /^\s*javascript\s*:/i.test(value);
+          const isData = /^\s*data\s*:/i.test(value);
+          findings.push({ param: key, value: value.substring(0, 80), isExternal, isJS, isData, risk: isJS ? "CRITICAL" : isData ? "HIGH" : isExternal ? "CRITICAL" : "MEDIUM", testPayload: "//evil.com" });
+        }
+      }
+    });
+    document.querySelectorAll("meta[http-equiv='refresh']").forEach((meta) => {
+      const content = meta.getAttribute("content");
+      if (content && /url\s*=/i.test(content)) {
+        const urlMatch = content.match(/url\s*=\s*(.+)/i);
+        if (urlMatch) findings.push({ type: "meta-refresh", url: urlMatch[1].substring(0, 80), risk: "MEDIUM" });
+      }
+    });
+    document.querySelectorAll("a[href]").forEach((a) => {
+      const href = a.getAttribute("href");
+      if (href && /redirect|return|next|url|back|forward/i.test(href) && href.includes("=")) {
+        findings.push({ type: "link-redirect", href: href.substring(0, 100), risk: "MEDIUM" });
+      }
+    });
+    console.log("%c🔄 Redirect Chain XSS Audit:", "color: #f39c12; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo redirect chains.", "color: #27ae60;");
+    return findings;
+  }
+  window.auditRedirectChainXSS = auditRedirectChainXSS;
+
+  // Feature 39: Document.write XSS Chain Test
+  function testDocumentWriteXSSChainXSS() {
+    const findings = [];
+    document.querySelectorAll("script:not([src])").forEach((script) => {
+      const code = script.textContent;
+      if (/document\.write\s*\(|document\.writeln\s*\(/.test(code)) {
+        const hasUserInput = /location\.|document\.URL|document\.referrer|window\.name|document\.cookie|location\.search|location\.hash/.test(code);
+        const hasSink = /innerHTML|outerHTML|eval\(|setTimeout|setInterval/.test(code);
+        const match = code.match(/document\.write(ln)?\s*\(([^)]{0,100})/);
+        findings.push({ script: script.src || "inline", snippet: match ? match[0].substring(0, 80) : "document.write(...)", hasUserInput, hasSink, risk: hasUserInput ? "CRITICAL" : hasSink ? "HIGH" : "MEDIUM" });
+      }
+    });
+    console.log("%c📝 Document.write XSS Chain:", "color: #e74c3c; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo document.write chains.", "color: #27ae60;");
+    return findings;
+  }
+  window.testDocumentWriteXSSChainXSS = testDocumentWriteXSSChainXSS;
+
+  // Feature 40: Comprehensive XSS Report Generator
+  function generateComprehensiveXSSReport() {
+    const report = { timestamp: new Date().toISOString(), url: window.location.href, sections: {} };
+    console.log("%c📊 GENERATING COMPREHENSIVE XSS REPORT...", "color: #e74c3c; font-size: 14px; font-weight: bold;");
+    console.log("=".repeat(60));
+    try { report.sections.xssVectors = scanExistingXSSVectorsXSS(); } catch (e) { report.sections.xssVectors = []; }
+    try { report.sections.javascriptURI = testJavascriptURI(); } catch (e) { report.sections.javascriptURI = []; }
+    try { report.sections.formAction = testFormActionXSSDeep(); } catch (e) { report.sections.formAction = []; }
+    try { report.sections.openRedirects = detectOpenRedirectChains(); } catch (e) { report.sections.openRedirects = []; }
+    try { report.sections.csp = assessCSPBypass(); } catch (e) { report.sections.csp = {}; }
+    try { report.sections.domClobbering = scanClobberingXSS(); } catch (e) { report.sections.domClobbering = []; }
+    try { report.sections.postMessage = testPostMessageXSSChain(); } catch (e) { report.sections.postMessage = []; }
+    try { report.sections.prototypePollution = testPrototypePollutionXSS(); } catch (e) { report.sections.prototypePollution = []; }
+    try { report.sections.storageChains = auditStorageToDOMChainsXSS(); } catch (e) { report.sections.storageChains = []; }
+    try { report.sections.redirectChains = auditRedirectChainXSS(); } catch (e) { report.sections.redirectChains = []; }
+    try { report.sections.mixedContent = detectMixedContentVulnerabilitiesXSS(); } catch (e) { report.sections.mixedContent = []; }
+    try { report.sections.clickjacking = scanClickjackingVulnerabilitiesXSS(); } catch (e) { report.sections.clickjacking = []; }
+    try { report.sections.dangerousCSS = detectDangerousCSSSinksXSS(); } catch (e) { report.sections.dangerousCSS = []; }
+    try { report.sections.encodedSinks = scanEncodedSinksXSS(); } catch (e) { report.sections.encodedSinks = []; }
+    try { report.sections.templateInjection = testTemplateInjectionXSS(); } catch (e) { report.sections.templateInjection = []; }
+    try { report.sections.shadowDOM = scanShadowDOMXSS(); } catch (e) { report.sections.shadowDOM = []; }
+    try { report.sections.baseTag = testBaseTagXSS(); } catch (e) { report.sections.baseTag = []; }
+    try { report.sections.urlBypass = testURLValidationBypassXSS(); } catch (e) { report.sections.urlBypass = []; }
+    const totalFindings = Object.values(report.sections).flat().length;
+    const criticalCount = Object.values(report.sections).flat().filter((f) => f && f.risk === "CRITICAL").length;
+    report.summary = { totalFindings, criticalCount, riskLevel: criticalCount > 0 ? "CRITICAL" : totalFindings > 5 ? "HIGH" : "LOW" };
+    console.log("=".repeat(60));
+    console.log("%c📊 XSS REPORT SUMMARY:", "color: #e74c3c; font-weight: bold;");
+    console.log(`  Total Findings: ${totalFindings}`);
+    console.log(`  Critical: ${criticalCount}`);
+    console.log(`  Risk Level: ${report.summary.riskLevel}`);
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "xss-comprehensive-report-" + Date.now() + ".json";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 100);
+    window.lastComprehensiveXSSReport = report;
+    return report;
+  }
+  window.generateComprehensiveXSSReport = generateComprehensiveXSSReport;
+
+  console.log("%c🚀 20 MORE XSS ENHANCEMENTS LOADED (Features 21-40)", "color: #e74c3c; font-weight: bold;");
+  console.log("New: testFormActionXSSDeep, scanEncodedSinksXSS, testPostMessageXSSChain, detectOpenRedirectChains, testAttributeInjectionXSS, detectDangerousCSSSinksXSS, auditStorageToDOMChainsXSS, testBaseTagXSS, detectServiceWorkerXSSChainsXSS, testPrototypePollutionXSS, scanExistingXSSVectorsXSS, testDOMParserXSSChainXSS, detectMixedContentVulnerabilitiesXSS, testURLValidationBypassXSS, scanClickjackingVulnerabilitiesXSS, testStorageXSSDeepChainXSS, detectCSPViolationReportsXSS, auditRedirectChainXSS, testDocumentWriteXSSChainXSS, generateComprehensiveXSSReport");
 })();
 
 // ===========================================
