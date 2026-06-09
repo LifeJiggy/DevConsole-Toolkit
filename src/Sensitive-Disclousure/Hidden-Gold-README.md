@@ -1,122 +1,194 @@
-# 🔥💀 Critical Flaw Hunter 💀🔥
+# Hidden-Gold.js — JS Disclosure & Secret Extractor
 
-A professional, single-snippet toolkit for post-reconnaissance attack surface analysis and vulnerability prioritization. Designed for bug bounty hunters to find critical flaws faster by focusing on high-risk application areas.
+A comprehensive browser console tool for discovering secrets, credentials, API keys, endpoints, and sensitive information disclosed in JavaScript code and the DOM.
 
-**No extensions. No build steps. Pure console-native execution.**
+## Quick Start
 
----
+1. Open DevTools (F12) on any target website
+2. Go to **Console** tab
+3. Paste the entire `Hidden-Gold.js` file and press Enter
+4. The tool auto-runs `runAllExtractors()` and displays all commands
 
-## 🚀 Key Features
-
--   **Risk-Based Prioritization**: Automatically categorizes discovered endpoints and functions into risk categories like `Authentication`, `Access Control`, and `Business Logic`.
--   **Comprehensive Endpoint Discovery**: Scans the DOM, JavaScript, network requests, sitemaps, and `robots.txt` to build a complete map of the application's endpoints.
--   **Advanced Vulnerability Scanning**: Actively probes for high-impact vulnerabilities including XSS, SSRF, XXE, and RCE vectors within JavaScript flows.
--   **Gatekeeper Analysis**: Identifies security controls like authentication checks, authorization functions, CSRF protection, and rate limiting for bypass testing.
--   **State-Changer Identification**: Pinpoints functions and forms that modify application state (e.g., `POST`, `PUT`, `DELETE`), highlighting critical business logic flows.
--   **Sensitive Data Exposure Detection**: Scans page content and local storage for exposed secrets, keys, and tokens.
--   **Heavy Application Support**: Uses batching and asynchronous processing to handle large and complex single-page applications without freezing the browser.
--   **Professional Reporting**: Exports all findings into a structured JSON file for easy integration with other tools and reporting.
-
----
-
-## ⚡ Quick Start
-
-Get up and running in seconds.
-
-## Method 1: Console Paste (Recommended)
-
-1.  Open the target website.
-2.  Open your browser's Developer Tools (**F12** or **Cmd+Option+I**).
-3.  Navigate to the **Console** tab.
-4.  Paste the entire contents of `claude.js`.
-5.  Press **Enter**. The tool will automatically start its initial hunt.
-
-## Method 2: Browser Snippet
-
-For repeated use, save the script as a Snippet for one-click execution.
-
-1.  In DevTools, go to the **Sources** tab -> **Snippets** panel.
-2.  Click **New snippet**.
-3.  Paste the script and save it (e.g., as `FlawHunter.js`).
-4.  Run it anytime with **Ctrl+Enter** (or **Cmd+Enter**).
-
----
-
-## 📖 Usage
-
-Once loaded, all functionality is accessed through the global `hunter` object.
-
-```javascript
-// Start the main scan to map and prioritize the attack surface.
-hunter.hunt();
-
-// Run advanced, active scans for vulnerabilities like SSRF and RCE.
-hunter.deepScan();
-
-// Display a high-level overview of the attack surface by risk category.
-hunter.quickSummary();
-
-// Get context-aware payloads for manual testing of discovered endpoints.
-hunter.generatePayloads();
-
-// Download the complete analysis as a JSON file for reporting.
-hunter.exportResults();
+```js
+runAllExtractors();          // Full extraction
+extractAPIKeys();            // Just API keys
+extractP1Secrets();          // P1-focused critical findings
+analyzeEntropy();            // Token entropy scoring
+scoreSecrets();              // Risk scoring
+generateRemediation();       // Fix recommendations
+exportCSV();                 // Copy findings as CSV
 ```
 
----
+## Core Extraction Functions
 
-## 🏹 Bug Hunting Workflow
+### extractAPIKeys()
+Scans all script tags and global variables for API keys and tokens.
+- AWS Access Keys (`AKIA...`)
+- JWT tokens (`eyJ...`)
+- GitHub tokens (`ghp_...`, `gho_...`)
+- Stripe keys (`sk_live_...`, `pk_live_...`)
+- Google API keys (`AIza...`)
+- Firebase URLs
+- Generic high-entropy strings
 
-This tool is designed to move from broad reconnaissance to targeted exploitation.
+### extractHiddenEndpoints()
+Discovers hidden API endpoints, admin routes, and internal paths.
+- REST API patterns (`/api/`, `/v1/`, `/v2/`)
+- Admin panels (`/admin`, `/dashboard`, `/wp-admin`)
+- Debug endpoints (`/debug`, `/trace`, `/actuator`)
+- GraphQL endpoints
+- Internal microservice paths
 
-1.  **Initial Hunt**
-    Run `hunter.hunt()` on your target page. The tool will automatically discover endpoints and categorize them by risk.
+### extractCredentials()
+Extracts database connection strings, SMTP credentials, and SSH keys.
+- MySQL/PostgreSQL/MongoDB connection strings
+- SMTP credentials
+- SSH private keys
+- API secrets and tokens
+- Bearer tokens
 
-2.  **Triage by Risk**
-    Review the prioritized attack surface in the console output. Focus on `CRITICAL` (Authentication, Business Logic) and `HIGH` (Access Control, API) categories first. These are your most likely P1 targets.
+### extractConfigurations()
+Discovers configuration objects, environment variables, and feature flags.
+- Debug mode settings
+- Environment configurations
+- Feature flags
+- Third-party service configs
+- Version information
 
-3.  **Analyze State Changers**
-    Examine the identified state-changing operations (e.g., `POST /api/user/delete`, `PUT /api/profile`). These are prime targets for **IDOR**, **Business Logic Flaws**, and **Race Conditions**.
+### mapEventListeners()
+Analyzes DOM event listeners for dangerous handlers.
+- onclick/onsubmit handlers with inline code
+- Event delegation patterns
+- Dangerous callback functions
+- Cross-origin event handlers
 
-4.  **Probe Gatekeepers**
-    The tool identifies authentication and authorization functions. Use the browser's debugger to set breakpoints in these functions and attempt to bypass them by modifying variables or return values.
+### extractAdvancedFlags()
+Finds Chrome flags, debug parameters, and advanced configurations.
+- Chrome experimental flags
+- Debug query parameters
+- Feature toggles
+- Admin bypass flags
 
-5.  **Deep Scan for Vulnerabilities**
-    Run `hunter.deepScan()` to actively check for code injection, SSRF, and other server-side vulnerabilities in the discovered JavaScript flows.
+### extractP1Secrets()
+P1-focused scan for critical credentials and secrets.
+- High-risk API keys
+- Production credentials
+- Database passwords
+- Authentication tokens
 
-6.  **Manual Exploitation**
-    Use `hunter.generatePayloads()` to get a list of tailored payloads. Use these with a proxy like Burp Suite to manually test the most promising endpoints you've identified.
+### extractSensitiveEndpoints()
+Discovers sensitive endpoint categories.
+- Payment processing endpoints
+- User management APIs
+- Authentication flows
+- Admin operations
+- Webhook URLs
+- Configuration endpoints
 
-7.  **Export & Report**
-    Once you've found a vulnerability, use `hunter.exportResults()` to download a clean JSON report. This provides excellent evidence for your bug bounty submission.
+## Enhancement Functions (10)
 
----
+### 1. scoreSecrets()
+Risk-scoring engine for all discovered secrets.
+- Calculates risk score based on severity (HIGH=10, MEDIUM=5, LOW=2, INFO=1)
+- Adds entropy bonus for high-entropy values (>4.5 bits)
+- Adds location bonus for global-scope secrets
+- Returns sorted table by risk score
 
-## 🗂️ Attack Surface Categories
+### 2. analyzeSourceMaps()
+Detects source maps in script tags.
+- External `.js.map` files
+- Inline `sourceMappingURL` references
+- Returns map URLs and associated scripts
 
--   **🔐 Authentication/Session**: Login, logout, password reset, JWT/token handling.
--   **🛡️ Access Control**: Admin panels, user management, permission-based endpoints.
--   **📝 Data Input & Rendering**: Forms, file uploads, search queries, and other user-supplied data sinks.
--   **💰 Business Transactions**: Checkout, payments, subscriptions, and other core financial flows.
--   **🔌 API & State Changes**: Endpoints that create, update, or delete data (`POST`, `PUT`, `DELETE`).
--   **🔑 Session Management**: Cookie handling, session invalidation, and timeout logic.
--   **✅ Input Validation**: Functions related to sanitization, filtering, and validation.
--   **🚨 Error Handling**: Code that handles exceptions and errors, which may leak information.
--   **🔗 Third-Party Integrations**: OAuth flows, webhooks, and other external service calls.
+### 3. analyzeCSP()
+Analyzes Content Security Policy for weaknesses.
+- Detects `unsafe-inline`, `unsafe-eval`
+- Flags wildcard (`*`) sources
+- Identifies `data:` and `blob:` URI bypasses
+- Rates policy severity
 
----
+### 4. detectDangerousSinks()
+Finds DOM XSS sinks in element attributes.
+- innerHTML, outerHTML, insertAdjacentHTML
+- document.write, eval, Function
+- setTimeout, setInterval with strings
+- location.href, window.open
+- Returns element, attribute, sink type, and risk level
 
-## 🤝 Contributing
+### 5. analyzeEntropy()
+Scores all discovered tokens by Shannon entropy.
+- Calculates character frequency distribution
+- Computes Shannon entropy in bits
+- Rates: >4.5 bits = HIGH, >3.5 = MEDIUM, else LOW
+- Returns sorted by entropy descending
 
-Contributions are welcome! If you have an idea for a new feature, a bug fix, or an improvement, please feel free to fork the repository and submit a pull request.
+### 6. mapExposureVectors()
+Correlates secrets with exposure paths.
+- Secrets + endpoints = HIGH risk
+- Debug mode + secrets = CRITICAL
+- DOM-exposed secrets = HIGH
+- Returns exposure vector descriptions
 
-1.  Fork the repo.
-2.  Create your feature branch (`git checkout -b feature/AmazingFeature`).
-3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4.  Push to the branch (`git push origin feature/AmazingFeature`).
-5.  Open a Pull Request.
+### 7. mapCompliance()
+Maps findings to OWASP Top 10 categories.
+- A07: Identification and Authentication Failures
+- A01: Broken Access Control
+- A05: Security Misconfiguration
+- A03: Injection (via event listener count)
 
-## 📧 Contact
+### 8. diffScan()
+Compares current scan with previous baseline.
+- Saves baseline on first run
+- Reports new and removed findings
+- Useful for monitoring changes over time
 
--   **X**: https://x.com/ArkhLifeJiggy
--   **Email**: bloomtonjovish@gmail.com && emperorstephenpee001@gmail.com
+### 9. generateRemediation()
+Auto-generates prioritized fix recommendations.
+- P0: Rotate immediately, move to server-side
+- P1: Review and secure
+- Covers API keys, credentials, and debug configs
+
+### 10. exportCSV()
+Exports all findings as CSV to clipboard.
+- Columns: Type, Name, Value, Risk, Source, Location
+- Copies to clipboard via navigator.clipboard API
+- Falls back to console output if clipboard unavailable
+
+## Hardening
+
+- `_safeTable(data, max)` — console.table wrapper, max 200 rows
+- `_MAX_SCRIPTS = 200` — scripts.querySelectorAll capped
+- `_MAX_ELEMENTS = 5000` — DOM element queries capped
+- 13 inner try/catch blocks on forEach loops
+- Graceful error handling on all functions
+- No prototype pollution (read-only scans)
+
+## Output Structure
+
+```js
+window.jsDisclosureHunter = {
+  apiKeys: [{
+    keyType: "aws_access_key",
+    value: "AKIA...",
+    risk: "HIGH",
+    source: "Inline Script #3",
+    location: "window.AWS_CONFIG.accessKeyId",
+    entropy: 4.8,
+    timestamp: "2026-06-09T..."
+  }],
+  credentials: [{ name, value, risk, source }],
+  endpoints: [{ name, url, type, risk, source }],
+  configurations: { debug: {...}, environment: {...}, features: {...} },
+  listeners: [{ eventType, selector, handler, element }],
+  advancedFlags: [{ flag, value, source }],
+  mapping: { "sourceFile.js": [...] },
+  networkLogs: [...]
+}
+```
+
+## Commit History
+
+| Commit | Changes |
+|--------|---------|
+| `300a044` | P1/P2 bug fixes (7 fixes) |
+| `6f421e2` | Hardening + 10 enhancements |
