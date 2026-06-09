@@ -20,24 +20,19 @@
     autoPatchNetwork: false, // if true, patch network on banner show
   };
 
+  // Wired: __origConsole.error used in catch blocks; _log respects SETTINGS.quiet
   const __origConsole = {
-    log: console.log.bind(console),
-    info: console.info.bind(console),
-    warn: console.warn.bind(console),
     error: console.error.bind(console),
   };
-  function withQuietLogging(fn) {
-    const prevLog = console.log;
-    const prevInfo = console.info;
-    if (SETTINGS.quiet) {
-      console.log = function () {};
-      console.info = function () {};
-    }
-    try {
-      return fn();
-    } finally {
-      console.log = prevLog;
-      console.info = prevInfo;
+  // Wired: withQuietLogging replaced by _log helper that respects SETTINGS.quiet
+  function _log(level, ...args) {
+    if (SETTINGS.quiet && (level === "log" || level === "info")) return;
+    if (SETTINGS.logLevel === "silent") return;
+    const levels = ["silent", "error", "warn", "info", "debug"];
+    const lvlIdx = levels.indexOf(level);
+    const cfgIdx = levels.indexOf(SETTINGS.logLevel);
+    if (lvlIdx <= cfgIdx) {
+      try { console[level](...args); } catch {}
     }
   }
 
@@ -60,8 +55,9 @@
   function attrEscape(s) {
     return String(s).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
-  function matchesAnyEncoding(haystack, needle) {
-    if (haystack == null || needle == null) return false;
+  // Wired: findMatchIndex returns {index, length, matched} for highlight positioning
+  function findMatchIndex(haystack, needle) {
+    if (haystack == null || needle == null) return null;
     const hay = String(haystack);
     const candidates = [
       String(needle),
@@ -71,14 +67,22 @@
     ];
     if (SETTINGS.caseInsensitive) {
       const hayL = hay.toLowerCase();
-      return candidates.some(
-        (n) =>
-          typeof n === "string" && n && hayL.includes(String(n).toLowerCase())
-      );
+      for (const n of candidates) {
+        if (typeof n !== "string" || !n) continue;
+        const idx = hayL.indexOf(String(n).toLowerCase());
+        if (idx !== -1) return { index: idx, length: n.length, matched: n };
+      }
+    } else {
+      for (const n of candidates) {
+        if (typeof n !== "string" || !n) continue;
+        const idx = hay.indexOf(String(n));
+        if (idx !== -1) return { index: idx, length: n.length, matched: n };
+      }
     }
-    return candidates.some(
-      (n) => typeof n === "string" && n && hay.includes(String(n))
-    );
+    return null;
+  }
+  function matchesAnyEncoding(haystack, needle) {
+    return findMatchIndex(haystack, needle) !== null;
   }
 
   // Non-destructive highlighting state
@@ -154,83 +158,22 @@
   let __restoreNetworkFns = [];
   function patchNetwork() {
     if (window.__upe_fetchPatched) {
-      try {
-        console.warn("UPE: Network already patched");
-      } catch {}
+      _log("warn", "UPE: Network already patched");
       window.__upePatchNotice = "already_patched";
       return;
     }
-    window.__upe_fetchPatched = true;
-
-    const origFetch = window.fetch;
-    window.fetch = async (input, init = {}) => {
-      try {
-        const req =
-          input instanceof Request ? input : new Request(input, init || {});
-        extractParamsFromURL(req.url, "fetch-url");
-        const headers = toPlainHeaders(req.headers);
-        Object.entries(headers).forEach(([k, v]) =>
-          addParam(k, v, "fetch-header")
-        );
-        const bodyInfo = parseBody(init && init.body);
-        if (bodyInfo.entries) {
-          Object.entries(bodyInfo.entries).forEach(([k, v]) =>
-            addParam(k, v, "fetch-body")
-          );
-        } else if (bodyInfo.value) {
-          addParam("raw_body", bodyInfo.value, "fetch-body");
-        }
-        // Sink detection: location redirects via fetch init (rare, but keep placeholder)
-      } catch (e) {
-        __origConsole.error("UPE fetch patch error", e);
-      }
-      return origFetch.call(this, input, init);
-    };
+    // Wired: interceptAPICalls is the canonical fetch/XHR patcher
+    interceptAPICalls();
     __restoreNetworkFns.push(() => {
-      window.fetch = origFetch;
       window.__upe_fetchPatched = false;
     });
 
-    const open = XMLHttpRequest.prototype.open;
-    const send = XMLHttpRequest.prototype.send;
-    XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-      try {
-        extractParamsFromURL(url, "xhr-url");
-      } catch {}
-      return open.call(this, method, url, ...rest);
-    };
-    XMLHttpRequest.prototype.send = function (body) {
-      try {
-        const info = parseBody(body);
-        if (info.entries) {
-          Object.entries(info.entries).forEach(([k, v]) =>
-            addParam(k, v, "xhr-body")
-          );
-        } else if (info.value) {
-          addParam("raw_body", info.value, "xhr-body");
-        }
-      } catch (e) {
-        __origConsole.error("UPE XHR patch error", e);
-      }
-      return send.call(this, body);
-    };
-    __restoreNetworkFns.push(() => {
-      XMLHttpRequest.prototype.open = open;
-      XMLHttpRequest.prototype.send = send;
-    });
-
     // Patch DOM sinks: innerHTML, outerHTML, insertAdjacentHTML, document.write,
-    // timers with string callbacks, and location redirects
+    // timers with string callbacks, location redirects
     try {
       const ElementProto = Element.prototype;
-      const origInnerHTML = Object.getOwnPropertyDescriptor(
-        ElementProto,
-        "innerHTML"
-      );
-      const origOuterHTML = Object.getOwnPropertyDescriptor(
-        ElementProto,
-        "outerHTML"
-      );
+      const origInnerHTML = Object.getOwnPropertyDescriptor(ElementProto, "innerHTML");
+      const origOuterHTML = Object.getOwnPropertyDescriptor(ElementProto, "outerHTML");
       const origInsertAdjacentHTML = ElementProto.insertAdjacentHTML;
       const origWrite = document.write;
       const origWriteln = document.writeln;
@@ -294,7 +237,7 @@
       window.setTimeout = function (handler, timeout, ...args) {
         if (typeof handler === "string")
           checkAgainstParams(handler, "setTimeout(string)");
-        return origSetTimeout(handler, timeout, ...args);
+        return origSetTimeout.call(this, handler, timeout, ...args);
       };
       __restoreNetworkFns.push(() => {
         window.setTimeout = origSetTimeout;
@@ -302,11 +245,30 @@
       window.setInterval = function (handler, timeout, ...args) {
         if (typeof handler === "string")
           checkAgainstParams(handler, "setInterval(string)");
-        return origSetInterval(handler, timeout, ...args);
+        return origSetInterval.call(this, handler, timeout, ...args);
       };
       __restoreNetworkFns.push(() => {
         window.setInterval = origSetInterval;
       });
+
+      // Patch window.location.href setter (most common redirect method)
+      try {
+        const locProto = Object.getPrototypeOf(window.location);
+        const origHrefDesc = Object.getOwnPropertyDescriptor(locProto, "href") || Object.getOwnPropertyDescriptor(window.location, "href");
+        if (origHrefDesc && origHrefDesc.set) {
+          Object.defineProperty(window.location, "href", {
+            get: origHrefDesc.get,
+            set(val) {
+              checkAgainstParams(val, "location.href");
+              return origHrefDesc.set.call(window.location, val);
+            },
+            configurable: true,
+          });
+          __restoreNetworkFns.push(() => {
+            if (origHrefDesc) Object.defineProperty(window.location, "href", origHrefDesc);
+          });
+        }
+      } catch {}
 
       window.location.assign = function (url) {
         checkAgainstParams(url, "location.assign");
@@ -321,9 +283,7 @@
         window.location.replace = origLocReplace;
       });
     } catch (e) {
-      try {
-        console.warn("UPE: sink patching failed", e);
-      } catch {}
+      _log("warn", "UPE: sink patching failed", e);
     }
   }
   function unpatchNetwork() {
@@ -342,7 +302,7 @@
         if (!entry || entry.value == null) return;
         if (matchesAnyEncoding(s, String(entry.value))) {
           addReflection(key, where, true);
-          if (/body|html/i.test(where)) entry.reflectBody = true;
+          if (/\b(body|html)\b/i.test(where)) entry.reflectBody = true;
           entry.dangerousSink = true;
         }
       });
@@ -351,18 +311,7 @@
 
   function addParam(key, value, source) {
     if (!key) return;
-    if (!paramMap.has(key)) {
-      paramMap.set(key, {
-        value,
-        values: [], // history of { value, source, at }
-        lastUpdated: 0,
-        sources: new Set(),
-        reflections: new Set(),
-        reflectBody: false,
-        reflectHead: false,
-        dangerousSink: false,
-      });
-    }
+    if (!paramMap.has(key)) paramMap.set(key, _newParamEntry());
     const entry = paramMap.get(key);
     entry.sources.add(source);
     const now = Date.now();
@@ -371,11 +320,7 @@
       entry.lastUpdated = now;
       try {
         entry.values.push({ value, source, at: now });
-        if (
-          Array.isArray(entry.values) &&
-          SETTINGS.maxHistory &&
-          entry.values.length > SETTINGS.maxHistory
-        ) {
+        if (SETTINGS.maxHistory && entry.values.length > SETTINGS.maxHistory) {
           entry.values.splice(0, entry.values.length - SETTINGS.maxHistory);
         }
       } catch {}
@@ -383,17 +328,7 @@
   }
   function addReflection(key, where, dangerous = false) {
     if (!key) return;
-    if (!paramMap.has(key))
-      paramMap.set(key, {
-        value: undefined,
-        values: [],
-        lastUpdated: 0,
-        sources: new Set(),
-        reflections: new Set(),
-        reflectBody: false,
-        reflectHead: false,
-        dangerousSink: false,
-      });
+    if (!paramMap.has(key)) paramMap.set(key, _newParamEntry());
     paramMap.get(key).reflections.add(where);
     if (dangerous) paramMap.get(key).dangerousSink = true;
   }
@@ -404,7 +339,7 @@
       const u = new URL(url, window.location.origin);
       u.searchParams.forEach((value, key) => {
         addParam(key, value, source);
-        console.log(`🌐 URL Param (${source}): ${key} = ${value}`);
+        _log("log", `🌐 URL Param (${source}): ${key} = ${value}`);
       });
       // Also hash params (e.g. #foo=bar&baz=qux)
       if (u.hash && u.hash.includes("=")) {
@@ -412,10 +347,13 @@
           .replace(/^#/, "")
           .split("&")
           .forEach((pair) => {
-            const [k, v] = pair.split("=");
+            const eqIdx = pair.indexOf("=");
+            if (eqIdx === -1) return;
+            const k = decodeURIComponentSafe(pair.slice(0, eqIdx));
+            const v = decodeURIComponentSafe(pair.slice(eqIdx + 1));
             if (k && v) {
               addParam(k, v, source + "-hash");
-              console.log(`🌐 Hash Param (${source}): ${k} = ${v}`);
+              _log("log", `🌐 Hash Param (${source}): ${k} = ${v}`);
             }
           });
       }
@@ -438,46 +376,32 @@
     ];
     urlAttrs.forEach(({ selector, attr }) => {
       forEachRoot((root) => {
-        (root.querySelectorAll ? root : document)
-          .querySelectorAll(selector)
-          .forEach((el) => {
-            const url = el.getAttribute(attr);
-            if (url && url.includes("=")) {
-              extractParamsFromURL(url, `dom-${attr}`);
-            }
-          });
+        safeQueryAll(root, selector).forEach((el) => {
+          const url = el.getAttribute(attr);
+          if (url && url.includes("=")) {
+            extractParamsFromURL(url, `dom-${attr}`);
+          }
+        });
       });
     });
   }
 
+  // Helper: safe querySelectorAll on any root
+  function safeQueryAll(root, selector) {
+    return (root && root.querySelectorAll ? root : document).querySelectorAll(selector);
+  }
+
   // 🌐 URL Query Parameters and Path Segments (current page)
   function extractURLParams() {
-    // Extract query and hash params as before
-    extractParamsFromURL(window.location.href, "url");
-    // Extract path segment parameters (e.g., /user/john/profile -> user:john, profile)
-    const pathSegments = window.location.pathname
-      .split("/")
-      .filter((x) => x.length);
-    // Attempt to pair segments as key/value pairs, fallback to numbered keys
-    for (let i = 0; i < pathSegments.length; i++) {
-      let key, value;
-      // Heuristic: if parent segment looks like a parameter name
-      if (
-        i > 0 &&
-        /^[a-zA-Z0-9_\-]+$/.test(pathSegments[i - 1]) &&
-        /^[a-zA-Z0-9_\-]+$/.test(pathSegments[i])
-      ) {
-        key = pathSegments[i - 1] + "_segment";
-        value = pathSegments[i];
-        addParam(key, value, "url-path");
-      } else {
-        key = `segment${i}`;
-        value = pathSegments[i];
-        addParam(key, value, "url-path");
-      }
-      // Log each segment
-      console.log(`🟦 Path Segment Param: ${key} = ${value}`);
-    }
+    try {
+      extractParamsFromURL(window.location.href, "url");
+      // Path segments: only extract each segment once as a value
+      const pathSegments = window.location.pathname.split("/").filter((x) => x.length);
+      pathSegments.forEach((seg, i) => {
+        addParam(`segment${i}`, seg, "url-path");
+        _log("log", `🟦 Path Segment Param: segment${i} = ${seg}`);
+      });
+    } catch {}
   }
 
   // 🍪 Cookies
@@ -490,127 +414,114 @@
       const value = decodeURIComponentSafe(raw);
       if (key) {
         addParam(key, value, "cookie");
-        console.log(`🍪 Cookie Param: ${key} = ${value}`);
+        _log("log", `🍪 Cookie Param: ${key} = ${value}`);
       }
     });
   }
   function extractMetaTags() {
     forEachRoot((root) =>
-      (root.querySelectorAll ? root : document)
-        .querySelectorAll("meta")
-        .forEach((meta) => {
-          const name =
-            meta.getAttribute("name") || meta.getAttribute("property");
-          const content = meta.getAttribute("content");
-          if (name && content) {
-            addParam(name, content, "meta");
-            console.log(`🧬 Meta Param: ${name} = ${content}`);
-          }
-        })
+      safeQueryAll(root, "meta").forEach((meta) => {
+        const name = meta.getAttribute("name") || meta.getAttribute("property");
+        const content = meta.getAttribute("content");
+        if (name && content) {
+          addParam(name, content, "meta");
+          _log("log", `🧬 Meta Param: ${name} = ${content}`);
+        }
+      })
     );
   }
   function extractHiddenInputs() {
     forEachRoot((root) =>
-      (root.querySelectorAll ? root : document)
-        .querySelectorAll('input[type="hidden"]')
-        .forEach((input) => {
-          const key = input.name || input.id;
-          addParam(key, input.value, "hidden-input");
-          console.log(`🙈 Hidden Param: ${key} = ${input.value}`);
-        })
+      safeQueryAll(root, 'input[type="hidden"]').forEach((input) => {
+        const key = input.name || input.id;
+        addParam(key, input.value, "hidden-input");
+        _log("log", `🙈 Hidden Param: ${key} = ${input.value}`);
+      })
     );
     forEachRoot((root) =>
-      (root.querySelectorAll ? root : document)
-        .querySelectorAll(
-          '[hidden], [style*="display:none"], [style*="visibility:hidden"]'
-        )
-        .forEach((el) => {
-          if (el.tagName === "INPUT" && el.type === "hidden") return;
-          Array.from(el.attributes).forEach((attr) => {
-            if (attr.name.startsWith("data-")) {
-              const key = attr.name.replace(/^data-/, "");
-              addParam(key, attr.value, "hidden-data-attr");
-              console.log(`🙈 Hidden Data Param: ${key} = ${attr.value}`);
-            }
-          });
-        })
+      safeQueryAll(root, '[hidden], [style*="display:none"], [style*="visibility:hidden"], [style*="display: none"], [style*="visibility: hidden"]').forEach((el) => {
+        if (el.tagName === "INPUT" && el.type === "hidden") return;
+        Array.from(el.attributes).forEach((attr) => {
+          if (attr.name.startsWith("data-")) {
+            const key = attr.name.replace(/^data-/, "");
+            addParam(key, attr.value, "hidden-data-attr");
+            _log("log", `🙈 Hidden Data Param: ${key} = ${attr.value}`);
+          }
+        });
+      })
     );
   }
   function extractFormFields() {
     forEachRoot((root) =>
-      (root.querySelectorAll ? root : document)
-        .querySelectorAll("form")
-        .forEach((form) => {
-          const data = new FormData(form);
-          for (let [key, value] of data.entries()) {
-            addParam(key, value, "form");
-            console.log(`📝 Form Param: ${key} = ${value}`);
-          }
-        })
+      safeQueryAll(root, "form").forEach((form) => {
+        const data = new FormData(form);
+        for (let [key, value] of data.entries()) {
+          addParam(key, value, "form");
+          _log("log", `📝 Form Param: ${key} = ${value}`);
+        }
+      })
     );
   }
   function extractInlineConfigs() {
     forEachRoot((root) =>
-      (root.querySelectorAll ? root : document)
-        .querySelectorAll("script")
-        .forEach((script) => {
-          let content = script.textContent || "";
-          if (content.length > 0) {
-            try {
-              const obj = JSON.parse(content);
-              if (typeof obj === "object") {
-                Object.entries(obj).forEach(([key, value]) => {
-                  addParam(key, value, "inline-json");
-                  console.log(`🧱 Inline JSON Param: ${key} = ${value}`);
-                });
-              }
-            } catch {}
-            const assignRegex =
-              /([a-zA-Z0-9_\$]+)\s*=\s*(["'`].+?["'`]|\d+|true|false|null|\[.*?\]|\{.*?\});/g;
-            let match;
-            while ((match = assignRegex.exec(content))) {
-              let key = match[1];
-              let value = match[2];
-              if (value && (value.startsWith('"') || value.startsWith("'")))
-                value = value.slice(1, -1);
-              addParam(key, value, "inline-js");
-              console.log(`🧱 Inline JS Param: ${key} = ${value}`);
+      safeQueryAll(root, "script").forEach((script) => {
+        let content = script.textContent || "";
+        if (content.length > 0) {
+          try {
+            const obj = JSON.parse(content);
+            if (typeof obj === "object") {
+              Object.entries(obj).forEach(([key, value]) => {
+                addParam(key, value, "inline-json");
+                _log("log", `🧱 Inline JSON Param: ${key} = ${value}`);
+              });
             }
+          } catch {}
+          const assignRegex =
+            /([a-zA-Z0-9_\$]+)\s*=\s*(["'`][^"'`]*["'`]|\d+(?:\.\d+)?|true|false|null);/g;
+          let match;
+          while ((match = assignRegex.exec(content))) {
+            let key = match[1];
+            let value = match[2];
+            if (value && (value.startsWith('"') || value.startsWith("'") || value.startsWith("`")))
+              value = value.slice(1, -1);
+            addParam(key, value, "inline-js");
+            _log("log", `🧱 Inline JS Param: ${key} = ${value}`);
           }
-        })
+        }
+      })
     );
     if (SETTINGS.includeWindowGlobals) {
-      try {
-        const keys = Object.keys(window).slice(0, 500);
-        keys.forEach((key) => {
+      const keys = Object.keys(window).slice(0, 500);
+      keys.forEach((key) => {
+        try {
           if (typeof window[key] === "string" && window[key].length <= 200) {
             addParam(key, window[key], "window-global");
           }
-        });
-      } catch {}
+        } catch {}
+      });
     }
   }
 
   // Intercept all fetch/XHR and extract params from URLs and bodies
+  // Wired: interceptAPICalls merged into patchNetwork — this is the canonical network patching
   function interceptAPICalls() {
     if (window.__upe_fetchPatched) return;
     window.__upe_fetchPatched = true;
     const originalFetch = window.fetch;
     window.fetch = async function (input, init = {}) {
-      const url = typeof input === "string" ? input : input.url;
+      const url = typeof input === "string" ? input : (input && input.url) || "";
       extractParamsFromURL(url, "fetch-url");
-      const method = init.method || "GET";
       const headers = init.headers || {};
-      const body = init.body;
       if (headers && typeof headers === "object") {
         Object.entries(headers).forEach(([key, value]) => {
           addParam(key, value, "fetch-header");
         });
       }
+      const body = init.body;
       if (body) {
         try {
           const parsed = typeof body === "string" ? JSON.parse(body) : body;
-          if (typeof parsed === "object") {
+          if (typeof parsed === "object" && parsed !== null) {
             Object.entries(parsed).forEach(([key, value]) => {
               addParam(key, value, "fetch-body");
             });
@@ -624,8 +535,8 @@
     const originalXHROpen = XMLHttpRequest.prototype.open;
     const originalXHRSend = XMLHttpRequest.prototype.send;
     XMLHttpRequest.prototype.open = function (method, url, ...rest) {
-      this._method = method;
-      this._url = url;
+      this._upe_method = method;
+      this._upe_url = url;
       extractParamsFromURL(url, "xhr-url");
       return originalXHROpen.call(this, method, url, ...rest);
     };
@@ -633,7 +544,7 @@
       if (body) {
         try {
           const parsed = typeof body === "string" ? JSON.parse(body) : body;
-          if (typeof parsed === "object") {
+          if (typeof parsed === "object" && parsed !== null) {
             Object.entries(parsed).forEach(([key, value]) => {
               addParam(key, value, "xhr-body");
             });
@@ -663,11 +574,27 @@
     });
   }
 
-  // Dangerous sink detection helpers
+  // Factory for default param entry (single source of truth)
+  function _newParamEntry(value) {
+    return {
+      value: value !== undefined ? value : undefined,
+      values: [],
+      lastUpdated: 0,
+      sources: new Set(),
+      reflections: new Set(),
+      reflectBody: false,
+      reflectHead: false,
+      dangerousSink: false,
+    };
+  }
+
+  // Dangerous sink detection helpers — covers on* events, URL attrs, form actions, SVG, iframe
+  const DANGEROUS_ATTRS = new Set([
+    "src", "href", "action", "formaction", "data", "srcdoc", "xlink:href",
+    "lowsrc", "dynsrc", "background", "poster",
+  ]);
   function isDangerousAttr(attrName) {
-    return (
-      /^on[a-z]+$/.test(attrName) || attrName === "src" || attrName === "href"
-    );
+    return /^on[a-z]+$/.test(attrName) || DANGEROUS_ATTRS.has(attrName);
   }
 
   function detectReflections() {
@@ -762,7 +689,6 @@
       });
     } catch {}
     clearHighlights();
-    clearHighlights();
     paramMap.forEach((entry, key) => {
       if (!entry.value) return;
       // Highlight attributes
@@ -797,36 +723,29 @@
       // Highlight text nodes
       function highlightTextNodes(root) {
         if (!root) return;
-        const walker = document.createTreeWalker(
-          root,
-          NodeFilter.SHOW_TEXT,
-          null,
-          false
-        );
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
         let node;
         while ((node = walker.nextNode())) {
-          if (
-            node.nodeValue &&
-            typeof node.nodeValue === "string" &&
-            matchesAnyEncoding(node.nodeValue, entry.value)
-          ) {
-            // Non-destructive range wrapping
-            const raw = String(node.nodeValue);
-            const idx = raw.indexOf(entry.value);
-            if (idx !== -1) {
+          if (!node.nodeValue || typeof node.nodeValue !== "string") continue;
+          if (!matchesAnyEncoding(node.nodeValue, entry.value)) continue;
+          // Highlight ALL occurrences in this text node
+          const raw = String(node.nodeValue);
+          let searchStart = 0;
+          while (searchStart < raw.length) {
+            const match = findMatchIndex(raw.slice(searchStart), entry.value);
+            if (!match) break;
+            const idx = searchStart + match.index;
+            try {
               const range = document.createRange();
               range.setStart(node, idx);
-              range.setEnd(node, idx + entry.value.length);
+              range.setEnd(node, idx + match.length);
               const span = document.createElement("span");
-              span.style.background = entry.dangerousSink
-                ? "rgba(255,0,0,0.3)"
-                : "rgba(255,165,0,0.3)";
+              span.style.background = entry.dangerousSink ? "rgba(255,0,0,0.3)" : "rgba(255,165,0,0.3)";
               span.title = `Reflected param: ${key}`;
-              try {
-                range.surroundContents(span);
-                highlightMarkers.push(span);
-              } catch {}
-            }
+              range.surroundContents(span);
+              highlightMarkers.push(span);
+            } catch {}
+            searchStart = idx + match.length;
           }
         }
       }
@@ -861,7 +780,7 @@
         });
     });
     if (SETTINGS.logLevel !== "silent")
-      console.log("Highlighted reflected parameters in DOM.");
+      _log("info", "Highlighted reflected parameters in DOM.");
   }
   window.highlightReflectedParams = highlightReflectedParams;
 
@@ -922,13 +841,9 @@
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    console.log("CSV exported.");
+    _log("info", "CSV exported.");
   }
   window.exportParamReflectionsCSV = exportParamReflectionsCSV;
-  // Expose network patch/unpatch and clear highlights for UI/usage
-  window.patchNetwork = patchNetwork;
-  window.unpatchNetwork = unpatchNetwork;
-  window.clearParamHighlights = clearHighlights;
 
   function extractAllParameters() {
     extractURLParams();
@@ -938,7 +853,7 @@
     extractHiddenInputs();
     extractFormFields();
     extractInlineConfigs();
-    extractFromIframes && extractFromIframes();
+    extractFromIframes();
     // Network patching is opt-in; call window.patchNetwork() manually if desired
     detectReflections();
     // Output summary as table and JSON
@@ -977,50 +892,57 @@
       });
     });
     if (table.length) {
-      console.log("\n🧠 Parameter Reflection Table:");
+      _log("info", "\n🧠 Parameter Reflection Table:");
       console.table(table);
     }
     window.PARAM_REFLECTIONS_JSON = json;
-    console.log(
-      "\n🧠 Parameter Reflection JSON available as window.PARAM_REFLECTIONS_JSON"
-    );
-    console.log("🧠 To export as CSV, run: window.exportParamReflectionsCSV()");
-    console.log(
-      "🧠 To highlight reflected params in DOM, run: window.highlightReflectedParams()"
-    );
+    _log("info", "\n🧠 Parameter Reflection JSON available as window.PARAM_REFLECTIONS_JSON");
+    _log("info", "🧠 To export as CSV, run: window.exportParamReflectionsCSV()");
+    _log("info", "🧠 To highlight reflected params in DOM, run: window.highlightReflectedParams()");
   }
 
   // Real-time/continuous scanning (optional, only if user calls it)
   function startRealTimeScan(intervalMs = 3000) {
     if (realTimeActive) return;
     realTimeActive = true;
+    const startTime = Date.now();
     function loop() {
       if (!realTimeActive) return;
-      paramMap.clear();
+      const elapsed = Date.now() - startTime;
+      // Clear stale highlights from previous iteration
+      clearHighlights();
+      // Merge new params into existing paramMap (don't clear — preserves history)
       extractAllParameters();
-      setTimeout(loop, intervalMs);
+      const nextDelay = Math.max(100, intervalMs - (Date.now() - startTime - elapsed));
+      setTimeout(loop, nextDelay);
     }
     loop();
-    console.log("Real-time parameter extraction started.");
+    _log("info", "Real-time parameter extraction started.");
   }
   function stopRealTimeScan() {
     realTimeActive = false;
-    console.log("Real-time parameter extraction stopped.");
+    _log("info", "Real-time parameter extraction stopped.");
   }
   window.startRealTimeParamScan = startRealTimeScan;
   window.stopRealTimeParamScan = stopRealTimeScan;
 
   // Payload injection/active testing (stub, user can extend)
   function injectPayloads(payload = "__UPE_PAYLOAD__") {
-    document.querySelectorAll("form").forEach((form) => {
-      const input = document.createElement("input");
-      input.type = "hidden";
-      input.name = "upe_test";
-      input.value = payload;
-      form.appendChild(input);
-    });
-    document.cookie = `upe_test=${payload}; path=/`;
-    console.log(`Payload '${payload}' injected into forms and cookies.`);
+    try {
+      // Remove any previously injected fields to avoid duplicates
+      document.querySelectorAll('input[name="upe_test"]').forEach((el) => el.remove());
+      document.querySelectorAll("form").forEach((form) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = "upe_test";
+        input.value = payload;
+        form.appendChild(input);
+      });
+      document.cookie = `upe_test=${encodeURIComponent(payload)}; path=/`;
+      _log("info", `Payload '${payload}' injected into forms and cookies.`);
+    } catch (e) {
+      _log("error", "injectPayloads failed", e);
+    }
   }
   window.injectParamPayloads = injectPayloads;
 
@@ -1185,12 +1107,16 @@
 
   // Only run when user calls extractAllParameters (quiet by default)
   window.extractAllParameters = extractAllParameters;
-  window.exportParamReflectionsCSV = exportParamReflectionsCSV;
   window.highlightReflectedParams = highlightReflectedParams;
+  window.exportParamReflectionsCSV = exportParamReflectionsCSV;
   window.showUPEBanner = showBanner;
   window.startRealTimeParamScan = startRealTimeScan;
   window.stopRealTimeParamScan = stopRealTimeScan;
   window.injectParamPayloads = injectPayloads;
+  window.patchNetwork = patchNetwork;
+  window.unpatchNetwork = unpatchNetwork;
+  window.clearParamHighlights = clearHighlights;
+  window.interceptAPICalls = interceptAPICalls;
 
   // Auto-show banner on load
   showBanner();
