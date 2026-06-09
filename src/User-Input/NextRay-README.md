@@ -1,166 +1,301 @@
-# ⚡ NextRay - Console Validation & Exploit Helper
+# NextRay - Console Validation & Exploit Helper
 
-A powerful, single-snippet toolkit for discovering, profiling, and fuzzing web application inputs to uncover client-side validation bypasses and reflection-based vulnerabilities like XSS and SQLi.
+A single-snippet toolkit for discovering, profiling, and fuzzing web application inputs to uncover client-side validation bypasses and reflection-based vulnerabilities like XSS, SQLi, and SSTI. Also includes 10 passive security scans for CORS, debug endpoints, mixed content, framework patterns, and more.
 
 **No extensions. No build steps. Pure console-native execution.**
 
-> *(Suggestion: Replace this with a GIF showing the `NextRay.report()` console output.)*
-
 ---
 
-## 🚀 Key Features
+## Quick Start
 
--   **Comprehensive Input Discovery**: Finds all forms, inputs (`<input>`, `<textarea>`, `<select>`), buttons, and `contenteditable` elements, including hidden fields and interactive components.
--   **Client-Side Validation Profiling**: Automatically probes inputs to build a "Character Acceptance Matrix," revealing which special characters (`<`, `>`, `"`, `'`) are permitted or blocked by frontend validation logic.
--   **Context-Aware Fuzzing**: Deploys a curated catalog of payloads for XSS, SQLi, SSTI, and Path Traversal to intelligently test input handling.
--   **Active Reflection Analysis**: In `active` mode, submits test payloads and analyzes server responses for reflections. It automatically classifies the reflection context (e.g., `html_tag`, `js_block`, `html_attr`, `json`) to pinpoint the most promising attack vectors.
--   **Intelligent Bypass Suggestions**: Generates actionable walkthroughs and suggestions based on validation profiling and reflection results, guiding you toward a successful exploit.
--   **Multiple Operational Modes**:
-    -   **`passive`**: Analyzes the DOM and client-side validation without sending any network requests. Perfect for initial, stealthy reconnaissance.
-    -   **`active`**: Sends safe, non-destructive payloads to check for server-side reflections.
-    -   **`heavy`**: Expands `active` mode with a wider range of payload encodings for deep WAF/filter bypass testing.
--   **Professional Reporting**: Exports findings to a detailed **JSON** file or displays a compact, prioritized summary directly in the console with `NextRay.report()`.
+### Method 1: Console Paste
 
----
+1. Open the target website
+2. Open DevTools (**F12**) → **Console** tab
+3. Paste the entire contents of `NextRay.js`
+4. Press **Enter** — prints version + ready message
 
-## ⚡ Quick Start
+### Method 2: Browser Snippet
 
-Get up and running in seconds.
+1. DevTools → **Sources** → **Snippets** panel
+2. Click **New snippet**, paste, save as `NextRay.js`
+3. Run anytime with **Ctrl+Enter**
 
-#### Method 1: Console Paste (Recommended)
-
-1.  Open the target website.
-2.  Open your browser's Developer Tools (**F12** or **Cmd+Option+I**).
-3.  Navigate to the **Console** tab.
-4.  Paste the entire contents of `Gpt-Validation&Exploit Helper-all‑in‑one Snippet.js`.
-5.  Press **Enter**. The `NextRay` object is now available on the `window`.
-
-#### Method 2: Browser Snippet
-
-For repeated use, save the script as a Snippet for one-click execution.
-
-1.  In DevTools, go to the **Sources** tab -> **Snippets** panel.
-2.  Click **New snippet**.
-3.  Paste the script and save it (e.g., as `NextRay.js`).
-4.  Run it anytime with **Ctrl+Enter** (or **Cmd+Enter**).
-
----
-
-## 📖 Usage
-
-Once loaded, all functionality is accessed through the global `NextRay` object.
-
-### Running a Scan
-
-The primary function is `NextRay.run()`, which accepts a configuration object.
+### First Command
 
 ```javascript
-// Run in passive mode (no network requests)
-NextRay.run({ mode: 'passive' });
-
-// Run in active mode to check for reflections
-NextRay.run({ mode: 'active' });
-
-// Run in heavy mode to test WAF bypasses with extra encodings
-NextRay.run({ mode: 'heavy' });
-
-// Scan only a specific part of the page, like a login form
-NextRay.run({ mode: 'active', scope: '#login-form' });
+NextRay.help();   // Print full command list
 ```
 
-### Viewing Results
+---
 
-After a scan is complete, you can view the results in two ways:
+## Operating Modes
+
+| Mode | Network Requests | What it does |
+|------|-----------------|--------------|
+| `passive` | None | Analyzes DOM + client-side validation. Builds character acceptance matrix. Stealthy. |
+| `active` | Yes | Sends safe test payloads, checks for server-side reflections, classifies reflection context. |
+| `heavy` | Yes | Expands active mode with 17 encoding bypasses (URL, Base64, UTF-7, JSFuck, overlong UTF-8, null bytes, etc.) |
+
+---
+
+## Full API Reference
+
+### Core Commands
+
+| Command | Description |
+|---------|-------------|
+| `NextRay.run(options)` | Run a scan with the given options |
+| `NextRay.report()` | Display prioritized summary table in console |
+| `NextRay.exportJSON()` | Download complete findings as JSON file |
+| `NextRay.help()` | Print all available commands |
+
+### Configuration Options
 
 ```javascript
-// Display a clean, prioritized summary table in the console
-NextRay.report();
-
-// Download the complete, detailed findings as a JSON file
-NextRay.exportJSON();
-
-// You can also access the raw report object directly
-console.log(window.NextRay.__lastReport);
-```
-
-### Configuration
-
-You can customize the scan by passing options to `NextRay.run()`. The available options are:
-
-```javascript
-const config = {
-  // 'passive', 'active', or 'heavy'
-  mode: "passive",
-  // 'document' or a CSS selector for the root element to scan
-  scope: "document",
-  // Max fuzzing payloads to try per input
-  maxPerInput: 20,
-  // Timeout for each network submission in 'active' mode
-  submitTimeoutMs: 8000,
-  // Whether to scan contenteditable elements
+NextRay.run({
+  mode: 'passive',           // 'passive' | 'active' | 'heavy'
+  scope: 'document',         // 'document' or CSS selector (e.g., '#login-form')
+  maxPerInput: 20,           // Max fuzzing payloads per input
+  submitTimeoutMs: 8000,     // Timeout for network submissions
   includeContentEditable: true,
-  // Whether to scan hidden inputs
   includeHidden: true,
-  // ... and more
-};
+});
+```
+
+### Scan Configuration Breakdown
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `mode` | string | `'passive'` | Scan intensity level |
+| `scope` | string | `'document'` | Root element to scan |
+| `maxPerInput` | number | `20` | Max payloads per input field |
+| `submitTimeoutMs` | number | `8000` | Network timeout (ms) |
+| `includeContentEditable` | boolean | `true` | Scan contenteditable elements |
+| `includeHidden` | boolean | `true` | Scan hidden input fields |
+
+---
+
+## 10 Passive Security Scans
+
+These scans run without sending network requests. Accessible individually via `NextRay.*`:
+
+| Function | What it detects |
+|----------|----------------|
+| `NextRay.scanCORS()` | CORS-related patterns in scripts, HTTP links on HTTPS pages |
+| `NextRay.scanDebugEndpoints()` | Debug paths (`/debug`, `/actuator`, `/.env`, `/swagger`, `/trace.axd`, etc.) in links + scripts |
+| `NextRay.scanInfoDisclosure()` | Sensitive field names not masked as password, high-entropy hidden fields |
+| `NextRay.scanFrameworkPatterns()` | jQuery `.html()`, Angular `ng-bind-html`, Vue `v-html`, React `dangerouslySetInnerHTML`, innerHTML assignment |
+| `NextRay.scanMixedContent()` | HTTP resources loaded on HTTPS pages (scripts, links, images, iframes) |
+| `NextRay.scanThirdPartyScripts()` | Third-party scripts + iframes (distinguishes known CDNs from unknown origins) |
+| `NextRay.scanInsecureFormActions()` | Forms with `http:` action on HTTPS, `javascript:` action, `target="_blank"` without `rel="noopener"` |
+| `NextRay.scanInlineScriptPatterns()` | `document.cookie`, localStorage/sessionStorage, clipboard access, WebSocket/EventSource, encoding functions |
+| `NextRay.scanPasswordManagerRisks()` | Password fields with `autocomplete="off"`, password fields without username field |
+| `NextRay.scanVulnerabilitySummary()` | Runs ALL 9 scans above, produces consolidated summary with per-category counts |
+
+### Vulnerability Summary Output
+
+```javascript
+NextRay.scanVulnerabilitySummary();
+// Prints:
+// ┌────────────────┬──────────┐
+// │ category       │ findings │
+// ├────────────────┼──────────┤
+// │ cors           │ 3        │
+// │ debugEndpoints │ 1        │
+// │ infoDisclosure │ 5        │
+// │ framework      │ 2        │
+// │ mixedContent   │ 0        │
+// │ thirdParty     │ 4        │
+// │ formActions    │ 1        │
+// │ inlineScripts  │ 6        │
+// │ passwordRisks  │ 2        │
+// └────────────────┴──────────┘
+// Total findings: 24
 ```
 
 ---
 
-## 🏹 Bug Hunting Workflow
+## Hardening & Reliability
 
-NextRay is built to streamline the process of finding input-based vulnerabilities.
+### Safety Wrapper (`_NR_SAFE`)
 
-1.  **Passive Reconnaissance (Client-Side Analysis)**
-    Run `NextRay.run({ mode: 'passive' })` to map all inputs and understand the client-side validation rules without alerting the backend. Check the `charMatrix` in the report to see which special characters (`<`, `>`, `"`, `'`) are allowed. **Inputs that allow these characters are your top priority.**
+All 10 scan functions are wrapped:
 
-2.  **Identify Weak Points & Active Probing**
-    Look for inputs with weak validation. Run an `active` scan on a specific form or the whole page to test for server-side reflections.
-    `NextRay.run({ mode: 'active', scope: '#search-form' })`
+```javascript
+_NR_SAFE = {
+  MAX_ELEMENTS: 5000,        // Cap on querySelectorAll results
+  domReady(),                // Checks document.body exists
+  queryAll(selector, limit), // Capped querySelectorAll with error handling
+  safe(fn, label),           // try/catch — returns undefined on failure
+  safeArr(fn, label),        // try/catch — returns [] on failure
+}
+```
 
-3.  **Analyze Reflections**
-    Run `NextRay.report()` and examine the `reflections` and `contexts` columns. A high number of reflections is a strong signal.
-    -   **`html_tag` or `html_attr` context**: Prime for classic Reflected XSS. Use payloads like `<img src=x onerror=alert(1)>`.
-    -   **`js_block` context**: Indicates your input is inside a `<script>` tag. This is a goldmine for XSS. Try breaking out of the current string or context: `';alert(1);'`.
-    -   **`json` context**: Your input is reflected inside a JSON object. You might be able to inject properties or break out to execute code.
+### What was fixed
 
-4.  **Escalate with Heavy Mode**
-    If you suspect a Web Application Firewall (WAF) is blocking your basic payloads, use `heavy` mode. This will test various encodings (URL, HTML, Base64, etc.) to find a bypass.
-    `NextRay.run({ mode: 'heavy' })`
-
-5.  **Follow Suggestions & Manually Verify**
-    The `suggestions` column in the report provides tailored advice. If it says "Reflection contexts: html_attr → craft context‑specific payloads," you should manually test payloads like `onmouseover=alert(1)` or `style=display:none`.
-
-6.  **Document Your Findings**
-    Use `NextRay.exportJSON()` to save the full analysis. This detailed report is perfect for attaching to your bug bounty submissions to show your methodology and prove the vulnerability's impact.
-
----
-
-##  Interpreting the Report
-
-When you run `NextRay.report()`, you'll see a table with these key columns:
-
--   **target**: The CSS path to the input element.
--   **name**: The `name` attribute of the input, crucial for form submissions.
--   **type**: The input's `type` (e.g., `text`, `hidden`).
--   **reflections**: The number of times test payloads were reflected in server responses. **Higher is better.**
--   **errors**: The number of server or network errors encountered, which can indicate unexpected behavior.
--   **contexts**: A comma-separated list of where your input was reflected (e.g., `html_tag`, `js_block`). **This is the most important column for exploitation.**
--   **suggestions**: Actionable next steps for manual testing and exploitation.
+| Issue | Fix |
+|-------|-----|
+| Empty DOM crashes | `_NR_SAFE.domReady()` guard at top of every scan |
+| Browser freeze on huge pages | `MAX_ELEMENTS` cap (5000) on all querySelectorAll |
+| `scanVulnerabilitySummary` single-failure kills all | Each sub-scan wrapped in individual `try/catch` |
+| Unhandled errors in element loops | Inner `try/catch` on every `forEach` iteration |
+| Cross-origin URL parsing | `try/catch` around `new URL()` calls |
 
 ---
 
-## 🤝 Contributing
+## Bug Hunting Workflow
 
-Contributions are welcome! If you have an idea for a new feature, a bug fix, or an improvement, please feel free to fork the repository and submit a pull request.
+### Step 1: Passive Reconnaissance
 
-1.  Fork the repo.
-2.  Create your feature branch (`git checkout -b feature/AmazingFeature`).
-3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4.  Push to the branch (`git push origin feature/AmazingFeature`).
-5.  Open a Pull Request.
+```javascript
+NextRay.run({ mode: 'passive' });
+NextRay.report();
+```
 
-## 📧 Contact
+Map all inputs + client-side validation. Check `charMatrix` — inputs that allow `<`, `>`, `"`, `'` are top priority.
 
--   **X**: https://x.com/ArkhLifeJiggy
--   **Email**: bloomtonjovish@gmail.com && emperorstephenpee001@gmail.com
+### Step 2: Security Scan
+
+```javascript
+NextRay.scanVulnerabilitySummary();
+```
+
+Get a full picture of CORS, debug endpoints, framework patterns, mixed content, and third-party scripts.
+
+### Step 3: Active Probing (Specific Form)
+
+```javascript
+NextRay.run({ mode: 'active', scope: '#search-form' });
+NextRay.report();
+```
+
+Test a specific form for server-side reflections.
+
+### Step 4: Analyze Reflections
+
+Examine `reflections` and `contexts` columns in the report:
+
+| Context | What it means | Exploitation approach |
+|---------|--------------|----------------------|
+| `html_tag` | Input reflected in HTML body | `<img src=x onerror=alert(1)>` |
+| `html_attr` | Input reflected in an attribute | Break out of attribute: `" onmouseover="alert(1)` |
+| `js_block` | Input reflected inside `<script>` | Break out of string: `';alert(1);//` |
+| `json` | Input reflected in JSON | Inject properties or break to code execution |
+
+### Step 5: WAF Bypass with Heavy Mode
+
+```javascript
+NextRay.run({ mode: 'heavy' });
+```
+
+Tests 17 encoding bypasses (URL, double-URL, HTML entities, hex, Unicode, Base64, UTF-7, JSFuck, mixed case, null bytes, overlong UTF-8, etc.).
+
+### Step 6: Document Findings
+
+```javascript
+NextRay.exportJSON();
+```
+
+Download the full analysis as a JSON file for your bug bounty report.
+
+---
+
+## Report Columns Explained
+
+When you run `NextRay.report()`, the table shows:
+
+| Column | Description |
+|--------|-------------|
+| **target** | CSS path to the input element |
+| **name** | The `name` attribute (crucial for form submissions) |
+| **type** | Input type (`text`, `hidden`, `email`, etc.) |
+| **charMatrix** | Which special chars are accepted/blocked |
+| **reflections** | Count of test payloads reflected in server response. **Higher = more promising.** |
+| **errors** | Server/network errors encountered (may indicate unexpected behavior) |
+| **contexts** | Where input was reflected (`html_tag`, `js_block`, `html_attr`, `json`). **Most important for exploitation.** |
+| **suggestions** | Tailored next steps for manual testing |
+
+---
+
+## Heavy Mode Encoding Bypass Table
+
+The `heavy` mode tests these encodings against WAFs/filters:
+
+| Encoding | Example payload | Bypasses |
+|----------|----------------|----------|
+| URL | `%3Cscript%3E` | Basic URL encoding filters |
+| Double URL | `%253Cscript%253E` | Double-decode bypasses |
+| HTML Entity | `&#60;script&#62;` | HTML entity decoding |
+| Hex | `\x3cscript\x3e` | JS hex escape sequences |
+| Unicode | `\u003cscript\u003e` | JS unicode escapes |
+| Base64 | `PHNjcmlwdD4=` | Base64 in data URIs |
+| UTF-7 | `+ADw-script+AD4-` | Legacy encoding bypass |
+| JSFuck | `[][(![]+[])[...]` | JS syntax obfuscation |
+| Mixed Case | `<ScRiPt>` | Case-sensitive filters |
+| Null Byte | `<scr%00ipt>` | Null byte truncation |
+| Backspace | `<scr%08ipt>` | Control char injection |
+| Tab/Newline | `<scr\tipt>` | Whitespace injection |
+| Overlong UTF-8 | `%C0%BC` | Multi-byte overlong encoding |
+| UTF-16 | `\xFF\xFE<\x00` | Wide char encoding |
+| CharCode | `String.fromCharCode(60)` | JS function-based encoding |
+
+---
+
+## File Structure
+
+```
+src/User-Input/
+├── NextRay.js                    (1840+ lines)
+│   ├── Input discovery (forms, inputs, contenteditable)
+│   ├── Validation profiling (character acceptance matrix)
+│   ├── Payload generation (XSS, SQLi, SSTI, path traversal)
+│   ├── Active reflection analysis + context classification
+│   ├── Bypass suggestion engine
+│   ├── JSON export
+│   ├── 10 Passive security scans (hardened with _NR_SAFE wrapper)
+│   └── Public API (window.NextRay)
+├── NextRay-README.md
+├── 🧠-Universal-User-Input-Extractor-Client-Side.js
+├── 🧠-Universal-User-README.md
+├── Universal-guide.txt
+└── README.md
+```
+
+---
+
+## Using Both Tools Together
+
+The two tools are complementary:
+
+| Tool | Strength | Use for |
+|------|----------|---------|
+| **Universal-User** | Deep input mapping, handler tracing, network correlation, dynamic monitoring | Full attack surface mapping, XSS sink analysis, live SPA monitoring |
+| **NextRay** | Validation profiling, payload fuzzing, reflection context classification, WAF bypass | Targeted exploitation, finding injection points, testing encoding bypasses |
+
+### Recommended workflow:
+
+```javascript
+// 1. Map the full attack surface
+runAllCoreFunctionsRobust();
+
+// 2. Identify dangerous inputs
+detectDangerousSinks();
+filterReflections({ dangerousOnly: true });
+
+// 3. Profile validation on interesting inputs
+NextRay.run({ mode: 'passive', scope: '#interesting-form' });
+
+// 4. Test for reflections
+NextRay.run({ mode: 'active', scope: '#interesting-form' });
+
+// 5. Try WAF bypasses if blocked
+NextRay.run({ mode: 'heavy', scope: '#interesting-form' });
+
+// 6. Get the full security picture
+NextRay.scanVulnerabilitySummary();
+
+// 7. Export everything
+exportSecurityData('json');
+NextRay.exportJSON();
+```

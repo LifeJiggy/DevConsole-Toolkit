@@ -1,80 +1,125 @@
-# 🕵️ Universal Input & Security Analyzer
+# Universal Input & Security Analyzer
 
-A powerful, client-side security analysis tool for discovering, mapping, and testing every user input on a web application. Designed for security researchers and developers, this tool provides a complete intelligence map of interactive elements, event handlers, network triggers, and potential vulnerabilities like XSS, all from a single script executed in your browser's console.
+A client-side security analysis tool for discovering, mapping, and testing every user input on a web application. Extracts all interactive elements, traces event handlers to their source code, correlates inputs to network requests, detects XSS/injection sinks, and generates professional security reports — all from a single script pasted into your browser console.
 
 **No extensions. No build steps. Pure console-native power.**
 
-> *(Suggestion: Replace this with a GIF of the tool in action, showing console tables and analysis.)*
-
 ---
 
-## 🚀 Key Features
+## Quick Start
 
--   **Comprehensive Input Discovery**: Extracts all standard and non-standard inputs: `<input>`, `contenteditable`, ARIA roles, rich text editors (TinyMCE, Quill), and custom UI components.
--   **Deep Event & Handler Mapping**: Wraps and traces every event handler (inline, property, `addEventListener`), providing source code and file/line hints for deep analysis.
--   **Live Network Correlation**: Patches `fetch`, `XHR`, `WebSocket`, and `EventSource` to automatically link network activity back to the specific user input and handler that triggered it.
--   **Advanced Reflection & Sink Analysis**: Scans the DOM for input reflections and identifies **dangerous sinks** (`innerHTML`, etc.) to pinpoint XSS and other injection vulnerabilities.
--   **Live DOM & Security Monitoring**: Utilizes a throttled `MutationObserver` to detect and analyze dynamically added inputs and content in real-time, perfect for Single-Page Applications (SPAs).
--   **Rich Security Reporting**: Generates professional security reports directly in the console, highlighting critical hotspots, dangerous inputs, and providing severity scores.
--   **Data Export & Filtering**: Exports detailed findings to **JSON** or **CSV** and provides powerful filtering capabilities for targeted analysis.
--   **Snapshot & Diffing**: Capture and compare snapshots of the application's input state to understand how user interactions change the attack surface.
--   **Highly Configurable**: A global `UPE_CONFIG` object allows for live customization of selectors, monitoring behavior, data masking, and more.
+### Method 1: Console Paste
 
----
+1. Open the target website
+2. Open DevTools (**F12**) → **Console** tab
+3. Paste the entire contents of `🧠-Universal-User-Input-Extractor-Client-Side.js`
+4. Press **Enter** — auto-executes and prints initial findings
 
-## ⚡ Quick Start
+### Method 2: Browser Snippet (for repeated use)
 
-Get up and running in seconds.
+1. DevTools → **Sources** → **Snippets** panel
+2. Click **New snippet**, paste, save as `UISA.js`
+3. Run anytime with **Ctrl+Enter**
 
-#### Method 1: Console Paste (Recommended)
-
-1.  Open the target website.
-2.  Open your browser's Developer Tools (**F12** or **Cmd+Option+I**).
-3.  Navigate to the **Console** tab.
-4.  Paste the entire contents of `🧠-Universal-User-Input-Extractor-Client-Side.js`.
-5.  Press **Enter**. The tool will auto-execute and display its initial findings.
-
-#### Method 2: Browser Snippet
-
-For repeated use, save the script as a Snippet for one-click execution.
-
-1.  In DevTools, go to the **Sources** tab -> **Snippets** panel.
-2.  Click **New snippet**.
-3.  Paste the script and save it (e.g., as `UISA.js`).
-4.  Run it anytime with **Ctrl+Enter** (or **Cmd+Enter**).
-
----
-
-## 📖 Usage
-
-Once loaded, the tool exposes a rich set of functions on the `window` object for programmatic control.
-
-### Configuration (`window.UPE_CONFIG`)
-
-You can modify the `UPE_CONFIG` object at any time in the console to change the tool's behavior.
+### One-Line Quick Scan
 
 ```javascript
-// Example: Enable the UI overlay and aggressive scanning
+runAllCoreFunctionsRobust();
+```
+
+---
+
+## Core Architecture
+
+### Shared Constants
+
+The file uses single-source-of-truth constants to avoid duplication:
+
+```javascript
+// Dangerous HTML attributes that execute JS (used across reflection/sink detection)
+DANGEROUS_ATTRS = ["onclick","onerror","onload","onmouseover","onfocus","onblur",
+  "onchange","onsubmit","oninput","onkeydown","onkeyup","onmouseout","onmouseenter",
+  "onmouseleave","oncontextmenu","ondblclick","onkeydown","onkeypress","onkeyup",
+  "onfocusin","onfocusout","onpointerdown","onpointerup","onpointermove",
+  "onpointerenter","onpointerleave","onpointercancel","onpointerover","onpointerout",
+  "ongotpointercapture","onlostpointercapture","ondragstart","ondrag","ondragend",
+  "ondragenter","ondragleave","ondragover","ondrop","oncopy","oncut","onpaste",
+  "onanimationstart","onanimationend","onanimationiteration","ontransitionend",
+  "onwheel","onmousewheel","onresize","onscroll","onselect","onsubmit","onreset",
+  "onsearch","onhashchange","onpopstate","onbeforeunload","onunload","ononline",
+  "onoffline","onmessage","onmessageerror","onstorage","oninvalid","ontoggle",
+  "onplay","onpause","onended","onloadedmetadata","onloadstart","onprogress",
+  "oncanplay","oncanplaythrough","oncuechange","onvolumechange","onwaiting",
+  "ondurationchange","ontimeupdate","onshow","ontoggle","onsubmit"]
+
+DANGEROUS_ATTRS_SET = new Set(DANGEROUS_ATTRS)  // O(1) lookup
+
+// Common event names (used across handler mapping and network correlation)
+COMMON_EVENTS = ["click","dblclick","submit","change","input","keydown","keyup",
+  "keypress","focus","blur","mousedown","mouseup","mousemove","mouseenter",
+  "mouseleave","mouseover","mouseout","contextmenu","touchstart","touchend",
+  "touchmove","pointerdown","pointerup","pointermove","wheel","copy","cut",
+  "paste","dragstart","drag","dragend","dragenter","dragleave","dragover","drop",
+  "animationstart","animationend","animationiteration","transitionend","resize",
+  "scroll","select","search","hashchange","popstate","beforeunload","unload",
+  "online","offline","message","storage","invalid","play","pause","ended",
+  "loadedmetadata","loadstart","progress","canplay","canplaythrough","volumechange",
+  "waiting","durationchange","timeupdate","show","toggle"]
+```
+
+### HEAVY_ENCODING_MAP (WAF Bypass Encodings)
+
+17 real encoder functions for `heavy` mode fuzzing. Previously dead code, now wired into `buildVariants()`:
+
+| Encoder | What it does |
+|---------|-------------|
+| `urlEncode` | `%3Cscript%3E` |
+| `doubleUrlEncode` | `%253Cscript%253E` |
+| `htmlEntityEncode` | `&#60;script&#62;` |
+| `hexEncode` | `\x3cscript\x3e` |
+| `unicodeEncode` | `\u003cscript\u003e` |
+| `base64Encode` | `PHNjcmlwdD4=` |
+| `base64HtmlEncode` | `data:text/html;base64,...` |
+| `utf7Encode` | `+ADw-script+AD4-` |
+| `jsFuck` | `[][(![]+[])[...]...]` |
+| `mixedCase` | `<ScRiPt>` |
+| `nullByte` | `<scr%00ipt>` |
+| `backspace` | `<scr%08ipt>` |
+| `tabInject` | `<scr\tipt>` |
+| `newLineInject` | `<scr\nipt>` |
+| `overlongUTF8` | `%C0%BC` style |
+| `utf16Encode` | `\xFF\xFE<\x00` |
+| `charCodeEncode` | `String.fromCharCode(60)` |
+
+---
+
+## Configuration (UPE_CONFIG)
+
+Modify at runtime in the console:
+
+```javascript
+// Enable overlay UI and aggressive scanning
 UPE_CONFIG.overlay.enabled = true;
 UPE_CONFIG.selectorProfile = 'aggressive';
 
-// Example: Add custom component selectors and re-scan
+// Add custom component selectors and re-scan
 UPE_CONFIG.extraSelectors.push('.my-custom-component');
 extractAndWrapAllInputs();
 
-// Example: Disable monkey-patching in sensitive environments
+// Disable monkey-patching in sensitive environments
 UPE_CONFIG.safeMode = true;
 ```
 
-**Default Configuration:**
+**Default config:**
+
 ```javascript
-const UPE_CONFIG = {
+{
   observerEnabled: true,
   throttleMs: 250,
   maskSensitive: true,
   maskFieldsPatterns: [/pass(word)?/i, /token/i, /secret/i, /apikey/i, /api-key/i, /ssn/i, /credit|card/i, /email/i],
-  selectorProfile: 'balanced', // 'lite' | 'balanced' | 'aggressive'
-  extraSelectors: [ '.select2', '.select2-selection__rendered', '.ql-editor', '.tox-tinymce', '.tox-edit-area iframe', '.mce-content-body' ],
+  selectorProfile: 'balanced',       // 'lite' | 'balanced' | 'aggressive'
+  extraSelectors: ['.select2', '.select2-selection__rendered', '.ql-editor', '.tox-tinymce', '.tox-edit-area iframe', '.mce-content-body'],
   excludeSelectors: [],
   overlay: { enabled: false },
   safeMode: false,
@@ -82,119 +127,225 @@ const UPE_CONFIG = {
   stackTraceLimit: 50,
   captureStacks: false,
   useRobustReflection: false
-};
-```
-
-### Programmatic API
-
-All features are available as global functions. Here are some of the most important commands.
-
-#### Initialization & Quick Scans
-```javascript
-// Run all core mapping and analysis functions at once.
-window.runAllCoreFunctions();
-
-// A more thorough version that may detect more dynamic inputs.
-window.runAllCoreFunctionsRobust();
-
-// Get a quick overview of the application's security posture.
-window.quickSecurityScan();
-
-// Display a list of all available functions in the console.
-window.showAvailableFunctions();
-```
-
-#### Core Analysis
-```javascript
-// Extract all standard and custom interactive inputs.
-window.extractInteractiveInputs();
-
-// Map all event listeners and their handlers for every input.
-window.mapInputListenersHandlers();
-
-// Correlate user inputs with the network requests they trigger.
-window.mapInteractiveInputsNetwork();
-
-// Detect where input values are reflected in the DOM and check for dangerous sinks.
-window.detectInputReflections();
-```
-
-#### Security & Vulnerability Analysis
-```javascript
-// Perform a full, detailed analysis of dangerous inputs.
-window.analyzeDangerousInputs({ showTop: 10, showDetails: true });
-
-// Highlight the most critical security hotspots that require immediate attention.
-window.identifyCriticalHotspots();
-
-// Generate a professional, detailed security report in the console.
-window.generateSecurityReport();
-
-// Filter reflection results to focus on high-priority targets.
-window.filterReflections({ dangerousOnly: true, minReflections: 10 });
-```
-
-#### Live Monitoring (for SPAs)
-```javascript
-// Start monitoring inputs in real-time, with optional keystroke tracking.
-window.startLiveInputMonitor({ trackKeystrokes: true, maxHistory: 200 });
-
-// Stop the live input monitor.
-window.stopLiveInputMonitor();
-
-// Start a real-time monitor focused on security-related changes (e.g., new sinks).
-window.startLiveSecurityMonitor();
-```
-
-#### Data Export
-```javascript
-// Export all collected security data to JSON.
-window.exportSecurityData('json');
-
-// Export all collected security data to CSV.
-window.exportSecurityData('csv');
+}
 ```
 
 ---
 
-## 🏹 Bug Hunting Workflow
+## Full API Reference
 
-This tool is designed to systematically uncover client-side vulnerabilities.
+### Initialization & Batch Scans
 
-1.  **Initial Reconnaissance**
-    Run `window.runAllCoreFunctionsRobust()` to get a complete map of the application's inputs, handlers, and initial security state. Review the summary tables printed in the console.
+| Function | Description |
+|----------|-------------|
+| `runAllCoreFunctions()` | Run all core mapping + analysis at once |
+| `runAllCoreFunctionsRobust()` | Thorough version — may detect more dynamic inputs |
+| `quickSecurityScan()` | Quick overview of security posture |
+| `showAvailableFunctions()` | List all available console commands |
 
-2.  **Identify the Attack Surface**
-    Use `window.extractInteractiveInputs()` and `window.analyzeInputStatistics()` to understand what inputs are available and which are most common.
+### Core Analysis Functions
 
-3.  **Map Actions to Network Calls**
-    Run `window.mapInteractiveInputsNetwork()`. Interact with the application (e.g., fill out forms, click buttons) and observe which user actions trigger API calls. This is your entry point for finding **Business Logic Flaws**, **IDORs**, and other API-level vulnerabilities.
+| Function | Description |
+|----------|-------------|
+| `extractInteractiveInputs()` | Find all inputs, contenteditable, ARIA roles, rich text editors |
+| `extractAndWrapAllInputs()` | Re-extract + wrap all inputs with tracking |
+| `mapInputListenersHandlers()` | Map every event listener to its handler, with source code + file/line |
+| `mapInteractiveInputsNetwork()` | Correlate user inputs → network requests (fetch/XHR/WebSocket) |
+| `detectInputReflections()` | Scan DOM for input value reflections + dangerous sink detection |
+| `detectInputReflectionsRobust()` | Enhanced version with deeper DOM traversal |
+| `analyzeInputStatistics()` | Statistics on input types, events, reflection counts |
 
-4.  **Hunt for XSS and Injection Flaws**
-    Use `window.detectInputReflections()` to see where your test inputs are rendered. Immediately focus on the highest-risk areas by running `window.filterReflections({ dangerousOnly: true })`.
+### Security & Vulnerability Analysis
 
-5.  **Analyze Critical Hotspots**
-    Run `window.analyzeDangerousInputs()` and `window.identifyCriticalHotspots()` to get a prioritized list of the most vulnerable inputs and sinks. This tells you exactly where to focus your manual testing efforts.
+| Function | Description |
+|----------|-------------|
+| `analyzeDangerousInputs({ showTop, showDetails })` | Detailed analysis of highest-risk inputs |
+| `identifyCriticalHotspots()` | Prioritized list of most vulnerable inputs |
+| `generateSecurityReport()` | Professional console security report |
+| `filterReflections({ dangerousOnly, minReflections })` | Filter reflection results by risk |
 
-6.  **Monitor Dynamic Applications**
-    For SPAs (React, Vue, Angular), start the live monitors with `window.startLiveInputMonitor()` and `window.startLiveSecurityMonitor()`. Navigate through the application and let the tool discover new inputs and vulnerabilities as they appear.
+### Enhancement 1–10: Advanced Analysis
 
-7.  **Document and Report**
-    Use `window.generateSecurityReport()` to get a clean, organized summary of your findings. Export the complete data with `window.exportSecurityData('json')` to use in external tools or for your bug bounty report.
+| Function | What it detects |
+|----------|----------------|
+| `detectDangerousSinks()` | `eval()`, `innerHTML=`, `document.write()`, `setTimeout(string)`, etc. — all dangerous DOM sinks |
+| `detectSSRFPatterns()` | Internal IPs, localhost, metadata endpoints in inputs/scripts |
+| `detectCSRFProtection()` | Missing CSRF tokens on state-changing forms |
+| `analyzeTokenEntropy()` | High-entropy hidden fields (exposed tokens, JWTs) |
+| `detectOpenRedirects()` | Redirect params (`redirect_uri`, `return_to`, `next`) in forms/links/scripts |
+| `detectDOMClobbering()` | Elements with dangerous names (`__proto__`, `constructor`, `window`) |
+| `detectPrototypePollution()` | `__proto__[]`, `Object.assign()`, `.merge()` in scripts/inputs |
+| `detectSanitizationFunctions()` | DOMPurify, sanitize(), escape(), Trusted Types — what's protecting the page |
+| `detectMassAssignment()` | Forms with many editable + sensitive field names (admin, role, price) |
+| `discoverAPIEndpoints()` | API URLs from form actions, fetch/XHR calls, links with `/api/` |
+
+### Enhancement 11–20: Dynamic & Deep Analysis
+
+| Function | What it does |
+|----------|-------------|
+| `startDynamicContentTracker()` | MutationObserver that tracks dynamically added/removed inputs in SPAs |
+| `stopDynamicContentTracker()` | Stop + disconnect the tracker |
+| `analyzeCSPDeep()` | Deep CSP analysis — finds `unsafe-inline`, `unsafe-eval`, missing directives |
+| `visualizeEventChains()` | Maps input → event → handler → network/sink chains |
+| `startCrossTabTracker()` | BroadcastChannel-based cross-tab state tracking |
+| `stopCrossTabTracker()` | Stop cross-tab tracker |
+| `generateRemediationReport()` | Actionable remediation report with priority levels |
+| `detectGraphQLEndpoints()` | GraphQL endpoints, inline queries, data-attribute patterns |
+| `detectJWTExposure()` | JWT tokens in inputs, scripts, cookies |
+| `detectSSTIVectors()` | Server-Side Template Injection patterns (`{{ }}`, `${}`, `<%= %>`) |
+| `mapWebSocketEndpoints()` | WebSocket connections from network triggers + inline scripts |
+| `generateExploitSuggestions()` | Auto-generates exploit payloads based on detected sinks/reflections |
+
+### Live Monitoring (SPAs)
+
+| Function | Description |
+|----------|-------------|
+| `startLiveInputMonitor({ trackKeystrokes, maxHistory })` | Real-time input monitoring with keystroke tracking |
+| `stopLiveInputMonitor()` | Stop the live monitor |
+| `startLiveSecurityMonitor()` | Monitor for security-related DOM changes in real-time |
+
+### Data Export
+
+| Function | Description |
+|----------|-------------|
+| `exportSecurityData('json')` | Export all findings to JSON |
+| `exportSecurityData('csv')` | Export all findings to CSV |
+
+### Global State Objects
+
+| Object | Description |
+|--------|-------------|
+| `window._upe_inputMap` | Map of all tracked inputs → metadata |
+| `window._upe_networkTriggers` | Array of all network triggers correlated to inputs |
+| `window._dynamicTracker` | Active MutationObserver instance + change log |
+| `window._crossTabChannel` | Active BroadcastChannel instance |
+| `window._crossTabMessages` | Cross-tab message log |
+| `window.crossTabBroadcast(msg)` | Send a message to other tabs |
 
 ---
 
-## 🤝 Contributing
+## Hardening & Reliability
 
-Contributions are welcome! If you have an idea for a new feature, a bug fix, or an improvement, please feel free to fork the repository and submit a pull request.
+### Safety Wrapper (`_HARDEN`)
 
-1.  Fork the repo.
-2.  Create your feature branch (`git checkout -b feature/AmazingFeature`).
-3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4.  Push to the branch (`git push origin feature/AmazingFeature`).
-5.  Open a Pull Request.
+All 20 enhancement functions are wrapped in a safety layer:
 
-## 📧 Contact
+```javascript
+_HARDEN = {
+  MAX_ELEMENTS: 5000,        // Cap on querySelectorAll results
+  safe(fn, label),           // try/catch wrapper — returns undefined on failure
+  safeArr(fn, label),        // try/catch wrapper — returns [] on failure
+  domReady(),                // Checks document.body exists
+  queryAll(selector, limit), // Capped querySelectorAll
+  freshRegex(pattern),       // Returns new RegExp (fixes /g sticky lastIndex bug)
+}
+```
 
--   **X**: https://x.com/ArkhLifeJiggy
--   **Email**: bloomtonjovish@gmail.com && emperorstephenpee001@gmail.com
+### What was fixed
+
+| Issue | Fix |
+|-------|-----|
+| Regex `/g` flag statefulness | All patterns now use `_HARDEN.freshRegex()` for fresh copies per match |
+| Empty DOM crashes | `_HARDEN.domReady()` guard at top of every function |
+| Browser freeze on huge pages | `MAX_ELEMENTS` cap (5000) on all `querySelectorAll` calls |
+| Memory leak (DOM refs in closures) | `startLiveInputMonitor` stores selector strings, not DOM elements |
+| Unhandled errors in loops | Inner `try/catch` on every element in `forEach` loops |
+| Sub-function failures | `generateRemediationReport` wraps `detectCSRFProtection` and `analyzeTokenEntropy` in `try/catch` |
+| `networkTriggers` undefined | Null-check in `mapWebSocketEndpoints` |
+
+---
+
+## Bug Hunting Workflow
+
+### Step 1: Initial Reconnaissance
+
+```javascript
+runAllCoreFunctionsRobust();
+```
+
+Review the summary tables in the console. This maps all inputs, handlers, and network triggers.
+
+### Step 2: Identify the Attack Surface
+
+```javascript
+analyzeInputStatistics();
+```
+
+Understand input types, event distribution, and reflection counts.
+
+### Step 3: Map Actions to Network Calls
+
+```javascript
+mapInteractiveInputsNetwork();
+```
+
+Interact with the app (fill forms, click buttons). Observe which inputs trigger API calls — your entry point for IDOR, business logic flaws.
+
+### Step 4: Hunt for XSS and Injection
+
+```javascript
+detectInputReflections();
+filterReflections({ dangerousOnly: true });
+```
+
+See where test inputs are rendered. Focus on dangerous sinks (`innerHTML`, `eval`, `document.write`).
+
+### Step 5: Deep Security Analysis
+
+```javascript
+detectDangerousSinks();       // All eval/innerHTML/write sinks
+detectSSRFPatterns();         // Internal IPs in inputs
+detectPrototypePollution();   // __proto__ injection vectors
+detectJWTExposure();          // Tokens in hidden fields/scripts
+detectSSTIVectors();          // Template injection patterns
+analyzeCSPDeep();             // CSP weaknesses
+```
+
+### Step 6: Exploit Suggestion Generation
+
+```javascript
+generateExploitSuggestions();
+```
+
+Auto-generates payloads based on detected sinks and reflection contexts.
+
+### Step 7: Monitor Dynamic Applications
+
+```javascript
+startLiveInputMonitor({ trackKeystrokes: true, maxHistory: 200 });
+startDynamicContentTracker();
+```
+
+For SPAs — navigate the app and let the tool discover new inputs dynamically.
+
+### Step 8: Document and Report
+
+```javascript
+generateSecurityReport();
+generateRemediationReport();
+exportSecurityData('json');
+```
+
+---
+
+## File Structure
+
+```
+src/User-Input/
+├── 🧠-Universal-User-Input-Extractor-Client-Side.js  (4900+ lines)
+│   ├── Shared constants (DANGEROUS_ATTRS, COMMON_EVENTS)
+│   ├── UPE_CONFIG + configuration system
+│   ├── Input extraction (standard, contenteditable, ARIA, rich text)
+│   ├── Event handler wrapping + source extraction
+│   ├── Network monkey-patching (fetch, XHR, WebSocket, EventSource)
+│   ├── Reflection detection + sink analysis
+│   ├── Live monitoring (MutationObserver, keystroke tracking)
+│   ├── Security reporting + export (JSON/CSV)
+│   ├── 20 Enhancement functions (hardened with _HARDEN wrapper)
+│   └── HEAVY_ENCODING_MAP (17 encoders)
+├── 🧠-Universal-User-README.md
+├── NextRay.js
+├── NextRay-README.md
+├── Universal-guide.txt
+└── README.md
+```
