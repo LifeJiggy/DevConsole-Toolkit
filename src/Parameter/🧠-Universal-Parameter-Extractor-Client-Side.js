@@ -7,6 +7,7 @@
   let observer = null;
   let realTimeActive = false;
   let payloadMode = false;
+  let rtTimeoutId = null;
 
   // === Settings and Utilities (quiet, validation, helpers) ===
   const SETTINGS = {
@@ -35,6 +36,14 @@
       try { console[level](...args); } catch {}
     }
   }
+  function _table(data) {
+    if (SETTINGS.logLevel === "silent" || SETTINGS.quiet) return;
+    try { console.table(data); } catch {}
+  }
+  function _domReady() {
+    return !!(document && document.body && document.querySelectorAll);
+  }
+  const _MAX_ELEMENTS = 5000;
 
   function htmlDecode(s) {
     try {
@@ -90,16 +99,20 @@
   const outlinedElements = new Set();
   function clearHighlights() {
     for (const span of highlightMarkers.splice(0)) {
-      const parent = span.parentNode;
-      if (!parent) continue;
-      while (span.firstChild) parent.insertBefore(span.firstChild, span);
-      parent.removeChild(span);
+      try {
+        const parent = span.parentNode;
+        if (!parent) continue;
+        while (span.firstChild) parent.insertBefore(span.firstChild, span);
+        parent.removeChild(span);
+      } catch {}
     }
     outlinedElements.forEach((el) => {
-      if (el && el.dataset) {
-        el.style.outline = el.dataset.upeOldOutline || "";
-        delete el.dataset.upeOldOutline;
-      }
+      try {
+        if (el && el.dataset) {
+          el.style.outline = el.dataset.upeOldOutline || "";
+          delete el.dataset.upeOldOutline;
+        }
+      } catch {}
     });
     outlinedElements.clear();
   }
@@ -187,7 +200,7 @@
         Object.defineProperty(ElementProto, "innerHTML", {
           ...origInnerHTML,
           set(value) {
-            checkAgainstParams(value, "innerHTML");
+            try { checkAgainstParams(value, "innerHTML"); } catch {}
             return origInnerHTML.set.call(this, value);
           },
         });
@@ -199,7 +212,7 @@
         Object.defineProperty(ElementProto, "outerHTML", {
           ...origOuterHTML,
           set(value) {
-            checkAgainstParams(value, "outerHTML");
+            try { checkAgainstParams(value, "outerHTML"); } catch {}
             return origOuterHTML.set.call(this, value);
           },
         });
@@ -209,7 +222,7 @@
       }
       if (origInsertAdjacentHTML) {
         ElementProto.insertAdjacentHTML = function (position, html) {
-          checkAgainstParams(html, "insertAdjacentHTML");
+          try { checkAgainstParams(html, "insertAdjacentHTML"); } catch {}
           return origInsertAdjacentHTML.call(this, position, html);
         };
         __restoreNetworkFns.push(() => {
@@ -218,7 +231,7 @@
       }
       if (origWrite) {
         document.write = function (html) {
-          checkAgainstParams(html, "document.write");
+          try { checkAgainstParams(html, "document.write"); } catch {}
           return origWrite.call(document, html);
         };
         __restoreNetworkFns.push(() => {
@@ -227,7 +240,7 @@
       }
       if (origWriteln) {
         document.writeln = function (html) {
-          checkAgainstParams(html, "document.writeln");
+          try { checkAgainstParams(html, "document.writeln"); } catch {}
           return origWriteln.call(document, html);
         };
         __restoreNetworkFns.push(() => {
@@ -287,9 +300,9 @@
     }
   }
   function unpatchNetwork() {
-    try {
-      __restoreNetworkFns.forEach((fn) => fn());
-    } catch {}
+    __restoreNetworkFns.forEach((fn) => {
+      try { fn(); } catch {}
+    });
     __restoreNetworkFns = [];
   }
 
@@ -376,12 +389,16 @@
     ];
     urlAttrs.forEach(({ selector, attr }) => {
       forEachRoot((root) => {
-        safeQueryAll(root, selector).forEach((el) => {
-          const url = el.getAttribute(attr);
-          if (url && url.includes("=")) {
-            extractParamsFromURL(url, `dom-${attr}`);
-          }
-        });
+        try {
+          safeQueryAll(root, selector).forEach((el) => {
+            try {
+              const url = el.getAttribute(attr);
+              if (url && url.includes("=")) {
+                extractParamsFromURL(url, "dom-" + attr);
+              }
+            } catch {}
+          });
+        } catch {}
       });
     });
   }
@@ -406,99 +423,125 @@
 
   // 🍪 Cookies
   function extractCookies() {
-    document.cookie.split(";").forEach((cookie) => {
-      const idx = cookie.indexOf("=");
-      if (idx === -1) return;
-      const key = cookie.slice(0, idx).trim();
-      const raw = cookie.slice(idx + 1);
-      const value = decodeURIComponentSafe(raw);
-      if (key) {
-        addParam(key, value, "cookie");
-        _log("log", `🍪 Cookie Param: ${key} = ${value}`);
-      }
-    });
-  }
-  function extractMetaTags() {
-    forEachRoot((root) =>
-      safeQueryAll(root, "meta").forEach((meta) => {
-        const name = meta.getAttribute("name") || meta.getAttribute("property");
-        const content = meta.getAttribute("content");
-        if (name && content) {
-          addParam(name, content, "meta");
-          _log("log", `🧬 Meta Param: ${name} = ${content}`);
-        }
-      })
-    );
-  }
-  function extractHiddenInputs() {
-    forEachRoot((root) =>
-      safeQueryAll(root, 'input[type="hidden"]').forEach((input) => {
-        const key = input.name || input.id;
-        addParam(key, input.value, "hidden-input");
-        _log("log", `🙈 Hidden Param: ${key} = ${input.value}`);
-      })
-    );
-    forEachRoot((root) =>
-      safeQueryAll(root, '[hidden], [style*="display:none"], [style*="visibility:hidden"], [style*="display: none"], [style*="visibility: hidden"]').forEach((el) => {
-        if (el.tagName === "INPUT" && el.type === "hidden") return;
-        Array.from(el.attributes).forEach((attr) => {
-          if (attr.name.startsWith("data-")) {
-            const key = attr.name.replace(/^data-/, "");
-            addParam(key, attr.value, "hidden-data-attr");
-            _log("log", `🙈 Hidden Data Param: ${key} = ${attr.value}`);
-          }
-        });
-      })
-    );
-  }
-  function extractFormFields() {
-    forEachRoot((root) =>
-      safeQueryAll(root, "form").forEach((form) => {
-        const data = new FormData(form);
-        for (let [key, value] of data.entries()) {
-          addParam(key, value, "form");
-          _log("log", `📝 Form Param: ${key} = ${value}`);
-        }
-      })
-    );
-  }
-  function extractInlineConfigs() {
-    forEachRoot((root) =>
-      safeQueryAll(root, "script").forEach((script) => {
-        let content = script.textContent || "";
-        if (content.length > 0) {
-          try {
-            const obj = JSON.parse(content);
-            if (typeof obj === "object") {
-              Object.entries(obj).forEach(([key, value]) => {
-                addParam(key, value, "inline-json");
-                _log("log", `🧱 Inline JSON Param: ${key} = ${value}`);
-              });
-            }
-          } catch {}
-          const assignRegex =
-            /([a-zA-Z0-9_\$]+)\s*=\s*(["'`][^"'`]*["'`]|\d+(?:\.\d+)?|true|false|null);/g;
-          let match;
-          while ((match = assignRegex.exec(content))) {
-            let key = match[1];
-            let value = match[2];
-            if (value && (value.startsWith('"') || value.startsWith("'") || value.startsWith("`")))
-              value = value.slice(1, -1);
-            addParam(key, value, "inline-js");
-            _log("log", `🧱 Inline JS Param: ${key} = ${value}`);
-          }
-        }
-      })
-    );
-    if (SETTINGS.includeWindowGlobals) {
-      const keys = Object.keys(window).slice(0, 500);
-      keys.forEach((key) => {
+    try {
+      document.cookie.split(";").forEach((cookie) => {
         try {
-          if (typeof window[key] === "string" && window[key].length <= 200) {
-            addParam(key, window[key], "window-global");
+          const idx = cookie.indexOf("=");
+          if (idx === -1) return;
+          const key = cookie.slice(0, idx).trim();
+          const raw = cookie.slice(idx + 1);
+          const value = decodeURIComponentSafe(raw);
+          if (key) {
+            addParam(key, value, "cookie");
+            _log("log", "🍪 Cookie Param: " + key + " = " + value);
           }
         } catch {}
       });
+    } catch {}
+  }
+  function extractMetaTags() {
+    try {
+      forEachRoot((root) =>
+        safeQueryAll(root, "meta").forEach((meta) => {
+          try {
+            const name = meta.getAttribute("name") || meta.getAttribute("property");
+            const content = meta.getAttribute("content");
+            if (name && content) {
+              addParam(name, content, "meta");
+              _log("log", "🧬 Meta Param: " + name + " = " + content);
+            }
+          } catch {}
+        })
+      );
+    } catch {}
+  }
+  function extractHiddenInputs() {
+    try {
+      forEachRoot((root) =>
+        safeQueryAll(root, 'input[type="hidden"]').forEach((input) => {
+          try {
+            const key = input.name || input.id;
+            addParam(key, input.value, "hidden-input");
+            _log("log", "🙈 Hidden Param: " + key + " = " + input.value);
+          } catch {}
+        })
+      );
+      forEachRoot((root) =>
+        safeQueryAll(root, '[hidden], [style*="display:none"], [style*="visibility:hidden"], [style*="display: none"], [style*="visibility: hidden"]').forEach((el) => {
+          try {
+            if (el.tagName === "INPUT" && el.type === "hidden") return;
+            Array.from(el.attributes).forEach((attr) => {
+              try {
+                if (attr.name.startsWith("data-")) {
+                  const key = attr.name.replace(/^data-/, "");
+                  addParam(key, attr.value, "hidden-data-attr");
+                  _log("log", "🙈 Hidden Data Param: " + key + " = " + attr.value);
+                }
+              } catch {}
+            });
+          } catch {}
+        })
+      );
+    } catch {}
+  }
+  function extractFormFields() {
+    try {
+      forEachRoot((root) =>
+        safeQueryAll(root, "form").forEach((form) => {
+          try {
+            const data = new FormData(form);
+            for (let [key, value] of data.entries()) {
+              addParam(key, value, "form");
+              _log("log", "📝 Form Param: " + key + " = " + value);
+            }
+          } catch {}
+        })
+      );
+    } catch {}
+  }
+  function extractInlineConfigs() {
+    try {
+      forEachRoot((root) =>
+        safeQueryAll(root, "script").forEach((script) => {
+          try {
+            let content = script.textContent || "";
+            if (content.length > 0) {
+              try {
+                const obj = JSON.parse(content);
+                if (typeof obj === "object") {
+                  Object.entries(obj).forEach(([key, value]) => {
+                    addParam(key, value, "inline-json");
+                    _log("log", "🧱 Inline JSON Param: " + key + " = " + value);
+                  });
+                }
+              } catch {}
+              const assignRegex =
+                /([a-zA-Z0-9_$]+)\s*=\s*(["'`][^"'`]*["'`]|\d+(?:\.\d+)?|true|false|null);/g;
+              let match;
+              while ((match = assignRegex.exec(content))) {
+                let key = match[1];
+                let value = match[2];
+                if (value && (value.startsWith('"') || value.startsWith("'") || value.startsWith("`")))
+                  value = value.slice(1, -1);
+                addParam(key, value, "inline-js");
+                _log("log", "🧱 Inline JS Param: " + key + " = " + value);
+              }
+            }
+          } catch {}
+        })
+      );
+    } catch {}
+    if (SETTINGS.includeWindowGlobals) {
+      try {
+        const keys = Object.keys(window).slice(0, 500);
+        keys.forEach((key) => {
+          try {
+            if (typeof window[key] === "string" && window[key].length <= 200) {
+              addParam(key, window[key], "window-global");
+            }
+          } catch {}
+        });
+      } catch {}
     }
   }
 
@@ -509,35 +552,43 @@
     window.__upe_fetchPatched = true;
     const originalFetch = window.fetch;
     window.fetch = async function (input, init = {}) {
-      const url = typeof input === "string" ? input : (input && input.url) || "";
-      extractParamsFromURL(url, "fetch-url");
-      const headers = init.headers || {};
-      if (headers && typeof headers === "object") {
-        Object.entries(headers).forEach(([key, value]) => {
-          addParam(key, value, "fetch-header");
-        });
-      }
-      const body = init.body;
-      if (body) {
-        try {
-          const parsed = typeof body === "string" ? JSON.parse(body) : body;
-          if (typeof parsed === "object" && parsed !== null) {
-            Object.entries(parsed).forEach(([key, value]) => {
-              addParam(key, value, "fetch-body");
-            });
-          }
-        } catch {
-          addParam("raw_body", body, "fetch-body");
+      try {
+        const url = typeof input === "string" ? input : (input && input.url) || "";
+        extractParamsFromURL(url, "fetch-url");
+        const headers = init.headers || {};
+        if (headers && typeof headers === "object") {
+          Object.entries(headers).forEach(([key, value]) => {
+            addParam(key, value, "fetch-header");
+          });
         }
-      }
+        const body = init.body;
+        if (body) {
+          try {
+            const parsed = typeof body === "string" ? JSON.parse(body) : body;
+            if (typeof parsed === "object" && parsed !== null) {
+              Object.entries(parsed).forEach(([key, value]) => {
+                addParam(key, value, "fetch-body");
+              });
+            }
+          } catch {
+            addParam("raw_body", body, "fetch-body");
+          }
+        }
+      } catch {}
       return originalFetch.call(this, input, init);
     };
+    // Restore function for fetch
+    __restoreNetworkFns.push(() => {
+      window.fetch = originalFetch;
+      window.__upe_fetchPatched = false;
+    });
+
     const originalXHROpen = XMLHttpRequest.prototype.open;
     const originalXHRSend = XMLHttpRequest.prototype.send;
     XMLHttpRequest.prototype.open = function (method, url, ...rest) {
       this._upe_method = method;
       this._upe_url = url;
-      extractParamsFromURL(url, "xhr-url");
+      try { extractParamsFromURL(url, "xhr-url"); } catch {}
       return originalXHROpen.call(this, method, url, ...rest);
     };
     XMLHttpRequest.prototype.send = function (body) {
@@ -555,6 +606,11 @@
       }
       return originalXHRSend.call(this, body);
     };
+    // Restore functions for XHR
+    __restoreNetworkFns.push(() => {
+      XMLHttpRequest.prototype.open = originalXHROpen;
+      XMLHttpRequest.prototype.send = originalXHRSend;
+    });
   }
 
   function extractFromIframes() {
@@ -598,189 +654,217 @@
   }
 
   function detectReflections() {
-    paramMap.forEach((entry, key) => {
-      if (!entry.value) return;
-      if (
-        document.body &&
-        document.body.innerText &&
-        matchesAnyEncoding(document.body.innerText, entry.value)
-      ) {
-        addReflection(key, "dom-text");
-        entry.reflectBody = true;
-      }
-      if (
-        document.head &&
-        document.head.innerText &&
-        matchesAnyEncoding(document.head.innerText, entry.value)
-      ) {
-        addReflection(key, "head-text");
-        entry.reflectHead = true;
-      }
-      if (document.body) {
-        document.body.querySelectorAll("*").forEach((el) => {
-          Array.from(el.attributes).forEach((attr) => {
-            if (attr.value && matchesAnyEncoding(attr.value, entry.value)) {
-              addReflection(
-                key,
-                `body-attr:${attr.name}`,
-                isDangerousAttr(attr.name)
-              );
-              entry.reflectBody = true;
-            }
-          });
-        });
-      }
-      if (document.head) {
-        document.head.querySelectorAll("*").forEach((el) => {
-          Array.from(el.attributes).forEach((attr) => {
-            if (attr.value && matchesAnyEncoding(attr.value, entry.value)) {
-              addReflection(
-                key,
-                `head-attr:${attr.name}`,
-                isDangerousAttr(attr.name)
-              );
-              entry.reflectHead = true;
-            }
-          });
-        });
-      }
-      document.body &&
-        document.body.querySelectorAll("script").forEach((script) => {
+    try {
+      const bodyEls = document.body ? document.body.querySelectorAll("*") : [];
+      const headEls = document.head ? document.head.querySelectorAll("*") : [];
+      const bodyLen = Math.min(bodyEls.length, _MAX_ELEMENTS);
+      const headLen = Math.min(headEls.length, _MAX_ELEMENTS);
+      paramMap.forEach((entry, key) => {
+        try {
+          if (!entry.value) return;
           if (
-            script.textContent &&
-            matchesAnyEncoding(script.textContent, entry.value)
+            document.body &&
+            document.body.innerText &&
+            matchesAnyEncoding(document.body.innerText, entry.value)
           ) {
-            addReflection(key, "body-script-block", true);
+            addReflection(key, "dom-text");
             entry.reflectBody = true;
           }
-        });
-      document.head &&
-        document.head.querySelectorAll("script").forEach((script) => {
           if (
-            script.textContent &&
-            matchesAnyEncoding(script.textContent, entry.value)
+            document.head &&
+            document.head.innerText &&
+            matchesAnyEncoding(document.head.innerText, entry.value)
           ) {
-            addReflection(key, "head-script-block", true);
+            addReflection(key, "head-text");
             entry.reflectHead = true;
           }
-        });
-    });
+          for (let i = 0; i < bodyLen; i++) {
+            try {
+              const el = bodyEls[i];
+              Array.from(el.attributes).forEach((attr) => {
+                try {
+                  if (attr.value && matchesAnyEncoding(attr.value, entry.value)) {
+                    addReflection(key, "body-attr:" + attr.name, isDangerousAttr(attr.name));
+                    entry.reflectBody = true;
+                  }
+                } catch {}
+              });
+            } catch {}
+          }
+          for (let i = 0; i < headLen; i++) {
+            try {
+              const el = headEls[i];
+              Array.from(el.attributes).forEach((attr) => {
+                try {
+                  if (attr.value && matchesAnyEncoding(attr.value, entry.value)) {
+                    addReflection(key, "head-attr:" + attr.name, isDangerousAttr(attr.name));
+                    entry.reflectHead = true;
+                  }
+                } catch {}
+              });
+            } catch {}
+          }
+          if (document.body) {
+            document.body.querySelectorAll("script").forEach((script) => {
+              try {
+                if (script.textContent && matchesAnyEncoding(script.textContent, entry.value)) {
+                  addReflection(key, "body-script-block", true);
+                  entry.reflectBody = true;
+                }
+              } catch {}
+            });
+          }
+          if (document.head) {
+            document.head.querySelectorAll("script").forEach((script) => {
+              try {
+                if (script.textContent && matchesAnyEncoding(script.textContent, entry.value)) {
+                  addReflection(key, "head-script-block", true);
+                  entry.reflectHead = true;
+                }
+              } catch {}
+            });
+          }
+        } catch {}
+      });
+    } catch {}
   }
 
   // Visual Highlighting (robust, dangerous sinks in red, others in orange)
   function highlightReflectedParams() {
-    // Scan known JS/DOM sinks that are not attribute-based
     try {
-      const sinks = [];
+      // Scan known JS/DOM sinks that are not attribute-based
+      try {
+        const sinks = [];
+        paramMap.forEach((entry, key) => {
+          try {
+            if (!entry.value) return;
+            const v = String(entry.value);
+            if (document.body && matchesAnyEncoding(document.body.innerHTML, v)) {
+              addReflection(key, "body-innerHTML", true);
+              entry.reflectBody = true;
+              entry.dangerousSink = true;
+            }
+            if (document.head && matchesAnyEncoding(document.head.innerHTML, v)) {
+              addReflection(key, "head-innerHTML", true);
+              entry.reflectHead = true;
+              entry.dangerousSink = true;
+            }
+          } catch {}
+        });
+      } catch {}
+      clearHighlights();
+      const bodyEls = document.body ? document.body.querySelectorAll("*") : [];
+      const headEls = document.head ? document.head.querySelectorAll("*") : [];
+      const bodyLen = Math.min(bodyEls.length, _MAX_ELEMENTS);
+      const headLen = Math.min(headEls.length, _MAX_ELEMENTS);
       paramMap.forEach((entry, key) => {
-        if (!entry.value) return;
-        const v = String(entry.value);
-        // Check innerHTML/outerHTML/insertAdjacentHTML content (read-only scan)
-        if (document.body && matchesAnyEncoding(document.body.innerHTML, v)) {
-          addReflection(key, "body-innerHTML", true);
-          entry.reflectBody = true;
-          entry.dangerousSink = true;
-        }
-        if (document.head && matchesAnyEncoding(document.head.innerHTML, v)) {
-          addReflection(key, "head-innerHTML", true);
-          entry.reflectHead = true;
-          entry.dangerousSink = true;
-        }
-      });
-    } catch {}
-    clearHighlights();
-    paramMap.forEach((entry, key) => {
-      if (!entry.value) return;
-      // Highlight attributes
-      document.body &&
-        document.body.querySelectorAll("*").forEach((el) => {
-          Array.from(el.attributes).forEach((attr) => {
-            if (attr.value && matchesAnyEncoding(attr.value, entry.value)) {
-              if (!el.dataset.upeOldOutline)
-                el.dataset.upeOldOutline = el.style.outline || "";
-              el.style.outline = isDangerousAttr(attr.name)
-                ? "2px solid red"
-                : "2px solid orange";
-              el.title = `Reflected param: ${key}`;
-              outlinedElements.add(el);
-            }
-          });
-        });
-      document.head &&
-        document.head.querySelectorAll("*").forEach((el) => {
-          Array.from(el.attributes).forEach((attr) => {
-            if (attr.value && matchesAnyEncoding(attr.value, entry.value)) {
-              if (!el.dataset.upeOldOutline)
-                el.dataset.upeOldOutline = el.style.outline || "";
-              el.style.outline = isDangerousAttr(attr.name)
-                ? "2px solid red"
-                : "2px solid orange";
-              el.title = `Reflected param: ${key}`;
-              outlinedElements.add(el);
-            }
-          });
-        });
-      // Highlight text nodes
-      function highlightTextNodes(root) {
-        if (!root) return;
-        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
-        let node;
-        while ((node = walker.nextNode())) {
-          if (!node.nodeValue || typeof node.nodeValue !== "string") continue;
-          if (!matchesAnyEncoding(node.nodeValue, entry.value)) continue;
-          // Highlight ALL occurrences in this text node
-          const raw = String(node.nodeValue);
-          let searchStart = 0;
-          while (searchStart < raw.length) {
-            const match = findMatchIndex(raw.slice(searchStart), entry.value);
-            if (!match) break;
-            const idx = searchStart + match.index;
+        try {
+          if (!entry.value) return;
+          // Highlight attributes
+          for (let i = 0; i < bodyLen; i++) {
             try {
-              const range = document.createRange();
-              range.setStart(node, idx);
-              range.setEnd(node, idx + match.length);
-              const span = document.createElement("span");
-              span.style.background = entry.dangerousSink ? "rgba(255,0,0,0.3)" : "rgba(255,165,0,0.3)";
-              span.title = `Reflected param: ${key}`;
-              range.surroundContents(span);
-              highlightMarkers.push(span);
+              const el = bodyEls[i];
+              Array.from(el.attributes).forEach((attr) => {
+                try {
+                  if (attr.value && matchesAnyEncoding(attr.value, entry.value)) {
+                    if (!el.dataset.upeOldOutline)
+                      el.dataset.upeOldOutline = el.style.outline || "";
+                    el.style.outline = isDangerousAttr(attr.name)
+                      ? "2px solid red"
+                      : "2px solid orange";
+                    el.title = "Reflected param: " + key;
+                    outlinedElements.add(el);
+                  }
+                } catch {}
+              });
             } catch {}
-            searchStart = idx + match.length;
           }
-        }
-      }
-      highlightTextNodes(document.body);
-      highlightTextNodes(document.head);
-      // Highlight script blocks
-      document.body &&
-        document.body.querySelectorAll("script").forEach((script) => {
-          if (
-            script.textContent &&
-            matchesAnyEncoding(script.textContent, entry.value)
-          ) {
-            if (!script.dataset.upeOldOutline)
-              script.dataset.upeOldOutline = script.style.outline || "";
-            script.style.outline = "2px solid red";
-            script.title = `Reflected param (script): ${key}`;
-            outlinedElements.add(script);
+          for (let i = 0; i < headLen; i++) {
+            try {
+              const el = headEls[i];
+              Array.from(el.attributes).forEach((attr) => {
+                try {
+                  if (attr.value && matchesAnyEncoding(attr.value, entry.value)) {
+                    if (!el.dataset.upeOldOutline)
+                      el.dataset.upeOldOutline = el.style.outline || "";
+                    el.style.outline = isDangerousAttr(attr.name)
+                      ? "2px solid red"
+                      : "2px solid orange";
+                    el.title = "Reflected param: " + key;
+                    outlinedElements.add(el);
+                  }
+                } catch {}
+              });
+            } catch {}
           }
-        });
-      document.head &&
-        document.head.querySelectorAll("script").forEach((script) => {
-          if (
-            script.textContent &&
-            matchesAnyEncoding(script.textContent, entry.value)
-          ) {
-            if (!script.dataset.upeOldOutline)
-              script.dataset.upeOldOutline = script.style.outline || "";
-            script.style.outline = "2px solid red";
-            script.title = `Reflected param (script): ${key}`;
-            outlinedElements.add(script);
+          // Highlight text nodes
+          function highlightTextNodes(root) {
+            try {
+              if (!root) return;
+              const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+              let node;
+              while ((node = walker.nextNode())) {
+                try {
+                  if (!node.nodeValue || typeof node.nodeValue !== "string") continue;
+                  if (!matchesAnyEncoding(node.nodeValue, entry.value)) continue;
+                  const raw = String(node.nodeValue);
+                  let searchStart = 0;
+                  while (searchStart < raw.length) {
+                    const match = findMatchIndex(raw.slice(searchStart), entry.value);
+                    if (!match) break;
+                    const idx = searchStart + match.index;
+                    try {
+                      const range = document.createRange();
+                      range.setStart(node, idx);
+                      range.setEnd(node, idx + match.length);
+                      const span = document.createElement("span");
+                      span.style.background = entry.dangerousSink ? "rgba(255,0,0,0.3)" : "rgba(255,165,0,0.3)";
+                      span.title = "Reflected param: " + key;
+                      range.surroundContents(span);
+                      highlightMarkers.push(span);
+                    } catch {}
+                    searchStart = idx + match.length;
+                  }
+                } catch {}
+              }
+            } catch {}
           }
-        });
-    });
-    if (SETTINGS.logLevel !== "silent")
-      _log("info", "Highlighted reflected parameters in DOM.");
+          highlightTextNodes(document.body);
+          highlightTextNodes(document.head);
+          // Highlight script blocks
+          if (document.body) {
+            document.body.querySelectorAll("script").forEach((script) => {
+              try {
+                if (script.textContent && matchesAnyEncoding(script.textContent, entry.value)) {
+                  if (!script.dataset.upeOldOutline)
+                    script.dataset.upeOldOutline = script.style.outline || "";
+                  script.style.outline = "2px solid red";
+                  script.title = "Reflected param (script): " + key;
+                  outlinedElements.add(script);
+                }
+              } catch {}
+            });
+          }
+          if (document.head) {
+            document.head.querySelectorAll("script").forEach((script) => {
+              try {
+                if (script.textContent && matchesAnyEncoding(script.textContent, entry.value)) {
+                  if (!script.dataset.upeOldOutline)
+                    script.dataset.upeOldOutline = script.style.outline || "";
+                  script.style.outline = "2px solid red";
+                  script.title = "Reflected param (script): " + key;
+                  outlinedElements.add(script);
+                }
+              } catch {}
+            });
+          }
+        } catch {}
+      });
+      if (SETTINGS.logLevel !== "silent")
+        _log("info", "Highlighted reflected parameters in DOM.");
+    } catch (e) {
+      _log("error", "highlightReflectedParams failed", e);
+    }
   }
   window.highlightReflectedParams = highlightReflectedParams;
 
@@ -846,16 +930,15 @@
   window.exportParamReflectionsCSV = exportParamReflectionsCSV;
 
   function extractAllParameters() {
-    extractURLParams();
-    extractDOMURLParams();
-    extractCookies();
-    extractMetaTags();
-    extractHiddenInputs();
-    extractFormFields();
-    extractInlineConfigs();
-    extractFromIframes();
-    // Network patching is opt-in; call window.patchNetwork() manually if desired
-    detectReflections();
+    try { extractURLParams(); } catch (e) { _log("error", "extractURLParams failed", e); }
+    try { extractDOMURLParams(); } catch (e) { _log("error", "extractDOMURLParams failed", e); }
+    try { extractCookies(); } catch (e) { _log("error", "extractCookies failed", e); }
+    try { extractMetaTags(); } catch (e) { _log("error", "extractMetaTags failed", e); }
+    try { extractHiddenInputs(); } catch (e) { _log("error", "extractHiddenInputs failed", e); }
+    try { extractFormFields(); } catch (e) { _log("error", "extractFormFields failed", e); }
+    try { extractInlineConfigs(); } catch (e) { _log("error", "extractInlineConfigs failed", e); }
+    try { extractFromIframes(); } catch (e) { _log("error", "extractFromIframes failed", e); }
+    try { detectReflections(); } catch (e) { _log("error", "detectReflections failed", e); }
     // Output summary as table and JSON
     const table = [];
     const json = [];
@@ -908,19 +991,21 @@
     const startTime = Date.now();
     function loop() {
       if (!realTimeActive) return;
+      try {
+        clearHighlights();
+        extractAllParameters();
+      } catch {}
       const elapsed = Date.now() - startTime;
-      // Clear stale highlights from previous iteration
-      clearHighlights();
-      // Merge new params into existing paramMap (don't clear — preserves history)
-      extractAllParameters();
       const nextDelay = Math.max(100, intervalMs - (Date.now() - startTime - elapsed));
-      setTimeout(loop, nextDelay);
+      rtTimeoutId = setTimeout(loop, nextDelay);
     }
     loop();
     _log("info", "Real-time parameter extraction started.");
   }
   function stopRealTimeScan() {
     realTimeActive = false;
+    if (rtTimeoutId) { clearTimeout(rtTimeoutId); rtTimeoutId = null; }
+    try { clearHighlights(); } catch {}
     _log("info", "Real-time parameter extraction stopped.");
   }
   window.startRealTimeParamScan = startRealTimeScan;
@@ -948,9 +1033,14 @@
 
   // Banner UI
   function showBanner() {
-    const currentStatus = () =>
-      window.__upe_fetchPatched ? "patched" : "unpatched";
-    if (window.__upeBannerHost && window.__upeBannerHost.isConnected) {
+    try {
+      if (!_domReady()) {
+        _log("error", "UPE: document.body not ready");
+        return;
+      }
+      const currentStatus = () =>
+        window.__upe_fetchPatched ? "patched" : "unpatched";
+      if (window.__upeBannerHost && window.__upeBannerHost.isConnected) {
       window.__upeBannerHost.remove();
     }
     const host = document.createElement("div");
@@ -1102,6 +1192,9 @@
     };
     document.body.appendChild(host);
     window.__upeBannerHost = host;
+    } catch (e) {
+      _log("error", "showBanner failed", e);
+    }
   }
   window.showUPEBanner = showBanner;
 
@@ -1127,425 +1220,507 @@
 
   // Enhancement 1: Analyze parameter security risk levels
   function analyzeParamSecurity() {
-    const results = [];
-    paramMap.forEach((entry, key) => {
-      const risk = { param: key, value: String(entry.value || "").slice(0, 60), factors: [], score: 0 };
-      if (entry.dangerousSink) { risk.factors.push("dangerous-sink"); risk.score += 40; }
-      if (entry.reflections.size > 3) { risk.factors.push("many-reflections"); risk.score += 20; }
-      if (entry.reflections.has("body-script-block") || entry.reflections.has("head-script-block")) { risk.factors.push("in-script-block"); risk.score += 30; }
-      if (entry.reflectBody) { risk.factors.push("body-reflection"); risk.score += 15; }
-      const nameLC = key.toLowerCase();
-      if (/token|secret|password|key|auth|session|jwt/.test(nameLC)) { risk.factors.push("sensitive-name"); risk.score += 25; }
-      if (/id|user|account|admin/.test(nameLC)) { risk.factors.push("pii-name"); risk.score += 10; }
-      if (entry.sources.has("cookie")) { risk.factors.push("cookie-source"); risk.score += 10; }
-      if (entry.sources.has("url") || entry.sources.has("url-hash")) { risk.factors.push("url-exposed"); risk.score += 15; }
-      risk.level = risk.score >= 50 ? "CRITICAL" : risk.score >= 30 ? "HIGH" : risk.score >= 15 ? "MEDIUM" : "LOW";
-      results.push(risk);
-    });
-    results.sort((a, b) => b.score - a.score);
-    _log("info", `=== Parameter Security Analysis (${results.length} params) ===`);
-    if (results.length) console.table(results);
-    return results;
+    try {
+      const results = [];
+      paramMap.forEach((entry, key) => {
+        try {
+          const risk = { param: key, value: String(entry.value || "").slice(0, 60), factors: [], score: 0 };
+          if (entry.dangerousSink) { risk.factors.push("dangerous-sink"); risk.score += 40; }
+          if (entry.reflections.size > 3) { risk.factors.push("many-reflections"); risk.score += 20; }
+          if (entry.reflections.has("body-script-block") || entry.reflections.has("head-script-block")) { risk.factors.push("in-script-block"); risk.score += 30; }
+          if (entry.reflectBody) { risk.factors.push("body-reflection"); risk.score += 15; }
+          const nameLC = key.toLowerCase();
+          if (/token|secret|password|key|auth|session|jwt/.test(nameLC)) { risk.factors.push("sensitive-name"); risk.score += 25; }
+          if (/id|user|account|admin/.test(nameLC)) { risk.factors.push("pii-name"); risk.score += 10; }
+          if (entry.sources.has("cookie")) { risk.factors.push("cookie-source"); risk.score += 10; }
+          if (entry.sources.has("url") || entry.sources.has("url-hash")) { risk.factors.push("url-exposed"); risk.score += 15; }
+          risk.level = risk.score >= 50 ? "CRITICAL" : risk.score >= 30 ? "HIGH" : risk.score >= 15 ? "MEDIUM" : "LOW";
+          results.push(risk);
+        } catch {}
+      });
+      results.sort((a, b) => b.score - a.score);
+      _log("info", "=== Parameter Security Analysis (" + results.length + " params) ===");
+      if (results.length) _table(results);
+      return results;
+    } catch (e) { _log("error", "analyzeParamSecurity failed", e); return []; }
   }
   window.analyzeParamSecurity = analyzeParamSecurity;
 
   // Enhancement 2: Detect parameter reflection depth (body text, attr, script, etc.)
   function detectParamReflectionDepth() {
-    const depth = [];
-    paramMap.forEach((entry, key) => {
-      if (entry.reflections.size === 0) return;
-      const locations = Array.from(entry.reflections);
-      const isScript = locations.some(l => l.includes("script"));
-      const isAttr = locations.some(l => l.includes("attr:"));
-      const isBody = locations.some(l => l.includes("body"));
-      const isHead = locations.some(l => l.includes("head"));
-      depth.push({
-        param: key,
-        reflections: locations.length,
-        inScript: isScript,
-        inAttr: isAttr,
-        inBodyText: isBody && !isAttr && !isScript,
-        inHead: isHead,
-        depth: (isScript ? 3 : 0) + (isAttr ? 2 : 0) + (isBody ? 1 : 0) + (isHead ? 1 : 0),
-        risk: isScript ? "CRITICAL" : isAttr ? "HIGH" : isBody ? "MEDIUM" : "LOW",
+    try {
+      const depth = [];
+      paramMap.forEach((entry, key) => {
+        try {
+          if (entry.reflections.size === 0) return;
+          const locations = Array.from(entry.reflections);
+          const isScript = locations.some(l => l.includes("script"));
+          const isAttr = locations.some(l => l.includes("attr:"));
+          const isBody = locations.some(l => l.includes("body"));
+          const isHead = locations.some(l => l.includes("head"));
+          depth.push({
+            param: key,
+            reflections: locations.length,
+            inScript: isScript,
+            inAttr: isAttr,
+            inBodyText: isBody && !isAttr && !isScript,
+            inHead: isHead,
+            depth: (isScript ? 3 : 0) + (isAttr ? 2 : 0) + (isBody ? 1 : 0) + (isHead ? 1 : 0),
+            risk: isScript ? "CRITICAL" : isAttr ? "HIGH" : isBody ? "MEDIUM" : "LOW",
+          });
+        } catch {}
       });
-    });
-    depth.sort((a, b) => b.depth - a.depth);
-    _log("info", `=== Reflection Depth Analysis ===`);
-    if (depth.length) console.table(depth);
-    return depth;
+      depth.sort((a, b) => b.depth - a.depth);
+      _log("info", "=== Reflection Depth Analysis ===");
+      if (depth.length) _table(depth);
+      return depth;
+    } catch (e) { _log("error", "detectParamReflectionDepth failed", e); return []; }
   }
   window.detectParamReflectionDepth = detectParamReflectionDepth;
 
   // Enhancement 3: Map param sources → sinks flow
   function mapParamFlow() {
-    const flows = [];
-    paramMap.forEach((entry, key) => {
-      if (!entry.value) return;
-      const sources = Array.from(entry.sources);
-      const sinks = Array.from(entry.reflections);
-      if (sinks.length === 0) return;
-      flows.push({
-        param: key,
-        sources: sources.join(", "),
-        sinks: sinks.join(", "),
-        sourceCount: sources.length,
-        sinkCount: sinks.length,
-        dangerous: entry.dangerousSink,
+    try {
+      const flows = [];
+      paramMap.forEach((entry, key) => {
+        try {
+          if (!entry.value) return;
+          const sources = Array.from(entry.sources);
+          const sinks = Array.from(entry.reflections);
+          if (sinks.length === 0) return;
+          flows.push({
+            param: key,
+            sources: sources.join(", "),
+            sinks: sinks.join(", "),
+            sourceCount: sources.length,
+            sinkCount: sinks.length,
+            dangerous: entry.dangerousSink,
+          });
+        } catch {}
       });
-    });
-    _log("info", `=== Parameter Flow Map (${flows.length} flows) ===`);
-    if (flows.length) console.table(flows);
-    return flows;
+      _log("info", "=== Parameter Flow Map (" + flows.length + " flows) ===");
+      if (flows.length) _table(flows);
+      return flows;
+    } catch (e) { _log("error", "mapParamFlow failed", e); return []; }
   }
   window.mapParamFlow = mapParamFlow;
 
   // Enhancement 4: Detect sensitive parameter leakage in URLs/logs
   function detectSensitiveParamLeakage() {
-    const leaks = [];
-    const sensitivePatterns = /token|secret|password|key|auth|session|jwt|api[_-]?key|private/i;
-    paramMap.forEach((entry, key) => {
-      if (!sensitivePatterns.test(key)) return;
-      if (entry.sources.has("url") || entry.sources.has("url-hash") || entry.sources.has("fetch-url") || entry.sources.has("xhr-url")) {
-        leaks.push({ param: key, value: String(entry.value || "").slice(0, 40), sources: Array.from(entry.sources).join(", "), risk: "HIGH", issue: "Sensitive param in URL (logged in server logs, referrer, browser history)" });
-      }
-      if (entry.sources.has("cookie")) {
-        leaks.push({ param: key, value: "[cookie]", sources: "cookie", risk: "MEDIUM", issue: "Sensitive param in cookie" });
-      }
-    });
-    _log("info", `=== Sensitive Param Leakage (${leaks.length} found) ===`);
-    if (leaks.length) console.table(leaks);
-    return leaks;
+    try {
+      const leaks = [];
+      const sensitivePatterns = /token|secret|password|key|auth|session|jwt|api[_-]?key|private/i;
+      paramMap.forEach((entry, key) => {
+        try {
+          if (!sensitivePatterns.test(key)) return;
+          if (entry.sources.has("url") || entry.sources.has("url-hash") || entry.sources.has("fetch-url") || entry.sources.has("xhr-url")) {
+            leaks.push({ param: key, value: String(entry.value || "").slice(0, 40), sources: Array.from(entry.sources).join(", "), risk: "HIGH", issue: "Sensitive param in URL (logged in server logs, referrer, browser history)" });
+          }
+          if (entry.sources.has("cookie")) {
+            leaks.push({ param: key, value: "[cookie]", sources: "cookie", risk: "MEDIUM", issue: "Sensitive param in cookie" });
+          }
+        } catch {}
+      });
+      _log("info", "=== Sensitive Param Leakage (" + leaks.length + " found) ===");
+      if (leaks.length) _table(leaks);
+      return leaks;
+    } catch (e) { _log("error", "detectSensitiveParamLeakage failed", e); return []; }
   }
   window.detectSensitiveParamLeakage = detectSensitiveParamLeakage;
 
   // Enhancement 5: Analyze cookie security flags
   function analyzeCookieSecurity() {
-    const results = [];
-    document.cookie.split(";").forEach(c => {
-      const name = c.trim().split("=")[0];
-      const flags = { httpOnly: false, secure: false, sameSite: "none", path: "/" };
-      try {
-        const allCookies = document.cookie.split(";");
-        // Note: httpOnly and secure flags are not visible to JS, so we flag based on context
-        const isSensitive = /session|token|auth|jwt|secret|key/i.test(name);
-        results.push({
-          name,
-          sensitive: isSensitive,
-          httpsOnly: location.protocol === "https:",
-          note: isSensitive ? "Verify httpOnly + secure + SameSite flags server-side" : "Low risk",
-        });
-      } catch {}
-    });
-    _log("info", `=== Cookie Security Analysis (${results.length} cookies) ===`);
-    if (results.length) console.table(results);
-    return results;
+    try {
+      const results = [];
+      document.cookie.split(";").forEach(c => {
+        try {
+          const name = c.trim().split("=")[0];
+          const isSensitive = /session|token|auth|jwt|secret|key/i.test(name);
+          results.push({
+            name,
+            sensitive: isSensitive,
+            httpsOnly: location.protocol === "https:",
+            note: isSensitive ? "Verify httpOnly + secure + SameSite flags server-side" : "Low risk",
+          });
+        } catch {}
+      });
+      _log("info", "=== Cookie Security Analysis (" + results.length + " cookies) ===");
+      if (results.length) _table(results);
+      return results;
+    } catch (e) { _log("error", "analyzeCookieSecurity failed", e); return []; }
   }
   window.analyzeCookieSecurity = analyzeCookieSecurity;
 
   // Enhancement 6: Detect CORS-exposed parameters
   function detectCORSParams() {
-    const findings = [];
-    paramMap.forEach((entry, key) => {
-      if (entry.sources.has("fetch-header") || entry.sources.has("xhr-header")) {
-        const nameLC = key.toLowerCase();
-        if (/origin|referer|cookie|authorization|token|key/.test(nameLC)) {
-          findings.push({ param: key, risk: "HIGH", issue: "Sensitive header param may be exposed via CORS misconfiguration" });
-        }
-      }
-    });
-    _log("info", `=== CORS Param Exposure (${findings.length} found) ===`);
-    if (findings.length) console.table(findings);
-    return findings;
+    try {
+      const findings = [];
+      paramMap.forEach((entry, key) => {
+        try {
+          if (entry.sources.has("fetch-header") || entry.sources.has("xhr-header")) {
+            const nameLC = key.toLowerCase();
+            if (/origin|referer|cookie|authorization|token|key/.test(nameLC)) {
+              findings.push({ param: key, risk: "HIGH", issue: "Sensitive header param may be exposed via CORS misconfiguration" });
+            }
+          }
+        } catch {}
+      });
+      _log("info", "=== CORS Param Exposure (" + findings.length + " found) ===");
+      if (findings.length) _table(findings);
+      return findings;
+    } catch (e) { _log("error", "detectCORSParams failed", e); return []; }
   }
   window.detectCORSParams = detectCORSParams;
 
   // Enhancement 7: Scan GraphQL query parameters
   function scanGraphQLParams() {
-    const findings = [];
-    paramMap.forEach((entry, key) => {
-      const val = String(entry.value || "");
-      if (/query\s+\w+|mutation\s+\w+|subscription\s+\w+|__schema|__type/i.test(val)) {
-        findings.push({ param: key, value: val.slice(0, 80), risk: "MEDIUM", issue: "GraphQL operation in parameter value" });
-      }
-    });
-    document.querySelectorAll("script:not([src])").forEach(s => {
-      const code = s.textContent || "";
-      if (/graphql|gql/i.test(code)) {
-        const params = code.match(/["'](?:query|operationName|variables)["']\s*:/gi) || [];
-        params.forEach(p => findings.push({ param: "inline-gql", value: p.slice(0, 60), risk: "INFO", issue: "GraphQL param in inline script" }));
-      }
-    });
-    _log("info", `=== GraphQL Param Scan (${findings.length} found) ===`);
-    if (findings.length) console.table(findings);
-    return findings;
+    try {
+      const findings = [];
+      paramMap.forEach((entry, key) => {
+        try {
+          const val = String(entry.value || "");
+          if (/query\s+\w+|mutation\s+\w+|subscription\s+\w+|__schema|__type/i.test(val)) {
+            findings.push({ param: key, value: val.slice(0, 80), risk: "MEDIUM", issue: "GraphQL operation in parameter value" });
+          }
+        } catch {}
+      });
+      document.querySelectorAll("script:not([src])").forEach(s => {
+        try {
+          const code = s.textContent || "";
+          if (/graphql|gql/i.test(code)) {
+            const params = code.match(/["'](?:query|operationName|variables)["']\s*:/gi) || [];
+            params.forEach(p => findings.push({ param: "inline-gql", value: p.slice(0, 60), risk: "INFO", issue: "GraphQL param in inline script" }));
+          }
+        } catch {}
+      });
+      _log("info", "=== GraphQL Param Scan (" + findings.length + " found) ===");
+      if (findings.length) _table(findings);
+      return findings;
+    } catch (e) { _log("error", "scanGraphQLParams failed", e); return []; }
   }
   window.scanGraphQLParams = scanGraphQLParams;
 
   // Enhancement 8: Detect JWT tokens in parameter values
   function detectJWTInParams() {
-    const findings = [];
-    const jwtRegex = /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+/;
-    paramMap.forEach((entry, key) => {
-      const val = String(entry.value || "");
-      if (jwtRegex.test(val)) {
-        findings.push({ param: key, value: val.slice(0, 40) + "...", risk: "HIGH", issue: "JWT token in parameter value" });
-      }
-    });
-    document.cookie.split(";").forEach(c => {
-      const val = c.trim().split("=").slice(1).join("=");
-      if (jwtRegex.test(val)) {
-        findings.push({ param: c.split("=")[0].trim(), value: "[JWT in cookie]", risk: "MEDIUM", issue: "JWT token in cookie" });
-      }
-    });
-    _log("info", `=== JWT in Params (${findings.length} found) ===`);
-    if (findings.length) console.table(findings);
-    return findings;
+    try {
+      const findings = [];
+      const jwtRegex = /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+/;
+      paramMap.forEach((entry, key) => {
+        try {
+          const val = String(entry.value || "");
+          if (jwtRegex.test(val)) {
+            findings.push({ param: key, value: val.slice(0, 40) + "...", risk: "HIGH", issue: "JWT token in parameter value" });
+          }
+        } catch {}
+      });
+      document.cookie.split(";").forEach(c => {
+        try {
+          const val = c.trim().split("=").slice(1).join("=");
+          if (jwtRegex.test(val)) {
+            findings.push({ param: c.split("=")[0].trim(), value: "[JWT in cookie]", risk: "MEDIUM", issue: "JWT token in cookie" });
+          }
+        } catch {}
+      });
+      _log("info", "=== JWT in Params (" + findings.length + " found) ===");
+      if (findings.length) _table(findings);
+      return findings;
+    } catch (e) { _log("error", "detectJWTInParams failed", e); return []; }
   }
   window.detectJWTInParams = detectJWTInParams;
 
   // Enhancement 9: Analyze form autocomplete security
   function analyzeFormAutocomplete() {
-    const findings = [];
-    document.querySelectorAll("form").forEach(form => {
-      const sensitiveFields = form.querySelectorAll('input[name*="pass"],input[name*="token"],input[name*="key"],input[name*="secret"],input[name*="auth"],input[type="password"]');
-      sensitiveFields.forEach(f => {
-        const ac = f.getAttribute("autocomplete") || "not set";
-        if (ac === "on" || ac === "not set") {
-          findings.push({ form: form.action?.slice(0, 60) || "unknown", field: f.name || f.id || "unnamed", autocomplete: ac, risk: "LOW", issue: "Sensitive field may be cached by browser autocomplete" });
-        }
+    try {
+      const findings = [];
+      document.querySelectorAll("form").forEach(form => {
+        try {
+          const sensitiveFields = form.querySelectorAll('input[name*="pass"],input[name*="token"],input[name*="key"],input[name*="secret"],input[name*="auth"],input[type="password"]');
+          sensitiveFields.forEach(f => {
+            try {
+              const ac = f.getAttribute("autocomplete") || "not set";
+              if (ac === "on" || ac === "not set") {
+                findings.push({ form: form.action?.slice(0, 60) || "unknown", field: f.name || f.id || "unnamed", autocomplete: ac, risk: "LOW", issue: "Sensitive field may be cached by browser autocomplete" });
+              }
+            } catch {}
+          });
+        } catch {}
       });
-    });
-    _log("info", `=== Form Autocomplete Security (${findings.length} found) ===`);
-    if (findings.length) console.table(findings);
-    return findings;
+      _log("info", "=== Form Autocomplete Security (" + findings.length + " found) ===");
+      if (findings.length) _table(findings);
+      return findings;
+    } catch (e) { _log("error", "analyzeFormAutocomplete failed", e); return []; }
   }
   window.analyzeFormAutocomplete = analyzeFormAutocomplete;
 
   // Enhancement 10: Detect open redirect parameters
   function detectOpenRedirectParams() {
-    const findings = [];
-    const redirectParams = ["redirect", "redirect_url", "redirect_uri", "return", "return_to", "next", "url", "goto", "target", "dest", "destination", "redir", "continue", "rurl"];
-    paramMap.forEach((entry, key) => {
-      if (redirectParams.some(p => key.toLowerCase().includes(p))) {
-        const val = String(entry.value || "");
-        const isExternal = /^https?:\/\//i.test(val) && !val.includes(location.hostname);
-        findings.push({ param: key, value: val.slice(0, 80), external: isExternal, risk: isExternal ? "HIGH" : "MEDIUM", issue: isExternal ? "External URL in redirect param (open redirect)" : "Redirect parameter found" });
-      }
-    });
-    _log("info", `=== Open Redirect Params (${findings.length} found) ===`);
-    if (findings.length) console.table(findings);
-    return findings;
+    try {
+      const findings = [];
+      const redirectParams = ["redirect", "redirect_url", "redirect_uri", "return", "return_to", "next", "url", "goto", "target", "dest", "destination", "redir", "continue", "rurl"];
+      paramMap.forEach((entry, key) => {
+        try {
+          if (redirectParams.some(p => key.toLowerCase().includes(p))) {
+            const val = String(entry.value || "");
+            const isExternal = /^https?:\/\//i.test(val) && !val.includes(location.hostname);
+            findings.push({ param: key, value: val.slice(0, 80), external: isExternal, risk: isExternal ? "HIGH" : "MEDIUM", issue: isExternal ? "External URL in redirect param (open redirect)" : "Redirect parameter found" });
+          }
+        } catch {}
+      });
+      _log("info", "=== Open Redirect Params (" + findings.length + " found) ===");
+      if (findings.length) _table(findings);
+      return findings;
+    } catch (e) { _log("error", "detectOpenRedirectParams failed", e); return []; }
   }
   window.detectOpenRedirectParams = detectOpenRedirectParams;
 
   // Enhancement 11: Scan WebSocket URL parameters
   function scanWebSocketParams() {
-    const findings = [];
-    paramMap.forEach((entry, key) => {
-      const val = String(entry.value || "");
-      if (/^wss?:\/\//i.test(val)) {
-        findings.push({ param: key, value: val.slice(0, 100), risk: "INFO", issue: "WebSocket URL in parameter" });
-      }
-    });
-    document.querySelectorAll("script:not([src])").forEach(s => {
-      const code = s.textContent || "";
-      const wsMatches = code.match(/wss?:\/\/[^\s'"`]+/g) || [];
-      wsMatches.forEach(u => findings.push({ param: "ws-in-script", value: u.slice(0, 100), risk: "INFO", issue: "WebSocket URL in inline script" }));
-    });
-    _log("info", `=== WebSocket Params (${findings.length} found) ===`);
-    if (findings.length) console.table(findings);
-    return findings;
+    try {
+      const findings = [];
+      paramMap.forEach((entry, key) => {
+        try {
+          const val = String(entry.value || "");
+          if (/^wss?:\/\//i.test(val)) {
+            findings.push({ param: key, value: val.slice(0, 100), risk: "INFO", issue: "WebSocket URL in parameter" });
+          }
+        } catch {}
+      });
+      document.querySelectorAll("script:not([src])").forEach(s => {
+        try {
+          const code = s.textContent || "";
+          const wsMatches = code.match(/wss?:\/\/[^\s'"`]+/g) || [];
+          wsMatches.forEach(u => findings.push({ param: "ws-in-script", value: u.slice(0, 100), risk: "INFO", issue: "WebSocket URL in inline script" }));
+        } catch {}
+      });
+      _log("info", "=== WebSocket Params (" + findings.length + " found) ===");
+      if (findings.length) _table(findings);
+      return findings;
+    } catch (e) { _log("error", "scanWebSocketParams failed", e); return []; }
   }
   window.scanWebSocketParams = scanWebSocketParams;
 
   // Enhancement 12: Analyze CSP for parameter-related policies
   function analyzeCSPForParams() {
-    const findings = [];
-    const cspMeta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
-    const policy = cspMeta ? cspMeta.getAttribute("content") || "" : "";
-    if (!policy) {
-      findings.push({ severity: "HIGH", issue: "No CSP meta tag found — params reflected without CSP protection" });
-    } else {
-      if (policy.includes("'unsafe-inline'")) findings.push({ severity: "HIGH", issue: "unsafe-inline allows inline script execution with reflected params" });
-      if (policy.includes("'unsafe-eval'")) findings.push({ severity: "CRITICAL", issue: "unsafe-eval allows eval() with reflected params" });
-      if (policy.includes("*")) findings.push({ severity: "HIGH", issue: "Wildcard source allows any origin to load resources" });
-    }
-    _log("info", `=== CSP Parameter Protection (${findings.length} issues) ===`);
-    if (findings.length) console.table(findings);
-    return findings;
+    try {
+      const findings = [];
+      const cspMeta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+      const policy = cspMeta ? cspMeta.getAttribute("content") || "" : "";
+      if (!policy) {
+        findings.push({ severity: "HIGH", issue: "No CSP meta tag found — params reflected without CSP protection" });
+      } else {
+        if (policy.includes("'unsafe-inline'")) findings.push({ severity: "HIGH", issue: "unsafe-inline allows inline script execution with reflected params" });
+        if (policy.includes("'unsafe-eval'")) findings.push({ severity: "CRITICAL", issue: "unsafe-eval allows eval() with reflected params" });
+        if (policy.includes("*")) findings.push({ severity: "HIGH", issue: "Wildcard source allows any origin to load resources" });
+      }
+      _log("info", "=== CSP Parameter Protection (" + findings.length + " issues) ===");
+      if (findings.length) _table(findings);
+      return findings;
+    } catch (e) { _log("error", "analyzeCSPForParams failed", e); return []; }
   }
   window.analyzeCSPForParams = analyzeCSPForParams;
 
   // Enhancement 13: Detect prototype pollution via params
   function detectPrototypePollutionParams() {
-    const findings = [];
-    paramMap.forEach((entry, key) => {
-      const val = String(entry.value || "");
-      if (/__proto__|constructor\[|prototype\[/.test(val)) {
-        findings.push({ param: key, value: val.slice(0, 60), risk: "CRITICAL", issue: "Prototype pollution payload in parameter" });
-      }
-      if (/\[.*\]=|\.push\(|\.merge\(|Object\.assign/.test(val)) {
-        findings.push({ param: key, value: val.slice(0, 60), risk: "MEDIUM", issue: "Potential prototype pollution pattern" });
-      }
-    });
-    _log("info", `=== Prototype Pollution Params (${findings.length} found) ===`);
-    if (findings.length) console.table(findings);
-    return findings;
+    try {
+      const findings = [];
+      paramMap.forEach((entry, key) => {
+        try {
+          const val = String(entry.value || "");
+          if (/__proto__|constructor\[|prototype\[/.test(val)) {
+            findings.push({ param: key, value: val.slice(0, 60), risk: "CRITICAL", issue: "Prototype pollution payload in parameter" });
+          }
+          if (/\[.*\]=|\.push\(|\.merge\(|Object\.assign/.test(val)) {
+            findings.push({ param: key, value: val.slice(0, 60), risk: "MEDIUM", issue: "Potential prototype pollution pattern" });
+          }
+        } catch {}
+      });
+      _log("info", "=== Prototype Pollution Params (" + findings.length + " found) ===");
+      if (findings.length) _table(findings);
+      return findings;
+    } catch (e) { _log("error", "detectPrototypePollutionParams failed", e); return []; }
   }
   window.detectPrototypePollutionParams = detectPrototypePollutionParams;
 
   // Enhancement 14: Map complete param → handler → sink chains
   function mapParamToSinkChains() {
-    const chains = [];
-    paramMap.forEach((entry, key) => {
-      if (entry.reflections.size === 0) return;
-      const sinks = Array.from(entry.reflections);
-      const hasScript = sinks.some(s => s.includes("script"));
-      const hasInnerHTML = sinks.some(s => s.includes("innerHTML"));
-      const hasLocation = sinks.some(s => s.includes("location"));
-      const hasAttr = sinks.some(s => s.includes("attr:"));
-      let chain = "param → ";
-      if (entry.sources.has("url") || entry.sources.has("url-hash")) chain += "URL → ";
-      if (entry.sources.has("cookie")) chain += "cookie → ";
-      if (entry.sources.has("form")) chain += "form → ";
-      if (entry.sources.has("fetch-body") || entry.sources.has("xhr-body")) chain += "request-body → ";
-      chain += sinks.join(", ");
-      chains.push({
-        param: key,
-        chain,
-        scriptSink: hasScript,
-        innerHTMLSink: hasInnerHTML,
-        locationSink: hasLocation,
-        attrSink: hasAttr,
-        risk: hasScript ? "CRITICAL" : hasInnerHTML ? "HIGH" : hasLocation ? "HIGH" : hasAttr ? "MEDIUM" : "LOW",
+    try {
+      const chains = [];
+      paramMap.forEach((entry, key) => {
+        try {
+          if (entry.reflections.size === 0) return;
+          const sinks = Array.from(entry.reflections);
+          const hasScript = sinks.some(s => s.includes("script"));
+          const hasInnerHTML = sinks.some(s => s.includes("innerHTML"));
+          const hasLocation = sinks.some(s => s.includes("location"));
+          const hasAttr = sinks.some(s => s.includes("attr:"));
+          let chain = "param -> ";
+          if (entry.sources.has("url") || entry.sources.has("url-hash")) chain += "URL -> ";
+          if (entry.sources.has("cookie")) chain += "cookie -> ";
+          if (entry.sources.has("form")) chain += "form -> ";
+          if (entry.sources.has("fetch-body") || entry.sources.has("xhr-body")) chain += "request-body -> ";
+          chain += sinks.join(", ");
+          chains.push({
+            param: key,
+            chain,
+            scriptSink: hasScript,
+            innerHTMLSink: hasInnerHTML,
+            locationSink: hasLocation,
+            attrSink: hasAttr,
+            risk: hasScript ? "CRITICAL" : hasInnerHTML ? "HIGH" : hasLocation ? "HIGH" : hasAttr ? "MEDIUM" : "LOW",
+          });
+        } catch {}
       });
-    });
-    _log("info", `=== Param → Sink Chains (${chains.length} chains) ===`);
-    if (chains.length) console.table(chains);
-    return chains;
+      _log("info", "=== Param -> Sink Chains (" + chains.length + " chains) ===");
+      if (chains.length) _table(chains);
+      return chains;
+    } catch (e) { _log("error", "mapParamToSinkChains failed", e); return []; }
   }
   window.mapParamToSinkChains = mapParamToSinkChains;
 
   // Enhancement 15: Detect SSRF-prone parameters
   function detectSSRFParams() {
-    const findings = [];
-    const ssrfParams = /url|uri|href|src|dest|target|redirect|fetch|load|image|link|api|endpoint|webhook|callback|notify/i;
-    paramMap.forEach((entry, key) => {
-      if (!ssrfParams.test(key)) return;
-      const val = String(entry.value || "");
-      if (/localhost|127\.0\.0\.1|10\.\d+|192\.168|169\.254|metadata\.google/i.test(val)) {
-        findings.push({ param: key, value: val.slice(0, 80), risk: "CRITICAL", issue: "Internal IP in URL-type parameter (SSRF)" });
-      } else if (/^https?:\/\//i.test(val)) {
-        findings.push({ param: key, value: val.slice(0, 80), risk: "MEDIUM", issue: "URL-type parameter (potential SSRF vector)" });
-      }
-    });
-    _log("info", `=== SSRF-Prone Params (${findings.length} found) ===`);
-    if (findings.length) console.table(findings);
-    return findings;
+    try {
+      const findings = [];
+      const ssrfParams = /url|uri|href|src|dest|target|redirect|fetch|load|image|link|api|endpoint|webhook|callback|notify/i;
+      paramMap.forEach((entry, key) => {
+        try {
+          if (!ssrfParams.test(key)) return;
+          const val = String(entry.value || "");
+          if (/localhost|127\.0\.0\.1|10\.\d+|192\.168|169\.254|metadata\.google/i.test(val)) {
+            findings.push({ param: key, value: val.slice(0, 80), risk: "CRITICAL", issue: "Internal IP in URL-type parameter (SSRF)" });
+          } else if (/^https?:\/\//i.test(val)) {
+            findings.push({ param: key, value: val.slice(0, 80), risk: "MEDIUM", issue: "URL-type parameter (potential SSRF vector)" });
+          }
+        } catch {}
+      });
+      _log("info", "=== SSRF-Prone Params (" + findings.length + " found) ===");
+      if (findings.length) _table(findings);
+      return findings;
+    } catch (e) { _log("error", "detectSSRFParams failed", e); return []; }
   }
   window.detectSSRFParams = detectSSRFParams;
 
   // Enhancement 16: Analyze URL path parameter patterns
   function analyzePathParamPatterns() {
-    const patterns = [];
-    const path = window.location.pathname;
-    const segments = path.split("/").filter(x => x.length);
-    segments.forEach((seg, i) => {
-      const isNumeric = /^\d+$/.test(seg);
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg);
-      const isHash = /^[a-f0-9]{16,}$/i.test(seg);
-      patterns.push({
-        position: i,
-        value: seg,
-        type: isUUID ? "UUID" : isNumeric ? "numeric" : isHash ? "hash" : "string",
-        risk: isUUID || isHash ? "MEDIUM" : isNumeric ? "LOW" : "INFO",
-        note: isUUID ? "Potential IDOR — sequential/brutable UUID" : isNumeric ? "Potential IDOR — numeric ID" : isHash ? "Potential IDOR — hash ID" : "Path segment",
+    try {
+      const patterns = [];
+      const path = window.location.pathname;
+      const segments = path.split("/").filter(x => x.length);
+      segments.forEach((seg, i) => {
+        try {
+          const isNumeric = /^\d+$/.test(seg);
+          const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg);
+          const isHash = /^[a-f0-9]{16,}$/i.test(seg);
+          patterns.push({
+            position: i,
+            value: seg,
+            type: isUUID ? "UUID" : isNumeric ? "numeric" : isHash ? "hash" : "string",
+            risk: isUUID || isHash ? "MEDIUM" : isNumeric ? "LOW" : "INFO",
+            note: isUUID ? "Potential IDOR — sequential/brutable UUID" : isNumeric ? "Potential IDOR — numeric ID" : isHash ? "Potential IDOR — hash ID" : "Path segment",
+          });
+        } catch {}
       });
-    });
-    _log("info", `=== Path Parameter Patterns (${patterns.length} segments) ===`);
-    if (patterns.length) console.table(patterns);
-    return patterns;
+      _log("info", "=== Path Parameter Patterns (" + patterns.length + " segments) ===");
+      if (patterns.length) _table(patterns);
+      return patterns;
+    } catch (e) { _log("error", "analyzePathParamPatterns failed", e); return []; }
   }
   window.analyzePathParamPatterns = analyzePathParamPatterns;
 
   // Enhancement 17: Generate exploit payloads for reflected params
   function generateParamExploits() {
-    const exploits = [];
-    paramMap.forEach((entry, key) => {
-      if (entry.reflections.size === 0) return;
-      const sinks = Array.from(entry.reflections);
-      const inScript = sinks.some(s => s.includes("script"));
-      const inAttr = sinks.some(s => s.includes("attr:"));
-      const inBody = sinks.some(s => s.includes("body"));
-      if (inScript) {
-        exploits.push({ param: key, vuln: "XSS via script block", payload: "';alert(1);//", severity: "CRITICAL" });
-        exploits.push({ param: key, vuln: "XSS via script block", payload: "</script><img src=x onerror=alert(1)>", severity: "CRITICAL" });
-      }
-      if (inAttr) {
-        exploits.push({ param: key, vuln: "XSS via attribute", payload: '" onmouseover="alert(1)"', severity: "HIGH" });
-        exploits.push({ param: key, vuln: "XSS via attribute", payload: "' onfocus='alert(1)' autofocus='", severity: "HIGH" });
-      }
-      if (inBody && !inScript && !inAttr) {
-        exploits.push({ param: key, vuln: "Reflected XSS", payload: '<img src=x onerror=alert(1)>', severity: "HIGH" });
-        exploits.push({ param: key, vuln: "Reflected XSS", payload: '<svg onload=alert(1)>', severity: "HIGH" });
-      }
-      if (entry.dangerousSink) {
-        exploits.push({ param: key, vuln: "DOM XSS via sink", payload: 'javascript:alert(1)', severity: "CRITICAL" });
-      }
-    });
-    _log("info", `=== Exploit Suggestions (${exploits.length} payloads) ===`);
-    if (exploits.length) console.table(exploits);
-    return exploits;
+    try {
+      const exploits = [];
+      paramMap.forEach((entry, key) => {
+        try {
+          if (entry.reflections.size === 0) return;
+          const sinks = Array.from(entry.reflections);
+          const inScript = sinks.some(s => s.includes("script"));
+          const inAttr = sinks.some(s => s.includes("attr:"));
+          const inBody = sinks.some(s => s.includes("body"));
+          if (inScript) {
+            exploits.push({ param: key, vuln: "XSS via script block", payload: "';alert(1);//", severity: "CRITICAL" });
+            exploits.push({ param: key, vuln: "XSS via script block", payload: "</script><img src=x onerror=alert(1)>", severity: "CRITICAL" });
+          }
+          if (inAttr) {
+            exploits.push({ param: key, vuln: "XSS via attribute", payload: '" onmouseover="alert(1)"', severity: "HIGH" });
+            exploits.push({ param: key, vuln: "XSS via attribute", payload: "' onfocus='alert(1)' autofocus='", severity: "HIGH" });
+          }
+          if (inBody && !inScript && !inAttr) {
+            exploits.push({ param: key, vuln: "Reflected XSS", payload: '<img src=x onerror=alert(1)>', severity: "HIGH" });
+            exploits.push({ param: key, vuln: "Reflected XSS", payload: '<svg onload=alert(1)>', severity: "HIGH" });
+          }
+          if (entry.dangerousSink) {
+            exploits.push({ param: key, vuln: "DOM XSS via sink", payload: 'javascript:alert(1)', severity: "CRITICAL" });
+          }
+        } catch {}
+      });
+      _log("info", "=== Exploit Suggestions (" + exploits.length + " payloads) ===");
+      if (exploits.length) _table(exploits);
+      return exploits;
+    } catch (e) { _log("error", "generateParamExploits failed", e); return []; }
   }
   window.generateParamExploits = generateParamExploits;
 
   // Enhancement 18: Detect auth bypass parameter weaknesses
   function detectAuthBypassParams() {
-    const findings = [];
-    const authParams = /admin|role|permission|is_admin|is_superuser|user_id|account|verified|active|privilege|level/i;
-    paramMap.forEach((entry, key) => {
-      if (!authParams.test(key)) return;
-      const val = String(entry.value || "").toLowerCase();
-      const isElevated = /admin|true|1|superuser|root|god|master/.test(val);
-      findings.push({
-        param: key,
-        value: String(entry.value || "").slice(0, 40),
-        authRelated: true,
-        elevatedValue: isElevated,
-        risk: isElevated ? "HIGH" : "MEDIUM",
-        issue: isElevated ? "Auth param with elevated value (potential privilege escalation)" : "Auth-related parameter found",
+    try {
+      const findings = [];
+      const authParams = /admin|role|permission|is_admin|is_superuser|user_id|account|verified|active|privilege|level/i;
+      paramMap.forEach((entry, key) => {
+        try {
+          if (!authParams.test(key)) return;
+          const val = String(entry.value || "").toLowerCase();
+          const isElevated = /admin|true|1|superuser|root|god|master/.test(val);
+          findings.push({
+            param: key,
+            value: String(entry.value || "").slice(0, 40),
+            authRelated: true,
+            elevatedValue: isElevated,
+            risk: isElevated ? "HIGH" : "MEDIUM",
+            issue: isElevated ? "Auth param with elevated value (potential privilege escalation)" : "Auth-related parameter found",
+          });
+        } catch {}
       });
-    });
-    _log("info", `=== Auth Bypass Params (${findings.length} found) ===`);
-    if (findings.length) console.table(findings);
-    return findings;
+      _log("info", "=== Auth Bypass Params (" + findings.length + " found) ===");
+      if (findings.length) _table(findings);
+      return findings;
+    } catch (e) { _log("error", "detectAuthBypassParams failed", e); return []; }
   }
   window.detectAuthBypassParams = detectAuthBypassParams;
 
   // Enhancement 19: Visual heatmap of param risk across the page
   function visualizeParamHeatmap() {
-    let highlighted = 0;
-    paramMap.forEach((entry, key) => {
-      if (!entry.value || entry.reflections.size === 0) return;
-      document.querySelectorAll("*").forEach(el => {
+    try {
+      let highlighted = 0;
+      const allEls = document.querySelectorAll("*");
+      const maxEl = Math.min(allEls.length, _MAX_ELEMENTS);
+      paramMap.forEach((entry, key) => {
         try {
-          Array.from(el.attributes).forEach(attr => {
-            if (attr.value && matchesAnyEncoding(attr.value, entry.value)) {
-              if (!el.dataset.upeHeatmap) {
-                const score = (entry.dangerousSink ? 40 : 0) + (entry.reflections.size * 5);
-                const color = score >= 50 ? "rgba(255,0,0,0.4)" : score >= 30 ? "rgba(255,165,0,0.3)" : score >= 15 ? "rgba(255,255,0,0.3)" : "rgba(0,128,255,0.2)";
-                el.style.outline = `3px solid ${color}`;
-                el.dataset.upeHeatmap = "1";
-                highlighted++;
-              }
-            }
-          });
+          if (!entry.value || entry.reflections.size === 0) return;
+          for (let i = 0; i < maxEl; i++) {
+            try {
+              const el = allEls[i];
+              Array.from(el.attributes).forEach(attr => {
+                try {
+                  if (attr.value && matchesAnyEncoding(attr.value, entry.value)) {
+                    if (!el.dataset.upeHeatmap) {
+                      const score = (entry.dangerousSink ? 40 : 0) + (entry.reflections.size * 5);
+                      const color = score >= 50 ? "rgba(255,0,0,0.4)" : score >= 30 ? "rgba(255,165,0,0.3)" : score >= 15 ? "rgba(255,255,0,0.3)" : "rgba(0,128,255,0.2)";
+                      el.style.outline = "3px solid " + color;
+                      el.dataset.upeHeatmap = "1";
+                      highlighted++;
+                    }
+                  }
+                } catch {}
+              });
+            } catch {}
+          }
         } catch {}
       });
-    });
-    _log("info", `Heatmap applied: ${highlighted} elements highlighted`);
-    return { highlighted };
+      _log("info", "Heatmap applied: " + highlighted + " elements highlighted");
+      return { highlighted };
+    } catch (e) { _log("error", "visualizeParamHeatmap failed", e); return { highlighted: 0 }; }
   }
   window.visualizeParamHeatmap = visualizeParamHeatmap;
 
