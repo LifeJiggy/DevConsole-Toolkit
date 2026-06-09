@@ -10,6 +10,21 @@
 // Usage: Run script, use menu to extract/map, then call checkReflectionsAndSinks() with elements.
 
 (function () {
+  "use strict";
+
+  // Helper: Escape HTML
+  function escapeHTML(str) {
+    if (typeof str !== "string") return String(str);
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  // Helper: Escape CSV
+  function escapeCSV(str) {
+    if (typeof str !== "string") return String(str);
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) return '"' + str.replace(/"/g, '""') + '"';
+    return str;
+  }
+
   // Banner
   console.log(
     "%cDOM Reflection & Sink Analyzer",
@@ -65,8 +80,7 @@
       a.download = `reflection_sink_feature_${featureNum}.json`;
       document.body.appendChild(a);
       a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 100);
     }
 
     if (choice.includes("ui")) {
@@ -91,7 +105,7 @@
       const closeBtn = document.createElement("button");
       closeBtn.textContent = "Close";
       closeBtn.style.marginTop = "10px";
-      closeBtn.onclick = () => uiDiv.remove();
+      closeBtn.addEventListener("click", () => uiDiv.remove());
       uiDiv.appendChild(closeBtn);
       document.body.appendChild(uiDiv);
     }
@@ -111,8 +125,7 @@
     a.download = "reflection_sink_all_outputs.json";
     document.body.appendChild(a);
     a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 100);
   }
 
   // Main Function: Check Reflections and Sinks
@@ -172,7 +185,7 @@
       // Check sinks in handlers/listeners
       const handlers = {};
       for (let attr in el)
-        if (attr.startsWith("on") && el[attr])
+        if (Object.prototype.hasOwnProperty.call(el, attr) && attr.startsWith("on") && el[attr])
           handlers[attr] = el[attr].toString();
       const listeners =
         typeof getEventListeners === "function" ? getEventListeners(el) : {};
@@ -218,7 +231,7 @@
       const data = interactiveElements.map(({ element: el }) => {
         const handlers = {};
         for (let attr in el)
-          if (attr.startsWith("on") && el[attr])
+          if (Object.prototype.hasOwnProperty.call(el, attr) && attr.startsWith("on") && el[attr])
             handlers[attr] = el[attr].toString();
         const listeners =
           typeof getEventListeners === "function" ? getEventListeners(el) : {};

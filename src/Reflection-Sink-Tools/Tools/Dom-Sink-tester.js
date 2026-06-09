@@ -10,6 +10,12 @@
 (function () {
   "use strict";
 
+  // Helper: Escape HTML
+  function escapeHTML(str) {
+    if (typeof str !== "string") return String(str);
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
   function findReflections() {
     console.group(
       "%c🔍 FlowSpect: Running Input Reflection Test...",

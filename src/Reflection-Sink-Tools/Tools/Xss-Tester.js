@@ -8,6 +8,12 @@
 (function () {
   "use strict";
 
+  // Helper: Escape HTML
+  function escapeHTML(str) {
+    if (typeof str !== "string") return String(str);
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
   // Global storage for reflection test results
   window.xssReflectionTester = {
     results: {},
@@ -906,8 +912,7 @@
     link.download = filename;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    setTimeout(() => { link.remove(); URL.revokeObjectURL(url); }, 100);
 
     console.log(`%c✅ File downloaded: ${filename}`, styles.success);
   }

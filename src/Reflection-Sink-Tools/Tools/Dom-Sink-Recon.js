@@ -9,6 +9,19 @@
 (function () {
   "use strict";
 
+  // Helper: Escape HTML
+  function escapeHTML(str) {
+    if (typeof str !== "string") return String(str);
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  // Helper: Escape CSV
+  function escapeCSV(str) {
+    if (typeof str !== "string") return String(str);
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) return '"' + str.replace(/"/g, '""') + '"';
+    return str;
+  }
+
   // Global storage for recon data
   window.domSinkMapper = {
     mappedElements: [],
@@ -1412,8 +1425,7 @@
     link.download = filename;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    setTimeout(() => { link.remove(); URL.revokeObjectURL(url); }, 100);
 
     console.log(`%c📁 File saved: ${filename}`, styles.reflection);
   }
@@ -3446,7 +3458,17 @@ function detectSource(sourceName, category) {
   try {
     switch (category) {
       case "urlSources":
-        const value = eval(sourceName);
+        const safeSourceMap = {
+          "location.search": () => window.location.search,
+          "location.hash": () => window.location.hash,
+          "location.pathname": () => window.location.pathname,
+          "location.href": () => window.location.href,
+          "document.URL": () => document.URL,
+          "document.documentURI": () => document.documentURI,
+          "document.baseURI": () => document.baseURI,
+        };
+        const getter = safeSourceMap[sourceName];
+        const value = getter ? getter() : "";
         return value && value.length > 0;
       case "storageSources":
         if (sourceName === "localStorage" && window.localStorage) {
