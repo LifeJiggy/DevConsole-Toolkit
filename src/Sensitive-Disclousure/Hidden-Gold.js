@@ -9,6 +9,20 @@
 (function () {
   "use strict";
 
+  // Hardening utilities
+  const _MAX_SCRIPTS = 200;
+  const _MAX_ELEMENTS = 5000;
+  function _safeTable(data, max) {
+    try {
+      if (!data) return;
+      const limit = max || 200;
+      if (Array.isArray(data) && data.length > limit) {
+        console.table(data.slice(0, limit));
+        console.warn("(truncated " + (data.length - limit) + " more rows)");
+      } else { console.table(data); }
+    } catch(e) {}
+  }
+
   // Global storage for extracted secrets
   window.jsDisclosureHunter = {
     secrets: {},
@@ -284,8 +298,9 @@
     };
 
     // Extract from all script tags
-    const scripts = document.querySelectorAll("script");
+    const scripts = Array.from(document.querySelectorAll("script")).slice(0, _MAX_SCRIPTS);
     scripts.forEach((script, index) => {
+      try {
       const scriptContent = script.textContent || script.innerHTML || "";
       const scriptSrc = script.src || "inline";
 
@@ -308,6 +323,7 @@
           }
         });
       });
+      } catch(e) {}
     });
 
     // Extract from global variables (run once, not per script)
@@ -875,8 +891,9 @@
     };
 
     // Extract from scripts
-    const scripts = document.querySelectorAll("script");
+    const scripts = Array.from(document.querySelectorAll("script")).slice(0, _MAX_SCRIPTS);
     scripts.forEach((script, index) => {
+      try {
       const scriptContent = script.textContent || script.innerHTML || "";
       const scriptSrc = script.src || "inline";
 
@@ -905,6 +922,7 @@
           });
         }
       });
+      } catch(e) {}
     });
 
     // Extract from AJAX/Fetch calls
@@ -990,8 +1008,9 @@
         /['"](admin|administrator|root|user)['"]\s*:\s*['"]([^'"]+)['"]/gi,
     };
 
-    const scripts = document.querySelectorAll("script");
+    const scripts = Array.from(document.querySelectorAll("script")).slice(0, _MAX_SCRIPTS);
     scripts.forEach((script, index) => {
+      try {
       const scriptContent = script.textContent || script.innerHTML || "";
       const scriptSrc = script.src || "inline";
 
@@ -1017,6 +1036,7 @@
           }
         });
       });
+      } catch(e) {}
     });
 
     console.log(
@@ -1240,8 +1260,9 @@
         /['"](awsS3|gcs|azureblob|cloudinary)['"]\s*:\s*['"]([^'"]+)['"]/gi,
     };
 
-    const scripts = document.querySelectorAll("script");
+    const scripts = Array.from(document.querySelectorAll("script")).slice(0, _MAX_SCRIPTS);
     scripts.forEach((script, index) => {
+      try {
       const scriptContent = script.textContent || script.innerHTML || "";
       const scriptSrc = script.src || "inline";
 
@@ -1304,6 +1325,7 @@
           });
         });
       });
+      } catch(e) {}
     });
 
     const totalConfigs = Object.values(configurations).reduce(
@@ -1393,6 +1415,7 @@
     const allElements = document.querySelectorAll("*");
     const maxEl = Math.min(allElements.length, 5000);
     allElements.forEach((element, index) => {
+      try {
       const eventAttributes = [
         // Mouse Events
         "onclick",
@@ -1520,6 +1543,7 @@
           });
         }
       });
+      } catch(e) {}
     });
 
     // Add captured listeners
@@ -1708,9 +1732,10 @@
 
   function extractAjaxEndpoints() {
     const endpoints = [];
-    const scripts = document.querySelectorAll("script");
+    const scripts = Array.from(document.querySelectorAll("script")).slice(0, _MAX_SCRIPTS);
 
     scripts.forEach((script, index) => {
+      try {
       const content = script.textContent || "";
 
       // Look for AJAX/Fetch patterns
@@ -1829,6 +1854,7 @@
           }
         });
       });
+      } catch(e) {}
     });
 
     return endpoints;
@@ -2335,7 +2361,7 @@
       (window.jsDisclosureHunter && window.jsDisclosureHunter.config) || {};
     const cat = cfg.categories || {};
     const flags = [];
-    const scripts = document.querySelectorAll("script");
+    const scripts = Array.from(document.querySelectorAll("script")).slice(0, _MAX_SCRIPTS);
 
     // 1) Source Map Exposure
     const sourceMapRegexes = [
@@ -2396,6 +2422,7 @@
       /\/[#@]\s*sourceMappingURL\s*=\s*.*\/key\/.*\.map/gi, // Key
     ];
     scripts.forEach((script, index) => {
+      try {
       const content = script.textContent || script.innerHTML || "";
       const src = script.src || "inline";
       // Iterate all source map regex variants
@@ -2416,6 +2443,7 @@
           });
         } catch (_) {}
       });
+      } catch(e) {}
     });
 
     // 2) Firebase/Amplify/Cognito Config Exposure
@@ -2439,6 +2467,7 @@
       "gi"
     );
     scripts.forEach((script, index) => {
+      try {
       const content = script.textContent || "";
       const src = script.src || "inline";
       const matches = Array.from(content.matchAll(cloudRegex));
@@ -2453,6 +2482,7 @@
           timestamp: new Date().toISOString(),
         });
       });
+      } catch(e) {}
     });
 
     // 3) Tokens and Sensitive Values in Storage + Cookies
@@ -2670,6 +2700,7 @@
         /trackingPixelUrl\s*[:=]\s*['"]https?:\/\/[^'"]+['"]/gi,
     };
     scripts.forEach((script, index) => {
+      try {
       const content = script.textContent || "";
       const src = script.src || "inline";
       Object.entries(monitoringPatterns).forEach(([type, regex]) => {
@@ -2687,6 +2718,7 @@
           });
         });
       });
+      } catch(e) {}
     });
 
     // 5) Service Workers and Push Config
@@ -2695,6 +2727,7 @@
     const vapidRegex =
       /applicationServerKey\s*:\s*(?:[\"']([A-Za-z0-9_-]{43,88})[\"']|new\s+Uint8Array\()/gi;
     scripts.forEach((script, index) => {
+      try {
       const content = script.textContent || "";
       const src = script.src || "inline";
       const swMatches = Array.from(content.matchAll(swRegex));
@@ -2721,6 +2754,7 @@
           timestamp: new Date().toISOString(),
         });
       });
+      } catch(e) {}
     });
 
     // 6) Insecure HTTP endpoints on HTTPS pages
@@ -2898,6 +2932,7 @@
       /HttpClient\.post\s*\([^\)]*,\s*\{[^}]*withCredentials\s*:\s*true[^}]*\}\s*\)/gi,
     ];
     scripts.forEach((script, index) => {
+      try {
       const content = script.textContent || "";
       const src = script.src || "inline";
       corsRegexes.forEach((re) => {
@@ -2914,6 +2949,7 @@
           });
         });
       });
+      } catch(e) {}
     });
 
     console.log(
@@ -3134,7 +3170,7 @@
 
     // Overview
     console.log("\n%c📊 EXTRACTION OVERVIEW:", styles.gold);
-    console.table({
+    _safeTable({
       "Total Findings": extraction.totalFindings,
       "API Keys Found": extraction.secrets.apiKeys.length,
       "Hidden Endpoints": extraction.secrets.endpoints.length,
@@ -3197,7 +3233,7 @@
 
     if (highRiskFindings.length > 0) {
       console.log("\n%c⚠️ HIGH-RISK FINDINGS:", styles.warning);
-      console.table(
+      _safeTable(
         highRiskFindings.map((finding) => ({
           Type: finding.type,
           Value:
@@ -3245,7 +3281,7 @@
         listenerTypes[listener.eventType] =
           (listenerTypes[listener.eventType] || 0) + 1;
       });
-      console.table(listenerTypes);
+      _safeTable(listenerTypes);
 
       const riskyListeners = extraction.secrets.listeners.filter(
         (l) => l.risk === "HIGH"
@@ -3337,8 +3373,9 @@
       postgres: /postgres:\/\/[^'"\s]+/gi,
     };
 
-    const scripts = document.querySelectorAll("script");
+    const scripts = Array.from(document.querySelectorAll("script")).slice(0, _MAX_SCRIPTS);
     scripts.forEach((script, index) => {
+      try {
       const content = script.textContent || "";
 
       // Extract AWS keys
@@ -3397,6 +3434,7 @@
           });
         }
       });
+      } catch(e) {}
     });
 
     // Display P1-focused results
@@ -3516,8 +3554,9 @@
       },
     };
 
-    const scripts = document.querySelectorAll("script");
+    const scripts = Array.from(document.querySelectorAll("script")).slice(0, _MAX_SCRIPTS);
     scripts.forEach((script, index) => {
+      try {
       const content = script.textContent || "";
 
       Object.entries(endpointPatterns).forEach(([patternName, config]) => {
@@ -3534,6 +3573,7 @@
           });
         }
       });
+      } catch(e) {}
     });
 
     const totalSensitive = Object.values(sensitiveEndpoints).reduce(
@@ -3820,6 +3860,215 @@
   console.log("%c  🗺️ P1 Potential Assessment & Risk Scoring");
 
   console.log("\n%c🎯 Ready to extract some JavaScript gold!", styles.gold);
+
+  // ENHANCEMENT 1: Score secrets by risk level and entropy
+  window.jsDisclosureHunter.scoreSecrets = function scoreSecrets() {
+    try {
+      var findings = window.jsDisclosureHunter;
+      var scored = [];
+      var riskWeights = { HIGH: 10, MEDIUM: 5, LOW: 2, INFO: 1 };
+      (findings.apiKeys || []).forEach(function(k) {
+        var sev = (k.risk || "INFO").toUpperCase();
+        var score = riskWeights[sev] || 1;
+        var val = k.value || "";
+        var freq = {};
+        for (var i = 0; i < val.length; i++) { freq[val[i]] = (freq[val[i]] || 0) + 1; }
+        var entropy = 0;
+        Object.keys(freq).forEach(function(ch) { var p = freq[ch] / val.length; entropy -= p * Math.log2(p); });
+        if (entropy > 4.5) score += 3;
+        if (k.source && k.source.indexOf("global") !== -1) score += 2;
+        scored.push({ type: "apiKey", name: k.keyType || k.name || "unknown", risk: sev, score: score, location: k.location || k.source || "unknown", value: val.substring(0, 10) + "..." });
+      });
+      (findings.credentials || []).forEach(function(c) {
+        var sev = (c.risk || "INFO").toUpperCase();
+        scored.push({ type: "credential", name: c.name || "unknown", risk: sev, score: riskWeights[sev] || 1, location: c.source || "unknown", value: (c.value || "").substring(0, 10) + "..." });
+      });
+      console.log("%c📊 Secret scores: " + scored.length + " items", styles.info);
+      if (scored.length > 0) _safeTable(scored.slice(0, 30), 30);
+      return scored;
+    } catch(e) { console.warn("scoreSecrets error:", e); return []; }
+  };
+
+  // ENHANCEMENT 2: Source Map Analyzer
+  window.jsDisclosureHunter.analyzeSourceMaps = function analyzeSourceMaps() {
+    try {
+      var scripts = document.querySelectorAll("script[src]");
+      var maps = [];
+      Array.from(scripts).slice(0, _MAX_SCRIPTS).forEach(function(script) {
+        try {
+          var src = script.src;
+          if (src && src.indexOf(".js.map") !== -1) { maps.push({ src: src, type: "source_map" }); }
+          var txt = script.textContent || "";
+          if (txt.indexOf("sourceMappingURL") !== -1) {
+            var m = txt.match(/sourceMappingURL=([^\s]+)/);
+            if (m) maps.push({ url: m[1], type: "inline_source_map", script: src || "inline" });
+          }
+        } catch(e) {}
+      });
+      console.log("%c🗺 Source maps found: " + maps.length, maps.length > 0 ? styles.secret : styles.info);
+      return maps;
+    } catch(e) { console.warn("analyzeSourceMaps error:", e); return []; }
+  };
+
+  // ENHANCEMENT 3: CSP Analyzer
+  window.jsDisclosureHunter.analyzeCSP = function analyzeCSP() {
+    try {
+      var metas = document.querySelectorAll('meta[http-equiv="Content-Security-Policy"]');
+      var policies = [];
+      Array.from(metas).forEach(function(meta) {
+        try {
+          var pol = meta.getAttribute("content") || "";
+          var weak = [];
+          if (pol.indexOf("'unsafe-inline'") !== -1) weak.push("unsafe-inline enables XSS");
+          if (pol.indexOf("'unsafe-eval'") !== -1) weak.push("unsafe-eval enables code injection");
+          if (pol.indexOf("*") !== -1) weak.push("wildcard allows any source");
+          if (pol.indexOf("data:") !== -1) weak.push("data: URI can bypass CSP");
+          policies.push({ policy: pol.substring(0, 200), weaknesses: weak, severity: weak.length > 2 ? "HIGH" : weak.length > 0 ? "MEDIUM" : "LOW" });
+        } catch(e) {}
+      });
+      if (policies.length === 0) { console.log("%c🛡 No CSP meta tags found (check HTTP headers)", styles.warning); }
+      else { console.log("%c🛡 CSP policies: " + policies.length, styles.info); _safeTable(policies, 10); }
+      return policies;
+    } catch(e) { console.warn("analyzeCSP error:", e); return []; }
+  };
+
+  // ENHANCEMENT 4: Dangerous Sink Detector
+  window.jsDisclosureHunter.detectDangerousSinks = function detectDangerousSinks() {
+    try {
+      var sinks = [
+        { name: "innerHTML", risk: "HIGH" }, { name: "outerHTML", risk: "HIGH" },
+        { name: "insertAdjacentHTML", risk: "HIGH" }, { name: "document.write", risk: "HIGH" },
+        { name: "eval", risk: "CRITICAL" }, { name: "Function", risk: "CRITICAL" },
+        { name: "setTimeout", risk: "MEDIUM" }, { name: "location.href", risk: "MEDIUM" },
+        { name: "location.assign", risk: "MEDIUM" }, { name: "window.open", risk: "MEDIUM" }
+      ];
+      var allEl = document.querySelectorAll("*");
+      var maxEl = Math.min(allEl.length, _MAX_ELEMENTS);
+      var found = [];
+      for (var i = 0; i < maxEl; i++) {
+        try {
+          var el = allEl[i];
+          Array.from(el.attributes || []).forEach(function(attr) {
+            var val = attr.value || "";
+            sinks.forEach(function(s) {
+              if (val.indexOf(s.name) !== -1) {
+                found.push({ element: el.tagName + "#" + (el.id || ""), attribute: attr.name, sink: s.name, risk: s.risk, preview: val.substring(0, 80) });
+              }
+            });
+          });
+        } catch(e) {}
+      }
+      console.log("%c🔴 Dangerous sinks: " + found.length, found.length > 0 ? styles.secret : styles.info);
+      if (found.length > 0) _safeTable(found.slice(0, 30), 30);
+      return found;
+    } catch(e) { console.warn("detectDangerousSinks error:", e); return []; }
+  };
+
+  // ENHANCEMENT 5: Token Entropy Analyzer
+  window.jsDisclosureHunter.analyzeEntropy = function analyzeEntropy() {
+    try {
+      var combined = (window.jsDisclosureHunter.apiKeys || []).concat(window.jsDisclosureHunter.credentials || []);
+      var tokens = [];
+      combined.forEach(function(item) {
+        try {
+          var val = item.value || "";
+          if (val.length > 8) {
+            var freq = {};
+            for (var i = 0; i < val.length; i++) { freq[val[i]] = (freq[val[i]] || 0) + 1; }
+            var entropy = 0;
+            Object.keys(freq).forEach(function(ch) { var p = freq[ch] / val.length; entropy -= p * Math.log2(p); });
+            tokens.push({ value: val.substring(0, 12) + "...", length: val.length, entropy: Math.round(entropy * 100) / 100, risk: entropy > 4.5 ? "HIGH" : entropy > 3.5 ? "MEDIUM" : "LOW", source: item.source || "unknown" });
+          }
+        } catch(e) {}
+      });
+      tokens.sort(function(a, b) { return b.entropy - a.entropy; });
+      console.log("%c🧬 Token entropy: " + tokens.length + " tokens", styles.info);
+      if (tokens.length > 0) _safeTable(tokens.slice(0, 20), 20);
+      return tokens;
+    } catch(e) { console.warn("analyzeEntropy error:", e); return []; }
+  };
+
+  // ENHANCEMENT 6: Exposure Vector Map
+  window.jsDisclosureHunter.mapExposureVectors = function mapExposureVectors() {
+    try {
+      var f = window.jsDisclosureHunter;
+      var vectors = [];
+      var sc = (f.apiKeys || []).length + (f.credentials || []).length;
+      var ec = (f.endpoints || []).length;
+      if (sc > 0 && ec > 0) vectors.push({ vector: "Secrets in API endpoints", secrets: sc, endpoints: ec, risk: "HIGH" });
+      if ((f.configurations || {}).debug && sc > 0) vectors.push({ vector: "Debug mode with secrets", risk: "CRITICAL" });
+      var domS = (f.apiKeys || []).filter(function(k) { return k.source && k.source.indexOf("DOM") !== -1; });
+      if (domS.length > 0) vectors.push({ vector: "DOM-exposed secrets", secrets: domS.length, risk: "HIGH" });
+      console.log("%c🗺 Exposure vectors: " + vectors.length, vectors.length > 0 ? styles.secret : styles.info);
+      if (vectors.length > 0) _safeTable(vectors, 20);
+      return vectors;
+    } catch(e) { console.warn("mapExposureVectors error:", e); return []; }
+  };
+
+  // ENHANCEMENT 7: OWASP Compliance Mapper
+  window.jsDisclosureHunter.mapCompliance = function mapCompliance() {
+    try {
+      var f = window.jsDisclosureHunter;
+      var mapping = [];
+      var sc = (f.apiKeys || []).length + (f.credentials || []).length;
+      if (sc > 0) mapping.push({ owasp: "A07:2021 - Identification and Authentication Failures", findings: sc, description: "Hardcoded credentials and API keys" });
+      var ec = (f.endpoints || []).length;
+      if (ec > 5) mapping.push({ owasp: "A01:2021 - Broken Access Control", findings: ec, description: "Multiple hidden endpoints found" });
+      var dc = Object.keys(f.configurations || {});
+      if (dc.length > 0) mapping.push({ owasp: "A05:2021 - Security Misconfiguration", findings: dc.length, description: "Configuration disclosure" });
+      console.log("%c📋 Compliance: " + mapping.length + " categories", styles.info);
+      if (mapping.length > 0) _safeTable(mapping, 20);
+      return mapping;
+    } catch(e) { console.warn("mapCompliance error:", e); return []; }
+  };
+
+  // ENHANCEMENT 8: Scan Diff Tracker
+  window.jsDisclosureHunter.diffScan = function diffScan() {
+    try {
+      var current = JSON.stringify({ apiKeys: window.jsDisclosureHunter.apiKeys, credentials: window.jsDisclosureHunter.credentials });
+      var prev = window.__HG_LAST_SCAN || null;
+      window.__HG_LAST_SCAN = current;
+      if (!prev) { console.log("%c📸 First scan - baseline saved", styles.info); return { new: 0, removed: 0 }; }
+      var old = JSON.parse(prev);
+      var newKeys = (window.jsDisclosureHunter.apiKeys || []).filter(function(k) { return !(old.apiKeys || []).some(function(ok) { return ok.value === k.value && ok.source === k.source; }); });
+      var removedKeys = (old.apiKeys || []).filter(function(k) { return !(window.jsDisclosureHunter.apiKeys || []).some(function(nk) { return nk.value === k.value && nk.source === k.source; }); });
+      var result = { new: newKeys.length, removed: removedKeys.length };
+      console.log("%c📸 Diff: +" + result.new + " new, -" + result.removed + " removed", styles.warning);
+      return result;
+    } catch(e) { console.warn("diffScan error:", e); return { new: 0, removed: 0 }; }
+  };
+
+  // ENHANCEMENT 9: Auto-Remediation Report
+  window.jsDisclosureHunter.generateRemediation = function generateRemediation() {
+    try {
+      var f = window.jsDisclosureHunter;
+      var fixes = [];
+      (f.apiKeys || []).forEach(function(k) {
+        fixes.push({ finding: k.keyType || k.name || "API Key", location: k.location || k.source || "unknown", action: k.risk === "HIGH" ? "IMMEDIATE: Move to server-side env vars" : "Review and move to server-side", priority: k.risk === "HIGH" ? "P0" : "P1" });
+      });
+      (f.credentials || []).forEach(function(c) {
+        fixes.push({ finding: c.name || "Credential", location: c.source || "unknown", action: "Rotate immediately. Move to secure vault.", priority: "P0" });
+      });
+      console.log("%c🔧 Remediation: " + fixes.length + " fixes needed", styles.warning);
+      if (fixes.length > 0) _safeTable(fixes, 30);
+      return fixes;
+    } catch(e) { console.warn("generateRemediation error:", e); return []; }
+  };
+
+  // ENHANCEMENT 10: CSV Export
+  window.jsDisclosureHunter.exportCSV = function exportCSV() {
+    try {
+      var f = window.jsDisclosureHunter;
+      var rows = [["Type", "Name", "Value", "Risk", "Source", "Location"]];
+      (f.apiKeys || []).forEach(function(k) { rows.push(["API Key", k.keyType || k.name || "", (k.value || "").substring(0, 30), k.risk || "INFO", k.source || "", k.location || ""]); });
+      (f.credentials || []).forEach(function(c) { rows.push(["Credential", c.name || "", (c.value || "").substring(0, 30), c.risk || "INFO", c.source || "", ""]); });
+      (f.endpoints || []).forEach(function(e) { rows.push(["Endpoint", e.name || "", e.url || e.value || "", e.risk || "INFO", e.source || "", ""]); });
+      var csv = rows.map(function(r) { return r.map(function(c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(","); }).join("\n");
+      if (navigator.clipboard) { navigator.clipboard.writeText(csv).then(function() { console.log("%c📋 CSV copied to clipboard (" + rows.length + " rows)", styles.info); }); }
+      else { console.log("%c📋 CSV generated (" + rows.length + " rows)", styles.info); }
+      return csv;
+    } catch(e) { console.warn("exportCSV error:", e); return ""; }
+  };
 })();
 
 // ===========================================

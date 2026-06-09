@@ -4,6 +4,20 @@
  * Run this directly in the browser console of any target URL.
  */
 (function extractP1Gold() {
+  "use strict";
+  const _MAX_SCRIPTS = 200;
+  const _MAX_ELEMENTS = 10000;
+  function _safeTable(data, max) {
+    try {
+      if (!data) return;
+      const limit = max || 200;
+      if (Array.isArray(data) && data.length > limit) {
+        console.table(data.slice(0, limit));
+        console.warn("(truncated " + (data.length - limit) + " more rows)");
+      } else { console.table(data); }
+    } catch {}
+  }
+
   console.group("ðŸš¨ GOLD DIGGER: P1 Disclosure Extractor");
   console.log("Scanning current page for HIGH-VALUE disclosures...");
 
@@ -34,19 +48,7 @@
     };
   } catch {}
 
-  // Safe console.table wrapper
-  function safeTable(arr, maxRows) {
-    try {
-      if (!arr || !arr.length) return;
-      const limit = maxRows || 200;
-      if (arr.length > limit) {
-        console.table(arr.slice(0, limit));
-        console.warn("(truncated " + (arr.length - limit) + " more rows)");
-      } else {
-        console.table(arr);
-      }
-    } catch {}
-  }
+  // safeTable removed — using _safeTable wrapper instead
 
   // Structured JSON findings with richer metadata
   const jsonFindings = {
@@ -116,8 +118,8 @@
   try {
     window.GOLD = {
       json: jsonFindings,
-      table: (key) => safeTable(jsonFindings[key] || []),
-      risks: () => safeTable(jsonFindings.riskySinks || []),
+      table: (key) => _safeTable(jsonFindings[key] || []),
+      risks: () => _safeTable(jsonFindings.riskySinks || []),
       goto: (source, line = 1, ctx = 3) => {
         try {
           const text = sourceTextIndex.get(source);
@@ -157,7 +159,7 @@
               });
             }
           });
-          safeTable(results);
+          _safeTable(results);
           return results;
         } catch (e) {
           console.warn("find error", e);
@@ -1044,8 +1046,7 @@
   // 4. DOM Structure (attributes, text content, hidden elements, interactive)
   console.log("ðŸ“„ Excavating the DOM structure...");
   try {
-    const allElements = document.querySelectorAll("*");
-    const maxEl = Math.min(allElements.length, 10000);
+    const allElements = Array.from(document.querySelectorAll("*")).slice(0, _MAX_ELEMENTS);
     let domAttributesStr = "";
     let domTextStr = "";
     for (let i = 0; i < maxEl; i++) {
@@ -1065,6 +1066,7 @@
     const hiddenSel =
       '[hidden], [type="hidden"], [style*="display:none"], [style*="visibility:hidden"]';
     document.querySelectorAll(hiddenSel).forEach((el, i) => {
+      try {
       const tag = el.tagName.toLowerCase();
       const id = el.id ? `#${el.id}` : "";
       const cls = el.className
@@ -1080,10 +1082,12 @@
         attrs,
         source: "DOM Hidden Elements",
       });
+      } catch(e) {}
     });
 
     // Sensitive hidden inputs
     document.querySelectorAll('input[type="hidden"]').forEach((el) => {
+      try {
       const name = (el.getAttribute("name") || "").toLowerCase();
       const val = el.value || "";
       if (
@@ -1105,12 +1109,14 @@
         scanForSecrets(val, `Hidden Input: ${name}`);
         scanForEntropySecrets(val, `Hidden Input: ${name}`);
       }
+      } catch(e) {}
     });
 
     // Interactive elements (user functionality calling)
     const interactiveSel =
       'a[href], button, input, select, textarea, [role="button"], [onclick], [onchange], [onsubmit], [contenteditable="true"]';
     document.querySelectorAll(interactiveSel).forEach((el) => {
+      try {
       const tag = el.tagName.toLowerCase();
       const act =
         el.getAttribute("href") ||
@@ -1137,6 +1143,7 @@
         action: act,
         source: "DOM Interactive",
       });
+      } catch(e) {}
     });
 
     scanForSecrets(domAttributesStr, "DOM Attributes");
@@ -1160,8 +1167,9 @@
   // 5. Inline & External Scripts and Styles
   console.log("ðŸ“œ Sifting through inline and external scripts/styles...");
   try {
-    const allScripts = document.querySelectorAll("script");
+    const allScripts = Array.from(document.querySelectorAll("script")).slice(0, _MAX_SCRIPTS);
     allScripts.forEach((script, index) => {
+      try {
       if (script.src) return; // external handled below
       const content = script.textContent;
       if (content) {
@@ -1203,6 +1211,7 @@
         scanForConfigObjects(content, source);
         scanForCodeRisks(content, source);
       }
+      } catch(e) {}
     });
 
     // External same-origin scripts: fetch and scan
@@ -1248,12 +1257,14 @@
 
     const styles = document.querySelectorAll("style");
     styles.forEach((style, index) => {
+      try {
       const content = style.textContent;
       if (content) {
         const source = `Inline Style #${index}`;
         scanForEndpoints(content, source);
         scanForDebugInfo(content, source);
       }
+      } catch(e) {}
     });
   } catch (e) {
     console.warn("Could not scan scripts/styles:", e);
@@ -1355,6 +1366,259 @@
       try { if (window.__origAddEventListener) { EventTarget.prototype.addEventListener = window.__origAddEventListener; delete window.__origAddEventListener; } } catch {}
       delete window.__GOLD_PATCHED;
       console.log("GOLD: All patches removed.");
+    };
+  } catch {}
+
+  // ===========================================
+  // ENHANCEMENTS: Additional Security Scanning
+  // ===========================================
+
+  // ENHANCEMENT 1: Score findings by risk and confidence
+  try {
+    window.GOLD.scoreFindings = function scoreFindings() {
+      try {
+        var scored = [];
+        var weights = { CRITICAL: 15, HIGH: 10, MEDIUM: 5, LOW: 2, INFO: 1 };
+        ["secrets", "endpoints", "internalPaths", "authFindings", "configObjects", "debugInfo"].forEach(function(cat) {
+          var items = findings[cat] || [];
+          if (Array.isArray(items)) {
+            items.forEach(function(item) {
+              try {
+                var risk = (item.risk || item.confidence || "INFO").toUpperCase();
+                var score = weights[risk] || 1;
+                var val = item.match || item.value || item.name || "";
+                if (val.length > 20) score += 2;
+                scored.push({ category: cat, name: item.name || "unknown", risk: risk, score: score, source: item.source || "unknown", preview: val.substring(0, 30) });
+              } catch(e) {}
+            });
+          }
+        });
+        scored.sort(function(a, b) { return b.score - a.score; });
+        console.log("%c📊 Scored findings: " + scored.length, scored.length > 0 ? "color: #e74c3c; font-weight: bold" : "color: #7f8c8d");
+        _safeTable(scored.slice(0, 30), 30);
+        return scored;
+      } catch(e) { console.warn("scoreFindings error:", e); return []; }
+    };
+  } catch {}
+
+  // ENHANCEMENT 2: Cross-reference secrets with endpoints
+  try {
+    window.GOLD.crossReference = function crossReference() {
+      try {
+        var refs = [];
+        var secrets = findings.secrets || [];
+        var endpoints = findings.endpoints || [];
+        secrets.forEach(function(secret) {
+          try {
+            var secVal = (secret.match || "").toLowerCase();
+            endpoints.forEach(function(ep) {
+              try {
+                var epVal = (ep.match || ep.url || "").toLowerCase();
+                if (secVal.length > 5 && epVal.indexOf(secVal.substring(0, 8)) !== -1) {
+                  refs.push({ secret: secret.name || "unknown", endpoint: ep.match || ep.url || "unknown", risk: "HIGH", reason: "Secret value appears in endpoint" });
+                }
+              } catch(e) {}
+            });
+          } catch(e) {}
+        });
+        console.log("%c🔗 Cross-references: " + refs.length, refs.length > 0 ? "color: #e74c3c; font-weight: bold" : "color: #7f8c8d");
+        if (refs.length > 0) _safeTable(refs, 20);
+        return refs;
+      } catch(e) { console.warn("crossReference error:", e); return []; }
+    };
+  } catch {}
+
+  // ENHANCEMENT 3: Secret entropy ranking
+  try {
+    window.GOLD.rankByEntropy = function rankByEntropy() {
+      try {
+        var tokens = [];
+        var all = (findings.secrets || []).concat(findings.configObjects || []);
+        all.forEach(function(item) {
+          try {
+            var val = item.match || item.value || "";
+            if (val.length > 8) {
+              var freq = {};
+              for (var i = 0; i < val.length; i++) { freq[val[i]] = (freq[val[i]] || 0) + 1; }
+              var entropy = 0;
+              Object.keys(freq).forEach(function(ch) { var p = freq[ch] / val.length; entropy -= p * Math.log2(p); });
+              tokens.push({ value: val.substring(0, 12) + "...", length: val.length, entropy: Math.round(entropy * 100) / 100, risk: entropy > 4.5 ? "HIGH" : entropy > 3.5 ? "MEDIUM" : "LOW", source: item.source || "unknown" });
+            }
+          } catch(e) {}
+        });
+        tokens.sort(function(a, b) { return b.entropy - a.entropy; });
+        console.log("%c🧬 Entropy ranking: " + tokens.length + " tokens", "color: #3498db; font-weight: bold");
+        if (tokens.length > 0) _safeTable(tokens.slice(0, 20), 20);
+        return tokens;
+      } catch(e) { console.warn("rankByEntropy error:", e); return []; }
+    };
+  } catch {}
+
+  // ENHANCEMENT 4: Domain/IP extraction from all findings
+  try {
+    window.GOLD.extractDomains = function extractDomains() {
+      try {
+        var domains = new Set();
+        var ips = new Set();
+        var allText = JSON.stringify(findings);
+        var domainMatches = allText.match(/(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/g) || [];
+        domainMatches.forEach(function(d) { domains.add(d.replace(/https?:\/\//, "")); });
+        var ipMatches = allText.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g) || [];
+        ipMatches.forEach(function(ip) { if (!ip.startsWith("0.") && ip !== "127.0.0.1") ips.add(ip); });
+        var result = { domains: Array.from(domains), ips: Array.from(ips) };
+        console.log("%c🌐 Domains: " + result.domains.length + ", IPs: " + result.ips.length, "color: #3498db; font-weight: bold");
+        if (result.domains.length > 0) _safeTable(result.domains.slice(0, 20).map(function(d) { return { domain: d }; }), 20);
+        return result;
+      } catch(e) { console.warn("extractDomains error:", e); return { domains: [], ips: [] }; }
+    };
+  } catch {}
+
+  // ENHANCEMENT 5: Technology fingerprint from secrets and configs
+  try {
+    window.GOLD.fingerprintTech = function fingerprintTech() {
+      try {
+        var techs = [];
+        var allText = JSON.stringify(findings);
+        var patterns = [
+          { name: "AWS", pattern: /AKIA[0-9A-Z]{16}/ },
+          { name: "Google API", pattern: /AIza[0-9A-Za-z_-]{35}/ },
+          { name: "GitHub Token", pattern: /ghp_[0-9a-zA-Z]{36}/ },
+          { name: "Stripe", pattern: /sk_live_[0-9a-zA-Z]{24,}/ },
+          { name: "Firebase", pattern: /firebaseio\.com/ },
+          { name: "Heroku", pattern: /herokuapp\.com/ },
+          { name: "Cloudflare", pattern: /cloudflare\.com|cf-ray/i },
+          { name: "Vercel", pattern: /vercel\.app|vercel\.dev/ },
+          { name: "Netlify", pattern: /netlify\.app|netlify\.com/ },
+          { name: "MongoDB", pattern: /mongodb(\+srv)?:\/\// },
+          { name: "PostgreSQL", pattern: /postgresql:\/\// },
+          { name: "MySQL", pattern: /mysql:\/\// },
+          { name: "Redis", pattern: /redis:\/\// },
+          { name: "Docker", pattern: /docker\.io|docker\.com/ },
+          { name: "Kubernetes", pattern: /kubernetes\.io|kube-/ }
+        ];
+        patterns.forEach(function(p) {
+          try {
+            if (p.pattern.test(allText)) techs.push({ technology: p.name, confidence: "FOUND" });
+          } catch(e) {}
+        });
+        console.log("%c🛠 Technology fingerprint: " + techs.length + " detected", "color: #e67e22; font-weight: bold");
+        if (techs.length > 0) _safeTable(techs, 20);
+        return techs;
+      } catch(e) { console.warn("fingerprintTech error:", e); return []; }
+    };
+  } catch {}
+
+  // ENHANCEMENT 6: JWT deep analysis
+  try {
+    window.GOLD.analyzeJWTs = function analyzeJWTs() {
+      try {
+        var jwts = [];
+        var allText = JSON.stringify(findings);
+        var jwtPattern = /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\b/g;
+        var matches = allText.match(jwtPattern) || [];
+        matches.forEach(function(token) {
+          try {
+            var parts = token.split(".");
+            var header = JSON.parse(atob(parts[0].replace(/-/g, "+").replace(/_/g, "/")));
+            var payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+            jwts.push({
+              algorithm: header.alg || "unknown",
+              type: header.typ || "unknown",
+              issuer: payload.iss || "unknown",
+              subject: payload.sub || "unknown",
+              expiry: payload.exp ? new Date(payload.exp * 1000).toISOString() : "unknown",
+              risk: header.alg === "none" ? "CRITICAL" : header.alg === "HS256" ? "MEDIUM" : "INFO"
+            });
+          } catch(e) {}
+        });
+        console.log("%c🔐 JWT analysis: " + jwts.length + " tokens", jwts.length > 0 ? "color: #e74c3c; font-weight: bold" : "color: #7f8c8d");
+        if (jwts.length > 0) _safeTable(jwts, 20);
+        return jwts;
+      } catch(e) { console.warn("analyzeJWTs error:", e); return []; }
+    };
+  } catch {}
+
+  // ENHANCEMENT 7: Compliance report (OWASP mapping)
+  try {
+    window.GOLD.complianceReport = function complianceReport() {
+      try {
+        var report = [];
+        var sc = (findings.secrets || []).length;
+        var ec = (findings.endpoints || []).length;
+        var dc = (findings.debugInfo || []).length;
+        var cc = (findings.configObjects || []).length;
+        if (sc > 0) report.push({ owasp: "A07:2021 - Identification and Auth Failures", findings: sc, action: "Rotate secrets, move to server-side" });
+        if (ec > 5) report.push({ owasp: "A01:2021 - Broken Access Control", findings: ec, action: "Audit endpoint access controls" });
+        if (dc > 0) report.push({ owasp: "A05:2021 - Security Misconfiguration", findings: dc, action: "Disable debug mode in production" });
+        if (cc > 3) report.push({ owasp: "A04:2021 - Insecure Design", findings: cc, action: "Review configuration exposure" });
+        console.log("%c📋 Compliance: " + report.length + " categories", "color: #3498db; font-weight: bold");
+        if (report.length > 0) _safeTable(report, 20);
+        return report;
+      } catch(e) { console.warn("complianceReport error:", e); return []; }
+    };
+  } catch {}
+
+  // ENHANCEMENT 8: Risk summary dashboard
+  try {
+    window.GOLD.riskDashboard = function riskDashboard() {
+      try {
+        var dash = {
+          totalSecrets: (findings.secrets || []).length,
+          totalEndpoints: (findings.endpoints || []).length,
+          totalInternalPaths: (findings.internalPaths || []).length,
+          totalAuthFindings: (findings.authFindings || []).length,
+          totalDebugInfo: (findings.debugInfo || []).length,
+          totalConfigObjects: (findings.configObjects || []).length,
+          totalUserFlows: (findings.userFlows || []).length,
+          totalHiddenElements: (findings.hiddenElements || []).size || 0,
+          riskScore: 0
+        };
+        dash.riskScore = (dash.totalSecrets * 10) + (dash.totalAuthFindings * 8) + (dash.totalEndpoints * 3) + (dash.totalDebugInfo * 2);
+        dash.riskLevel = dash.riskScore > 50 ? "CRITICAL" : dash.riskScore > 20 ? "HIGH" : dash.riskScore > 5 ? "MEDIUM" : "LOW";
+        console.log("%c📊 RISK DASHBOARD", "color: #e74c3c; font-weight: bold; font-size: 14px");
+        console.log("%c  Risk Score: " + dash.riskScore + " (" + dash.riskLevel + ")", "color: " + (dash.riskLevel === "CRITICAL" ? "#e74c3c" : dash.riskLevel === "HIGH" ? "#e67e22" : "#f1c40f"));
+        _safeTable([dash], 1);
+        return dash;
+      } catch(e) { console.warn("riskDashboard error:", e); return {}; }
+    };
+  } catch {}
+
+  // ENHANCEMENT 9: Diff scan (compare with previous run)
+  try {
+    window.GOLD.diffScan = function diffScan() {
+      try {
+        var current = JSON.stringify({ secrets: findings.secrets, endpoints: findings.endpoints });
+        var prev = window.__GOLD_LAST_SCAN || null;
+        window.__GOLD_LAST_SCAN = current;
+        if (!prev) { console.log("%c📸 First scan - baseline saved", "color: #3498db"); return { new: 0, removed: 0 }; }
+        var old = JSON.parse(prev);
+        var newItems = (findings.secrets || []).filter(function(s) { return !(old.secrets || []).some(function(os) { return os.match === s.match && os.source === s.source; }); });
+        var removedItems = (old.secrets || []).filter(function(s) { return !(findings.secrets || []).some(function(ns) { return ns.match === s.match && ns.source === s.source; }); });
+        var result = { new: newItems.length, removed: removedItems.length };
+        console.log("%c📸 Diff: +" + result.new + " new, -" + result.removed + " removed", "color: #e67e22; font-weight: bold");
+        return result;
+      } catch(e) { console.warn("diffScan error:", e); return { new: 0, removed: 0 }; }
+    };
+  } catch {}
+
+  // ENHANCEMENT 10: Auto-remediation report
+  try {
+    window.GOLD.remediationReport = function remediationReport() {
+      try {
+        var fixes = [];
+        (findings.secrets || []).forEach(function(s) {
+          fixes.push({ finding: s.name || "Secret", source: s.source || "unknown", action: s.risk === "HIGH" ? "IMMEDIATE: Rotate and move to server-side" : "Review and secure", priority: s.risk === "HIGH" ? "P0" : "P1" });
+        });
+        (findings.authFindings || []).forEach(function(a) {
+          fixes.push({ finding: a.name || "Auth Issue", source: a.source || "unknown", action: "Audit authentication flow", priority: "P1" });
+        });
+        (findings.debugInfo || []).forEach(function(d) {
+          fixes.push({ finding: d.name || "Debug Info", source: d.source || "unknown", action: "Disable debug mode in production", priority: "P1" });
+        });
+        console.log("%c🔧 Remediation: " + fixes.length + " actions needed", "color: #e67e22; font-weight: bold");
+        if (fixes.length > 0) _safeTable(fixes, 30);
+        return fixes;
+      } catch(e) { console.warn("remediationReport error:", e); return []; }
     };
   } catch {}
 
