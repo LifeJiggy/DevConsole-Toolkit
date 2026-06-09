@@ -47,6 +47,7 @@
     WebSocket: window.WebSocket,
   };
 
+  const MAX_LOGS = 5000;
   const logs = [];
   const recent = []; // for async/race pattern checks
   let running = false;
@@ -66,7 +67,10 @@
       .join("\n");
   };
   const lower = (s) => (s || "").toLowerCase();
-  const has = (s, arr) => arr.some((a) => lower(s).includes(lower(a)));
+  function has(s, arr) {
+    var ls = lower(s);
+    return arr.some(function(a) { return ls.includes(lower(a)); });
+  }
   const pushUnique = (arr, v) => {
     if (!arr.includes(v)) arr.push(v);
   };
@@ -103,7 +107,9 @@
         return `<arraybuffer ${body.byteLength}B>`;
       if (typeof body === "object")
         return short(JSON.stringify(body), CONFIG.MAX_BODY_CAPTURE);
-    } catch (e) {}
+    } catch(e) {
+      return "";
+    }
     return `<unserializable body>`;
   }
 
@@ -135,6 +141,9 @@
     meta.findings = [];
     analyzeEntry(meta); // auto-tag
     logs.push(meta);
+    if (logs.length > MAX_LOGS) {
+      logs.splice(0, logs.length - MAX_LOGS);
+    }
     recent.push({
       t: now(),
       url: meta.url,
@@ -159,14 +168,15 @@
 
   // ------- GOLD MINE CHECKLIST (heuristics) -------
   function analyzeEntry(l) {
-    const { url, method, headers = {}, reqBody = "", stack = "" } = l;
+    const { url, method, headers = {}, reqBody = "" } = l;
+    var reqStack = l.stack;
     const info = urlInfo(url);
     const qp = info.query;
     const path = info.path;
 
     // Framework specific
     if (
-      has(stack, [
+      has(reqStack, [
         "react",
         "next",
         "webpack",
@@ -183,7 +193,7 @@
 
     // Third-party library risks
     if (
-      has(stack, [
+      has(reqStack, [
         "axios",
         "jquery",
         "zepto",
@@ -196,7 +206,7 @@
       pushUnique(l.tags, "#ThirdParty");
 
     // State management
-    if (has(stack, ["redux", "ngrx", "mobx", "zustand", "pinia", "store"]))
+    if (has(reqStack, ["redux", "ngrx", "mobx", "zustand", "pinia", "store"]))
       pushUnique(l.tags, "#State");
 
     // Auth pipeline
@@ -238,7 +248,7 @@
       }
 
     // Error handling issues
-    if ((l.status | 0) >= 500) pushUnique(l.tags, "#Error");
+    if ((Number(l.status) || 0) >= 500) pushUnique(l.tags, "#Error");
     if (qp.debug === "true" || has(url, ["debug=", "trace="]))
       pushUnique(l.tags, "#Error");
 
@@ -259,7 +269,7 @@
       pushUnique(l.tags, "#Transform");
 
     // Event handling / postMessage
-    if (has(stack, ["addEventListener", "onclick", "onchange", "postMessage"]))
+    if (has(reqStack, ["addEventListener", "onclick", "onchange", "postMessage"]))
       pushUnique(l.tags, "#Events");
 
     // Async race conditions
@@ -271,7 +281,7 @@
 
     // Deeper sink scans
     if (
-      has(stack, [
+      has(reqStack, [
         "innerHTML",
         "outerHTML",
         "insertAdjacentHTML",
@@ -388,7 +398,7 @@
   function installXHR() {
     function XRHWrapped() {
       const xhr = new _orig.XHR();
-      const state = {
+      var state = {
         method: "GET",
         url: "",
         headers: {},
@@ -401,8 +411,13 @@
 
       xhr.open = function (method, url) {
         if (running) {
-          state.method = String(method || "GET").toUpperCase();
-          state.url = String(url);
+          state = {
+            method: String(method || "GET").toUpperCase(),
+            url: String(url),
+            headers: {},
+            start: 0,
+            reqBody: "",
+          };
         }
         return open.apply(this, arguments);
       };
@@ -434,7 +449,9 @@
               if (this.response instanceof ArrayBuffer)
                 return this.response.byteLength;
               if (this.response instanceof Blob) return this.response.size;
-            } catch (e) {}
+        } catch(e) {
+          // Response body already consumed or clone failed
+        }
             return 0;
           })();
           Object.assign(state.meta, {
@@ -444,7 +461,7 @@
             respSize: size,
           });
           collectCommon(state.meta);
-        });
+        }, { once: true });
         return send.apply(this, arguments);
       };
       return xhr;
@@ -484,34 +501,39 @@
 
   function installWebSocket() {
     function WSWrapped(url, protocols) {
-      const ws = new _orig.WebSocket(url, protocols);
-      const meta = collectCommon({
-        kind: "ws",
-        method: "WS",
-        url: String(url),
-        headers: {},
-        reqBody: "",
-      });
-      ws.addEventListener("open", () =>
-        Object.assign(meta, { statusText: "open" })
-      );
-      ws.addEventListener("close", (e) =>
-        Object.assign(meta, { statusText: `closed(${e.code})` })
-      );
-      if (CONFIG.LOG_WEBSOCKET_MESSAGES) {
-        ws.addEventListener("message", (e) => {
-          logs.push({
-            kind: "ws-message",
-            url: String(url),
-            data: short(String(e.data), 500),
-            time: iso(),
-            stack: meta.stack,
-            initiator: meta.initiator,
-            tags: ["#Events"],
-          });
+      try {
+        var ws = new _orig.WebSocket(url, protocols);
+        var meta = collectCommon({
+          kind: "ws",
+          method: "WS",
+          url: String(url),
+          headers: {},
+          reqBody: "",
         });
+        ws.addEventListener("open", () =>
+          Object.assign(meta, { statusText: "open" })
+        );
+        ws.addEventListener("close", (e) =>
+          Object.assign(meta, { statusText: `closed(${e.code})` })
+        );
+        if (CONFIG.LOG_WEBSOCKET_MESSAGES) {
+          ws.addEventListener("message", (e) => {
+            logs.push({
+              kind: "ws-message",
+              url: String(url),
+              data: short(String(e.data), 500),
+              time: iso(),
+              stack: meta.stack,
+              initiator: meta.initiator,
+              tags: ["#Events"],
+            });
+          });
+        }
+        return ws;
+      } catch(e) {
+        collectCommon({ kind: "ws", url: String(url), error: String(e) });
+        throw e;
       }
-      return ws;
     }
     window.WebSocket = WSWrapped;
   }
@@ -532,7 +554,9 @@
   }
   function renderHUD() {
     if (!hudEl) return;
-    hudEl.innerHTML = `NextRay <b>${hudCounts.total}</b> · <span>#Auth ${hudCounts.auth}</span> · <span>#Input ${hudCounts.input}</span> · <span>#Error ${hudCounts.error}</span> · <span>#Async ${hudCounts.async}</span>`;
+    hudEl.textContent = "";
+    var parts = ["F:" + hudCounts.fetch, "X:" + hudCounts.xhr, "W:" + hudCounts.ws, "err:" + hudCounts.errors];
+    hudEl.appendChild(document.createTextNode(parts.join(" ")));
   }
   function hudBump(meta) {
     ensureHUD();
@@ -551,7 +575,7 @@
     a.href = URL.createObjectURL(blob);
     a.download = name;
     a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 500);
+    // Let GC handle revocation
   }
 
   function toCSVRow(obj, keys) {
@@ -600,53 +624,64 @@
     );
   }
   function exportHAR() {
+    if (logs.length === 0) {
+      console.warn("No logs to export");
+      return null;
+    }
     const entries = logs
       .filter((l) => l.kind === "fetch" || l.kind === "xhr")
-      .map((l) => ({
-        startedDateTime: l.time,
-        time: Math.round(l.durationMs || 0),
-        request: {
-          method: l.method || "GET",
-          url: l.url,
-          httpVersion: "HTTP/1.1",
-          headers: Object.entries(l.headers || {}).map(([name, value]) => ({
-            name,
-            value,
-          })),
-          queryString: Array.from(
-            new URL(l.url, location.href).searchParams.entries()
-          ).map(([name, value]) => ({ name, value })),
-          headersSize: -1,
-          bodySize: (l.reqBody || "").length,
-          postData: l.reqBody
-            ? {
-                mimeType:
-                  l.headers && (l.headers["content-type"] || "text/plain"),
-                text: l.reqBody,
-              }
-            : undefined,
-        },
-        response: {
-          status: l.status || 0,
-          statusText: l.statusText || "",
-          httpVersion: "HTTP/1.1",
-          headers: [],
-          content: {
-            size: l.respSize || 0,
-            mimeType: "",
-            text: CONFIG.ENABLE_RESPONSE_PREVIEW
-              ? l.respPreview || ""
-              : undefined,
-          },
-          headersSize: -1,
-          bodySize: l.respSize || 0,
-        },
-        cache: {},
-        timings: { send: 0, wait: Math.round(l.durationMs || 0), receive: 0 },
-        _initiator: l.initiator,
-        _stack: l.stack,
-        _tags: l.tags,
-      }));
+      .map((l) => {
+        try {
+          return {
+            startedDateTime: l.time,
+            time: Math.round(l.durationMs || 0),
+            request: {
+              method: l.method || "GET",
+              url: l.url,
+              httpVersion: "HTTP/1.1",
+              headers: Object.entries(l.headers || {}).map(([name, value]) => ({
+                name,
+                value,
+              })),
+              queryString: Array.from(
+                new URL(l.url, location.href).searchParams.entries()
+              ).map(([name, value]) => ({ name, value })),
+              headersSize: -1,
+              bodySize: (l.reqBody || "").length,
+              postData: l.reqBody
+                ? {
+                    mimeType:
+                      l.headers && (l.headers["content-type"] || "text/plain"),
+                    text: l.reqBody,
+                  }
+                : undefined,
+            },
+            response: {
+              status: l.status || 0,
+              statusText: l.statusText || "",
+              httpVersion: "HTTP/1.1",
+              headers: [],
+              content: {
+                size: l.respSize || 0,
+                mimeType: "",
+                text: CONFIG.ENABLE_RESPONSE_PREVIEW
+                  ? l.respPreview || ""
+                  : undefined,
+              },
+              headersSize: -1,
+              bodySize: l.respSize || 0,
+            },
+            cache: {},
+            timings: { send: 0, wait: Math.round(l.durationMs || 0), receive: 0 },
+            _initiator: l.initiator,
+            _stack: l.stack,
+            _tags: l.tags,
+          };
+        } catch(e) {
+          return null;
+        }
+      })
+      .filter(Boolean);
     const har = {
       log: {
         version: "1.2",
@@ -687,11 +722,22 @@
     return cmd;
   }
 
+  function _safeTable(data, max) {
+    try {
+      if (!data) return;
+      const limit = max || 500;
+      if (Array.isArray(data) && data.length > limit) {
+        console.table(data.slice(0, limit));
+        console.warn("(truncated " + (data.length - limit) + " more rows)");
+      } else { console.table(data); }
+    } catch(e) {}
+  }
+
   function table() {
     const rows = logs
       .filter((l) => l.kind !== "ws-message")
-      .map((l, i) => ({
-        i,
+      .map((l) => ({
+        i: logs.indexOf(l),
         time: l.time.split("T")[1].replace("Z", ""),
         kind: l.kind,
         m: l.method,
@@ -702,16 +748,16 @@
         initiator: l.initiator,
         tags: (l.tags || []).join(" "),
       }));
-    console.table(rows);
+    _safeTable(rows);
     return rows;
   }
 
   function find(query) {
     if (query instanceof RegExp) {
       const found = logs.filter((l) => query.test(l.url));
-      console.table(
-        found.map((l, i) => ({
-          i,
+      _safeTable(
+        found.map((l) => ({
+          i: logs.indexOf(l),
           m: l.method,
           s: l.status,
           url: l.url,
@@ -726,9 +772,9 @@
       ? String(query)
       : "#" + String(query);
     const found = logs.filter((l) => (l.tags || []).includes(tag));
-    console.table(
-      found.map((l, i) => ({
-        i,
+    _safeTable(
+      found.map((l) => ({
+        i: logs.indexOf(l),
         m: l.method,
         s: l.status,
         url: l.url,
@@ -768,6 +814,10 @@
   // ------- lifecycle -------
   function start() {
     if (running) return console.warn("NextRay already running");
+    // Re-read originals in case page overwrote them between stop/start
+    _orig.fetch = window.fetch;
+    _orig.XHR = window.XMLHttpRequest;
+    _orig.WS = window.WebSocket;
     running = true;
     installFetch();
     installXHR();
@@ -787,10 +837,12 @@
     window.WebSocket = _orig.WebSocket;
     running = false;
     overlay(false);
+    hudCounts = { total: 0, auth: 0, input: 0, error: 0, async: 0 };
     console.log("%cNextRay stopped — originals restored", "color:#f59e0b");
   }
   function clear() {
     logs.length = 0;
+    recent.length = 0;
     hudCounts = { total: 0, auth: 0, input: 0, error: 0, async: 0 };
     renderHUD();
     console.log("NextRay logs cleared");
@@ -798,7 +850,7 @@
 
   window.NextRay = {
     get logs() {
-      return logs;
+      return logs.slice();
     },
     start,
     stop,
@@ -815,6 +867,214 @@
     overlay,
     config: CONFIG,
   };
+
+  // ===========================================
+  // ENHANCEMENTS: Security Scanning Features
+  // ===========================================
+
+  // ENHANCEMENT 1: Traffic risk scoring
+  NextRay.scoreTraffic = function scoreTraffic() {
+    try {
+      var scored = [];
+      logs.forEach(function(l) {
+        try {
+          var score = 0;
+          var status = Number(l.status) || 0;
+          if (status >= 500) score += 10;
+          else if (status >= 400) score += 5;
+          if (status === 401 || status === 403) score += 3;
+          var url = l.url || "";
+          if (url.indexOf("token") !== -1 || url.indexOf("auth") !== -1) score += 5;
+          if (url.indexOf(".env") !== -1 || url.indexOf("config") !== -1) score += 3;
+          if (l.error) score += 8;
+          if (score > 0) scored.push({ url: url.substring(0, 80), status: status, score: score, method: l.method || "GET", type: l.type || "fetch" });
+        } catch(e) {}
+      });
+      scored.sort(function(a, b) { return b.score - a.score; });
+      console.log("%c📊 Risk-scored: " + scored.length, scored.length > 0 ? "color: #e74c3c; font-weight: bold" : "color: #7f8c8d");
+      _safeTable(scored.slice(0, 30), 30);
+      return scored;
+    } catch(e) { console.warn("scoreTraffic error:", e); return []; }
+  };
+
+  // ENHANCEMENT 2: CORS analysis
+  NextRay.analyzeCORS = function analyzeCORS() {
+    try {
+      var issues = [];
+      logs.forEach(function(l) {
+        try {
+          var headers = l.responseHeaders || {};
+          var acao = headers["access-control-allow-origin"];
+          var acac = headers["access-control-allow-credentials"];
+          if (acao === "*") {
+            issues.push({ url: (l.url || "").substring(0, 80), issue: "Wildcard ACAO", risk: acac === "true" ? "CRITICAL" : "MEDIUM" });
+          }
+          if (acao && acao !== "*" && acao !== location.origin) {
+            issues.push({ url: (l.url || "").substring(0, 80), issue: "Cross-origin ACAO", risk: "MEDIUM", details: acao });
+          }
+        } catch(e) {}
+      });
+      console.log("%c🌐 CORS issues: " + issues.length, issues.length > 0 ? "color: #e74c3c; font-weight: bold" : "color: #27ae60");
+      _safeTable(issues, 20);
+      return issues;
+    } catch(e) { console.warn("analyzeCORS error:", e); return []; }
+  };
+
+  // ENHANCEMENT 3: Cookie security analysis
+  NextRay.analyzeCookies = function analyzeCookies() {
+    try {
+      var issues = [];
+      logs.forEach(function(l) {
+        try {
+          var setCookie = (l.responseHeaders || {})["set-cookie"] || "";
+          if (!setCookie) return;
+          var flags = setCookie.toLowerCase();
+          var missing = [];
+          if (flags.indexOf("secure") === -1) missing.push("Secure");
+          if (flags.indexOf("httponly") === -1) missing.push("HttpOnly");
+          if (flags.indexOf("samesite") === -1) missing.push("SameSite");
+          if (missing.length > 0) issues.push({ url: (l.url || "").substring(0, 60), missing: missing.join(", "), risk: missing.length > 2 ? "HIGH" : "MEDIUM" });
+        } catch(e) {}
+      });
+      console.log("%c🍪 Cookie issues: " + issues.length, issues.length > 0 ? "color: #e67e22; font-weight: bold" : "color: #27ae60");
+      _safeTable(issues, 20);
+      return issues;
+    } catch(e) { console.warn("analyzeCookies error:", e); return []; }
+  };
+
+  // ENHANCEMENT 4: Security header check
+  NextRay.checkSecurityHeaders = function checkSecurityHeaders() {
+    try {
+      var required = ["strict-transport-security", "x-content-type-options", "x-frame-options", "content-security-policy", "referrer-policy"];
+      var results = [];
+      logs.forEach(function(l) {
+        try {
+          var resp = l.responseHeaders || {};
+          var missing = required.filter(function(h) { return !resp[h]; });
+          if (missing.length > 0) results.push({ url: (l.url || "").substring(0, 60), missing: missing.join(", "), count: missing.length });
+        } catch(e) {}
+      });
+      console.log("%c🛡 Missing headers: " + results.length, results.length > 0 ? "color: #e67e22; font-weight: bold" : "color: #27ae60");
+      _safeTable(results, 20);
+      return results;
+    } catch(e) { console.warn("checkSecurityHeaders error:", e); return []; }
+  };
+
+  // ENHANCEMENT 5: Sensitive data exposure detector
+  NextRay.detectDataExposure = function detectDataExposure() {
+    try {
+      var exposure = [];
+      var patterns = [
+        { name: "Email", rx: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g },
+        { name: "Phone", rx: /(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g },
+        { name: "Credit Card", rx: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g },
+        { name: "API Key", rx: /["']?(?:api[_-]?key|apikey|api_token)["']?\s*[:=]\s*["']?[a-zA-Z0-9_-]{20,}/gi }
+      ];
+      logs.forEach(function(l) {
+        try {
+          var body = l.responseBody || "";
+          if (typeof body !== "string") return;
+          patterns.forEach(function(p) {
+            var matches = body.match(p.rx) || [];
+            if (matches.length > 0) exposure.push({ url: (l.url || "").substring(0, 60), type: p.name, count: matches.length });
+          });
+        } catch(e) {}
+      });
+      console.log("%c🔓 Data exposure: " + exposure.length, exposure.length > 0 ? "color: #e74c3c; font-weight: bold" : "color: #27ae60");
+      _safeTable(exposure, 20);
+      return exposure;
+    } catch(e) { console.warn("detectDataExposure error:", e); return []; }
+  };
+
+  // ENHANCEMENT 6: API endpoint mapper
+  NextRay.mapEndpoints = function mapEndpoints() {
+    try {
+      var endpoints = {};
+      logs.forEach(function(l) {
+        try {
+          var path = (l.url || "").replace(/https?:\/\/[^\/]+/, "").split("?")[0];
+          var method = l.method || "GET";
+          var key = method + " " + path;
+          if (!endpoints[key]) endpoints[key] = { method: method, path: path, count: 0, statuses: [] };
+          endpoints[key].count++;
+          endpoints[key].statuses.push(Number(l.status) || 0);
+        } catch(e) {}
+      });
+      var result = Object.keys(endpoints).map(function(k) { return endpoints[k]; });
+      result.sort(function(a, b) { return b.count - a.count; });
+      console.log("%c🗺 Endpoints: " + result.length, "color: #3498db; font-weight: bold");
+      _safeTable(result.slice(0, 30), 30);
+      return result;
+    } catch(e) { console.warn("mapEndpoints error:", e); return []; }
+  };
+
+  // ENHANCEMENT 7: Performance analyzer
+  NextRay.analyzePerformance = function analyzePerformance() {
+    try {
+      var slow = [];
+      logs.forEach(function(l) {
+        try {
+          var time = l.duration || 0;
+          if (time > 3000) slow.push({ url: (l.url || "").substring(0, 80), time: time + "ms", status: l.status, method: l.method || "GET" });
+        } catch(e) {}
+      });
+      slow.sort(function(a, b) { return parseInt(b.time) - parseInt(a.time); });
+      console.log("%c⏱ Slow: " + slow.length, slow.length > 0 ? "color: #e67e22; font-weight: bold" : "color: #27ae60");
+      _safeTable(slow.slice(0, 20), 20);
+      return slow;
+    } catch(e) { console.warn("analyzePerformance error:", e); return []; }
+  };
+
+  // ENHANCEMENT 8: Technology fingerprint
+  NextRay.fingerprintTech = function fingerprintTech() {
+    try {
+      var techs = {};
+      logs.forEach(function(l) {
+        try {
+          var h = l.responseHeaders || {};
+          var server = h["server"] || "";
+          var powered = h["x-powered-by"] || "";
+          if (server) techs["Server: " + server] = (techs["Server: " + server] || 0) + 1;
+          if (powered) techs["Stack: " + powered] = (techs["Stack: " + powered] || 0) + 1;
+        } catch(e) {}
+      });
+      var result = Object.keys(techs).map(function(k) { return { tech: k, count: techs[k] }; });
+      result.sort(function(a, b) { return b.count - a.count; });
+      console.log("%c🛠 Tech: " + result.length, "color: #e67e22; font-weight: bold");
+      _safeTable(result, 20);
+      return result;
+    } catch(e) { console.warn("fingerprintTech error:", e); return []; }
+  };
+
+  // ENHANCEMENT 9: Compliance report
+  NextRay.complianceReport = function complianceReport() {
+    try {
+      var report = [];
+      var high = logs.filter(function(l) { return (Number(l.status) || 0) >= 500; });
+      if (high.length > 0) report.push({ owasp: "A09:2021 - Security Logging", findings: high.length, action: "Investigate server errors" });
+      var cors = logs.filter(function(l) { return (l.responseHeaders || {})["access-control-allow-origin"] === "*"; });
+      if (cors.length > 0) report.push({ owasp: "A05:2021 - Security Misconfiguration", findings: cors.length, action: "Fix wildcard CORS" });
+      var noHSTS = logs.filter(function(l) { return !(l.responseHeaders || {})["strict-transport-security"] && (l.url || "").indexOf("https") === 0; });
+      if (noHSTS.length > 0) report.push({ owasp: "A02:2021 - Cryptographic Failures", findings: noHSTS.length, action: "Enable HSTS" });
+      console.log("%c📋 Compliance: " + report.length, "color: #3498db; font-weight: bold");
+      _safeTable(report, 20);
+      return report;
+    } catch(e) { console.warn("complianceReport error:", e); return []; }
+  };
+
+  // ENHANCEMENT 10: Traffic diff
+  NextRay.trafficDiff = function trafficDiff(minutesAgo) {
+    try {
+      var now = Date.now();
+      var windowMs = (minutesAgo || 5) * 60 * 1000;
+      var recent = logs.filter(function(l) { return (now - (l.timestamp || 0)) < windowMs; });
+      var older = logs.filter(function(l) { return (now - (l.timestamp || 0)) >= windowMs && (now - (l.timestamp || 0)) < windowMs * 2; });
+      var result = { recent: recent.length, older: older.length, change: recent.length - older.length };
+      console.log("%c📸 Diff (" + (minutesAgo || 5) + "min): " + result.change, "color: #3498db; font-weight: bold");
+      return result;
+    } catch(e) { console.warn("trafficDiff error:", e); return {}; }
+  };
+
   // Backward alias for older notes
   window.NetXRay = window.NextRay;
 

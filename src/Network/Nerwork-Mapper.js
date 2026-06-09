@@ -1,5 +1,6 @@
 (function () {
   "use strict";
+  function _domReady() { return document && document.readyState !== "loading"; }
   // Network Mapper - Enhanced, configurable, robotic console utility for bug hunting
   // Features:
   // - Robust request/response capture (fetch/XHR/WebSocket)
@@ -188,6 +189,24 @@
     },
   };
 
+  function _safeTable(data, max) {
+    try {
+      if (!data) return;
+      const limit = max || 100;
+      if (Array.isArray(data) && data.length > limit) {
+        console.table(data.slice(0, limit));
+        console.warn("(truncated " + (data.length - limit) + " more rows)");
+      } else if (typeof data === "object" && Object.keys(data).length > limit) {
+        const keys = Object.keys(data).slice(0, limit);
+        const truncated = {};
+        keys.forEach(function(k) { truncated[k] = data[k]; });
+        console.table(truncated);
+        console.warn("(truncated " + (Object.keys(data).length - limit) + " more keys)");
+      } else {
+        console.table(data);
+      }
+    } catch(e) {}
+  }
   // ---- Utilities ----
   function deepClone(obj) {
     try {
@@ -217,20 +236,24 @@
     const parts = [];
     while (el && el.nodeType === 1 && parts.length < 6) {
       let part = el.tagName.toLowerCase();
-      if (el.classList && el.classList.length)
-        part +=
-          "." +
-          Array.from(el.classList)
-            .slice(0, 3)
-            .map((c) => CSS.escape(c))
-            .join(".");
+      try {
+        if (el.classList && el.classList.length)
+          part +=
+            "." +
+            Array.from(el.classList)
+              .slice(0, 3)
+              .map((c) => CSS.escape(c))
+              .join(".");
+      } catch (e) {}
       const parent = el.parentElement;
       if (parent) {
-        const siblings = Array.from(parent.children).filter(
-          (n) => n.tagName === el.tagName
-        );
-        if (siblings.length > 1)
-          part += `:nth-of-type(${siblings.indexOf(el) + 1})`;
+        try {
+          const siblings = Array.from(parent.children).filter(
+            (n) => n.tagName === el.tagName
+          );
+          if (siblings.length > 1)
+            part += `:nth-of-type(${siblings.indexOf(el) + 1})`;
+        } catch (e) {}
       }
       parts.unshift(part);
       el = el.parentElement;
@@ -241,7 +264,9 @@
   function buildXPath(el) {
     if (!el || el.nodeType !== 1) return null;
     const segs = [];
-    while (el && el.nodeType === 1) {
+    var depth = 0;
+    while (el && el.nodeType === 1 && depth < 10) {
+      depth++;
       let index = 1;
       let sib = el.previousSibling;
       while (sib) {
@@ -274,8 +299,10 @@
     if (includeAttributes && includeAttributes.length) {
       o.attributes = {};
       includeAttributes.forEach((name) => {
-        const v = el.getAttribute(name);
-        if (v != null) o.attributes[name] = v;
+        try {
+          const v = el.getAttribute(name);
+          if (v != null) o.attributes[name] = v;
+        } catch (e) {}
       });
     }
     if (includeDataAttributes) {
@@ -295,8 +322,12 @@
     const { redactHeaderKeys, redactionText } = state.options.headers;
     const out = {};
     Object.keys(headers).forEach((k) => {
-      const r = redactHeaderKeys?.some((rx) => rx.test(k));
-      out[k] = r ? redactionText : headers[k];
+      try {
+        const r = redactHeaderKeys?.some((rx) => rx.test(k));
+        out[k] = r ? redactionText : headers[k];
+      } catch (e) {
+        out[k] = headers[k];
+      }
     });
     return out;
   }
@@ -304,18 +335,19 @@
   function redactJson(obj) {
     if (!state.options.bodyRedaction.enable) return obj;
     const { redactKeys, redactionText } = state.options.bodyRedaction;
+    const seen = new WeakSet();
     function walk(x) {
+      if (!x || typeof x !== "object") return x;
+      if (seen.has(x)) return "[Circular]";
+      seen.add(x);
       if (Array.isArray(x)) return x.map(walk);
-      if (x && typeof x === "object") {
-        const o = Array.isArray(x) ? [] : {};
-        for (const k of Object.keys(x)) {
-          const v = x[k];
-          const m = redactKeys?.some((rx) => rx.test(k));
-          o[k] = m ? redactionText : walk(v);
-        }
-        return o;
+      const o = Array.isArray(x) ? [] : {};
+      for (const k of Object.keys(x)) {
+        const v = x[k];
+        const m = redactKeys?.some((rx) => rx.test(k));
+        o[k] = m ? redactionText : walk(v);
       }
-      return x;
+      return o;
     }
     try {
       return walk(obj);
@@ -521,7 +553,8 @@
           return { body: null };
         }
       }
-    } catch (_) {
+    } catch(e) {
+      console.warn("Failed to clone request body:", e);
       return { body: null };
     }
   }
@@ -807,7 +840,9 @@
             event: type,
           };
           saveLog(entry);
-        } catch (e) {}
+        } catch(e) {
+          console.warn("finalize error:", e);
+        }
       }
 
       xhr.addEventListener("load", function () {
@@ -953,6 +988,10 @@
       return ws;
     };
     window.WebSocket.prototype = state.orig.WebSocket.prototype;
+    window.WebSocket.CONNECTING = state.orig.WebSocket.CONNECTING;
+    window.WebSocket.OPEN = state.orig.WebSocket.OPEN;
+    window.WebSocket.CLOSING = state.orig.WebSocket.CLOSING;
+    window.WebSocket.CLOSED = state.orig.WebSocket.CLOSED;
   }
 
   function normalizeWsData(data, captureMode) {
@@ -1041,6 +1080,13 @@
     }
   }
 
+  const ssrfIndicators = [
+    /metadata\.googleapis\.com|169\.254\.169\.254|\.internal\b|\.local\b/i,
+    /file:\/\//i,
+    /@/,
+    /\b(?:localhost|127\.0\.0\.1)\b/i,
+  ];
+
   const defaultRules = [
     // New: SSRF indicators
     {
@@ -1056,12 +1102,7 @@
             JSON.stringify(entry.requestBodyJSON || {});
           const headers = entry.requestHeaders || {};
           const url = entry.url || "";
-          const indicators = [
-            /metadata\.googleapis\.com|169\.254\.169\.254|\.internal\b|\.local\b/i,
-            /file:\/\//i,
-            /@/,
-            /\b(?:localhost|127\.0\.0\.1)\b/i,
-          ];
+          const indicators = ssrfIndicators;
           if (indicators.some((rx) => rx.test(url) || rx.test(body))) {
             out.push({
               severity: "P2",
@@ -1303,8 +1344,9 @@
         checkText(entry.requestBody, "request");
         checkText(entry.responseBody, "response");
         const keyMatch = /pass|pwd|token|secret|api[-_]?key|ssn|email/i;
-        const checkJSON = (obj, side, path = []) => {
+        const checkJSON = (obj, side, path = [], depth = 0) => {
           if (!obj || typeof obj !== "object") return;
+          if (depth > 10) return;
           for (const k of Object.keys(obj)) {
             const v = obj[k];
             const p = [...path, k].join(".");
@@ -1314,7 +1356,7 @@
                 message: `Sensitive key '${p}' in ${side} JSON`,
               });
             if (typeof v === "string") checkText(v, `${side} (${p})`);
-            else if (typeof v === "object") checkJSON(v, side, [...path, k]);
+            else if (typeof v === "object") checkJSON(v, side, [...path, k], depth + 1);
           }
         };
         if (entry.requestBodyJSON) checkJSON(entry.requestBodyJSON, "request");
@@ -1336,25 +1378,27 @@
         const items = Array.isArray(setCookie) ? setCookie : [setCookie];
         const out = [];
         items.forEach((c) => {
-          const lc = String(c).toLowerCase();
-          if (!/;\s*secure\b/.test(lc) && location.protocol === "https:")
-            out.push({
-              severity: "P2",
-              message: `Set-Cookie without Secure over HTTPS: ${truncate(
-                c,
-                120
-              )}`,
-            });
-          if (!/;\s*httponly\b/.test(lc))
-            out.push({
-              severity: "P3",
-              message: `Set-Cookie without HttpOnly: ${truncate(c, 120)}`,
-            });
-          if (c.length > 4096)
-            out.push({
-              severity: "P4",
-              message: `Very large cookie (~${c.length} bytes)`,
-            });
+          try {
+            const lc = String(c).toLowerCase();
+            if (!/;\s*secure\b/.test(lc) && location.protocol === "https:")
+              out.push({
+                severity: "P2",
+                message: `Set-Cookie without Secure over HTTPS: ${truncate(
+                  c,
+                  120
+                )}`,
+              });
+            if (!/;\s*httponly\b/.test(lc))
+              out.push({
+                severity: "P3",
+                message: `Set-Cookie without HttpOnly: ${truncate(c, 120)}`,
+              });
+            if (c.length > 4096)
+              out.push({
+                severity: "P4",
+                message: `Very large cookie (~${c.length} bytes)`,
+              });
+          } catch (e) {}
         });
         return out;
       },
@@ -1390,11 +1434,13 @@
         const out = [];
         ["server", "x-powered-by", "x-aspnet-version", "x-runtime"].forEach(
           (k) => {
-            if (h[k])
-              out.push({
-                severity: "P3",
-                message: `Header '${k}': ${truncate(String(h[k]), 100)}`,
-              });
+            try {
+              if (h[k])
+                out.push({
+                  severity: "P3",
+                  message: `Header '${k}': ${truncate(String(h[k]), 100)}`,
+                });
+            } catch (e) {}
           }
         );
         return out;
@@ -1526,7 +1572,7 @@
   ];
 
   function truncate(str, n) {
-    if (typeof str !== "string") return str;
+    if (typeof str !== "string") return String(str);
     return str.length > n ? str.slice(0, n) + "…" : str;
   }
 
@@ -1556,7 +1602,9 @@
           }
           findings.push(f);
         }
-      } catch (e) {}
+      } catch(e) {
+        console.warn("Rule error (" + (rule.id || "unknown") + "):", e);
+      }
     }
     if (findings.length) scheduleSummary();
   }
@@ -1691,6 +1739,7 @@
   }
 
   // ---- User event context ----
+  state._eventListeners = [];
   function setupUserEventTracking() {
     const capture = (type) => (e) => {
       state.lastUserEvent = {
@@ -1700,22 +1749,32 @@
       };
     };
     try {
-      document.addEventListener("click", capture("click"), true);
-      document.addEventListener("submit", capture("submit"), true);
-      document.addEventListener("change", capture("change"), true);
-      document.addEventListener(
-        "keydown",
-        (e) => {
-          state.lastUserEvent = {
-            type: "keydown",
-            key: e.key,
-            at: Date.now(),
-            details: getElementDetails(e.target),
-          };
-        },
-        true
-      );
+      const clickHandler = capture("click");
+      const submitHandler = capture("submit");
+      const changeHandler = capture("change");
+      const keydownHandler = (e) => {
+        state.lastUserEvent = {
+          type: "keydown",
+          key: e.key,
+          at: Date.now(),
+          details: getElementDetails(e.target),
+        };
+      };
+      document.addEventListener("click", clickHandler, true);
+      document.addEventListener("submit", submitHandler, true);
+      document.addEventListener("change", changeHandler, true);
+      document.addEventListener("keydown", keydownHandler, true);
+      state._eventListeners.push({ target: document, type: "click", handler: clickHandler });
+      state._eventListeners.push({ target: document, type: "submit", handler: submitHandler });
+      state._eventListeners.push({ target: document, type: "change", handler: changeHandler });
+      state._eventListeners.push({ target: document, type: "keydown", handler: keydownHandler });
     } catch (_) {}
+  }
+  function teardownUserEventTracking() {
+    (state._eventListeners || []).forEach(function(ref) {
+      try { ref.target.removeEventListener(ref.type, ref.handler); } catch(e) {}
+    });
+    state._eventListeners = [];
   }
 
   // ---- Public API ----
@@ -1760,6 +1819,7 @@
 
     stop() {
       if (!state.installed) return this;
+      teardownUserEventTracking();
       if (state.orig.fetch) window.fetch = state.orig.fetch;
       const proto = XMLHttpRequest.prototype;
       if (state.orig.XHROpen) proto.open = state.orig.XHROpen;
@@ -1851,6 +1911,9 @@
 
     exportLogs(opts = {}) {
       const { format = "json", includeFindings = false } = opts;
+      if (state.log.length > 5000) {
+        console.warn("Large export: " + state.log.length + " entries. Consider filtering.");
+      }
       const items = state.log.map((e) => deepClone(e));
       if (format === "har") {
         // Basic HAR 1.2 compatible structure
@@ -1908,8 +1971,11 @@
         return JSON.stringify(har, null, 2);
       }
       if (format === "csv") {
+        function csvEscape(val) {
+          return '"' + String(val || "").replace(/"/g, '""') + '"';
+        }
         const header = ["id", "type", "url", "method", "status", "durationMs"];
-        const lines = [header.join(",")];
+        const lines = [header.map(csvEscape).join(",")];
         for (const e of items) {
           const row = [
             e.id,
@@ -1918,7 +1984,7 @@
             e.method || "",
             e.status || "",
             e.timing?.durationMs || "",
-          ].map((v) => '"' + String(v).replace(/"/g, '""') + '"');
+          ].map(csvEscape);
           lines.push(row.join(","));
         }
         return lines.join("\n");
@@ -1935,6 +2001,7 @@
     },
     download(filename = "network-mapper-logs.json", opts = {}) {
       try {
+        filename = String(filename || "download").replace(/[^a-zA-Z0-9._-]/g, "_").substring(0, 100);
         const data = this.exportLogs(opts);
         const type = opts?.format === "csv" ? "text/csv" : "application/json";
         const blob = new Blob([data], { type });
@@ -1968,9 +2035,9 @@
         },
         { types: {}, methods: {}, status: {} }
       );
-      console.table(stats.types);
-      console.table(stats.methods);
-      console.table(stats.status);
+      _safeTable(stats.types);
+      _safeTable(stats.methods);
+      _safeTable(stats.status);
       return stats;
     },
 
@@ -2027,8 +2094,8 @@
         },
         { bySeverity: {}, byType: {} }
       );
-      console.table(sum.bySeverity);
-      console.table(sum.byType);
+      _safeTable(sum.bySeverity);
+      _safeTable(sum.byType);
       return sum;
     },
 
@@ -2072,7 +2139,9 @@
     correlateIndicators() {
       const out = [];
       if (!this.__indicators || !this.__indicators.length) return out;
-      for (const e of state.log) {
+      const maxEntries = Math.min(state.log.length, 1000);
+      for (let i = 0; i < maxEntries; i++) {
+        const e = state.log[i];
         const bucket = [];
         const corpus = [
           e.url,
@@ -2119,6 +2188,250 @@
     },
   };
 
+  // ===========================================
+  // ENHANCEMENTS: Security Scanning Features
+  // ===========================================
+
+  // ENHANCEMENT 1: Traffic risk scoring
+  API.scoreTraffic = function scoreTraffic() {
+    try {
+      var scored = [];
+      var risky = state.log.filter(function(e) {
+        return e.risk === "high" || e.risk === "critical" || (e.status >= 400);
+      });
+      risky.forEach(function(entry) {
+        var score = 0;
+        if (entry.risk === "critical") score += 15;
+        else if (entry.risk === "high") score += 10;
+        if (entry.status >= 500) score += 5;
+        if (entry.status === 401 || entry.status === 403) score += 3;
+        var url = entry.url || "";
+        if (url.indexOf("token") !== -1 || url.indexOf("auth") !== -1) score += 5;
+        if (url.indexOf(".env") !== -1 || url.indexOf("config") !== -1) score += 3;
+        scored.push({ url: url.substring(0, 80), status: entry.status, risk: entry.risk || "low", score: score, method: entry.method || "GET" });
+      });
+      scored.sort(function(a, b) { return b.score - a.score; });
+      console.log("%c📊 Risk-scored traffic: " + scored.length + " entries", scored.length > 0 ? "color: #e74c3c; font-weight: bold" : "color: #7f8c8d");
+      _safeTable(scored.slice(0, 30), 30);
+      return scored;
+    } catch(e) { console.warn("scoreTraffic error:", e); return []; }
+  };
+
+  // ENHANCEMENT 2: CORS analysis
+  API.analyzeCORS = function analyzeCORS() {
+    try {
+      var corsIssues = [];
+      state.log.forEach(function(entry) {
+        try {
+          var headers = entry.responseHeaders || {};
+          var acao = headers["access-control-allow-origin"];
+          var acac = headers["access-control-allow-credentials"];
+          if (acao === "*") {
+            corsIssues.push({ url: (entry.url || "").substring(0, 80), issue: "Wildcard ACAO", risk: acac === "true" ? "CRITICAL" : "MEDIUM", details: "Allow-Origin: * with credentials" });
+          }
+          if (acao && acao !== "*" && acao !== location.origin) {
+            corsIssues.push({ url: (entry.url || "").substring(0, 80), issue: "Cross-origin ACAO", risk: "MEDIUM", details: "Origin: " + acao });
+          }
+          if (headers["access-control-allow-methods"]) {
+            var methods = headers["access-control-allow-methods"];
+            if (methods.indexOf("PUT") !== -1 || methods.indexOf("DELETE") !== -1) {
+              corsIssues.push({ url: (entry.url || "").substring(0, 80), issue: "Dangerous CORS methods", risk: "LOW", details: methods });
+            }
+          }
+        } catch(e) {}
+      });
+      console.log("%c🌐 CORS issues: " + corsIssues.length, corsIssues.length > 0 ? "color: #e74c3c; font-weight: bold" : "color: #27ae60");
+      _safeTable(corsIssues, 20);
+      return corsIssues;
+    } catch(e) { console.warn("analyzeCORS error:", e); return []; }
+  };
+
+  // ENHANCEMENT 3: Cookie security analysis
+  API.analyzeCookies = function analyzeCookies() {
+    try {
+      var issues = [];
+      state.log.forEach(function(entry) {
+        try {
+          var setCookie = entry.responseHeaders || {};
+          var cookie = setCookie["set-cookie"] || "";
+          if (!cookie) return;
+          var flags = cookie.toLowerCase();
+          var missing = [];
+          if (flags.indexOf("secure") === -1) missing.push("Secure");
+          if (flags.indexOf("httponly") === -1) missing.push("HttpOnly");
+          if (flags.indexOf("samesite") === -1) missing.push("SameSite");
+          if (missing.length > 0) {
+            issues.push({ url: (entry.url || "").substring(0, 60), missing: missing.join(", "), risk: missing.length > 2 ? "HIGH" : "MEDIUM", cookie: cookie.substring(0, 60) });
+          }
+        } catch(e) {}
+      });
+      console.log("%c🍪 Cookie issues: " + issues.length, issues.length > 0 ? "color: #e67e22; font-weight: bold" : "color: #27ae60");
+      _safeTable(issues, 20);
+      return issues;
+    } catch(e) { console.warn("analyzeCookies error:", e); return []; }
+  };
+
+  // ENHANCEMENT 4: HSTS and security header check
+  API.checkSecurityHeaders = function checkSecurityHeaders() {
+    try {
+      var headers = ["strict-transport-security", "x-content-type-options", "x-frame-options", "x-xss-protection", "content-security-policy", "referrer-policy", "permissions-policy"];
+      var results = [];
+      state.log.forEach(function(entry) {
+        try {
+          var found = {};
+          var resp = entry.responseHeaders || {};
+          headers.forEach(function(h) {
+            found[h] = resp[h] ? "PRESENT" : "MISSING";
+          });
+          var missing = headers.filter(function(h) { return !resp[h]; });
+          if (missing.length > 0) {
+            results.push({ url: (entry.url || "").substring(0, 60), missing: missing.join(", "), count: missing.length });
+          }
+        } catch(e) {}
+      });
+      console.log("%c🛡 Security headers: " + results.length + " endpoints with missing headers", results.length > 0 ? "color: #e67e22; font-weight: bold" : "color: #27ae60");
+      _safeTable(results, 20);
+      return results;
+    } catch(e) { console.warn("checkSecurityHeaders error:", e); return []; }
+  };
+
+  // ENHANCEMENT 5: Sensitive data exposure detector
+  API.detectDataExposure = function detectDataExposure() {
+    try {
+      var exposure = [];
+      var patterns = [
+        { name: "Email", rx: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g },
+        { name: "Phone", rx: /(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g },
+        { name: "SSN", rx: /\b\d{3}-\d{2}-\d{4}\b/g },
+        { name: "Credit Card", rx: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g },
+        { name: "API Key in Body", rx: /["']?(?:api[_-]?key|apikey|api_token)["']?\s*[:=]\s*["']?[a-zA-Z0-9_-]{20,}/gi }
+      ];
+      state.log.forEach(function(entry) {
+        try {
+          var body = entry.responseBody || "";
+          if (typeof body !== "string") return;
+          patterns.forEach(function(p) {
+            var matches = body.match(p.rx) || [];
+            if (matches.length > 0) {
+              exposure.push({ url: (entry.url || "").substring(0, 60), type: p.name, count: matches.length, preview: matches[0].substring(0, 30) });
+            }
+          });
+        } catch(e) {}
+      });
+      console.log("%c🔓 Data exposure: " + exposure.length + " findings", exposure.length > 0 ? "color: #e74c3c; font-weight: bold" : "color: #27ae60");
+      _safeTable(exposure, 20);
+      return exposure;
+    } catch(e) { console.warn("detectDataExposure error:", e); return []; }
+  };
+
+  // ENHANCEMENT 6: API endpoint mapper
+  API.mapEndpoints = function mapEndpoints() {
+    try {
+      var endpoints = {};
+      state.log.forEach(function(entry) {
+        try {
+          var url = entry.url || "";
+          var path = url.replace(/https?:\/\/[^\/]+/, "").split("?")[0];
+          var method = entry.method || "GET";
+          var key = method + " " + path;
+          if (!endpoints[key]) {
+            endpoints[key] = { method: method, path: path, count: 0, statuses: [], avgResponseTime: 0 };
+          }
+          endpoints[key].count++;
+          endpoints[key].statuses.push(entry.status || 0);
+        } catch(e) {}
+      });
+      var result = Object.keys(endpoints).map(function(k) { return endpoints[k]; });
+      result.sort(function(a, b) { return b.count - a.count; });
+      console.log("%c🗺 API endpoints: " + result.length + " unique", "color: #3498db; font-weight: bold");
+      _safeTable(result.slice(0, 30), 30);
+      return result;
+    } catch(e) { console.warn("mapEndpoints error:", e); return []; }
+  };
+
+  // ENHANCEMENT 7: Response time analyzer
+  API.analyzePerformance = function analyzePerformance() {
+    try {
+      var slow = [];
+      state.log.forEach(function(entry) {
+        try {
+          var time = entry.duration || entry.responseTime || 0;
+          if (time > 3000) {
+            slow.push({ url: (entry.url || "").substring(0, 80), time: time + "ms", status: entry.status, method: entry.method || "GET", risk: time > 10000 ? "HIGH" : "MEDIUM" });
+          }
+        } catch(e) {}
+      });
+      slow.sort(function(a, b) { return parseInt(b.time) - parseInt(a.time); });
+      console.log("%c⏱ Slow requests: " + slow.length, slow.length > 0 ? "color: #e67e22; font-weight: bold" : "color: #27ae60");
+      _safeTable(slow.slice(0, 20), 20);
+      return slow;
+    } catch(e) { console.warn("analyzePerformance error:", e); return []; }
+  };
+
+  // ENHANCEMENT 8: Technology fingerprint from traffic
+  API.fingerprintTech = function fingerprintTech() {
+    try {
+      var techs = {};
+      state.log.forEach(function(entry) {
+        try {
+          var headers = entry.responseHeaders || {};
+          var server = headers["server"] || "";
+          var powered = headers["x-powered-by"] || "";
+          var via = headers["via"] || "";
+          if (server) techs["Server: " + server] = (techs["Server: " + server] || 0) + 1;
+          if (powered) techs["Powered-By: " + powered] = (techs["Powered-By: " + powered] || 0) + 1;
+          if (via) techs["Via: " + via] = (techs["Via: " + via] || 0) + 1;
+        } catch(e) {}
+      });
+      var result = Object.keys(techs).map(function(k) { return { technology: k, count: techs[k] }; });
+      result.sort(function(a, b) { return b.count - a.count; });
+      console.log("%c🛠 Technology: " + result.length + " detected", "color: #e67e22; font-weight: bold");
+      _safeTable(result, 20);
+      return result;
+    } catch(e) { console.warn("fingerprintTech error:", e); return []; }
+  };
+
+  // ENHANCEMENT 9: Compliance report (OWASP mapping)
+  API.complianceReport = function complianceReport() {
+    try {
+      var report = [];
+      var log = state.log;
+      var highRisk = log.filter(function(e) { return e.risk === "high" || e.risk === "critical"; });
+      if (highRisk.length > 0) report.push({ owasp: "A03:2021 - Injection", findings: highRisk.length, action: "Review high-risk requests for injection vectors" });
+      var cors = log.filter(function(e) { var h = e.responseHeaders || {}; return h["access-control-allow-origin"] === "*"; });
+      if (cors.length > 0) report.push({ owasp: "A05:2021 - Security Misconfiguration", findings: cors.length, action: "Fix wildcard CORS policies" });
+      var noHSTS = log.filter(function(e) { var h = e.responseHeaders || {}; return !h["strict-transport-security"] && (e.url || "").indexOf("https") === 0; });
+      if (noHSTS.length > 0) report.push({ owasp: "A02:2021 - Cryptographic Failures", findings: noHSTS.length, action: "Enable HSTS on all HTTPS endpoints" });
+      var errors = log.filter(function(e) { return e.status >= 500; });
+      if (errors.length > 0) report.push({ owasp: "A09:2021 - Security Logging and Monitoring Failures", findings: errors.length, action: "Investigate server errors for potential attacks" });
+      console.log("%c📋 Compliance: " + report.length + " categories", "color: #3498db; font-weight: bold");
+      _safeTable(report, 20);
+      return report;
+    } catch(e) { console.warn("complianceReport error:", e); return []; }
+  };
+
+  // ENHANCEMENT 10: Traffic diff (compare two time windows)
+  API.trafficDiff = function trafficDiff(minutesAgo) {
+    try {
+      var now = Date.now();
+      var windowMs = (minutesAgo || 5) * 60 * 1000;
+      var recent = state.log.filter(function(e) { return (now - (e.timestamp || 0)) < windowMs; });
+      var older = state.log.filter(function(e) { return (now - (e.timestamp || 0)) >= windowMs && (now - (e.timestamp || 0)) < windowMs * 2; });
+      var result = {
+        recentCount: recent.length,
+        olderCount: older.length,
+        change: recent.length - older.length,
+        recentErrors: recent.filter(function(e) { return e.status >= 400; }).length,
+        olderErrors: older.filter(function(e) { return e.status >= 400; }).length,
+        recentAvgTime: recent.length > 0 ? Math.round(recent.reduce(function(s, e) { return s + (e.duration || 0); }, 0) / recent.length) : 0,
+        olderAvgTime: older.length > 0 ? Math.round(older.reduce(function(s, e) { return s + (e.duration || 0); }, 0) / older.length) : 0
+      };
+      console.log("%c📸 Traffic diff (" + (minutesAgo || 5) + "min windows): " + result.change + " change", "color: #3498db; font-weight: bold");
+      _safeTable([result], 1);
+      return result;
+    } catch(e) { console.warn("trafficDiff error:", e); return {}; }
+  };
+
   // Expose API
   window.NetworkMapper = API;
 
@@ -2135,8 +2448,7 @@
     }
   };
 
-  // Install user-event tracker now
-  setupUserEventTracking();
+
 
   // Auto-start for snippet ergonomics
   API.start();
