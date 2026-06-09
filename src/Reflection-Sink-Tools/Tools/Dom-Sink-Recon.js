@@ -4126,6 +4126,445 @@ async function batchProcessElements(selectors, options = {}) {
 }
 
   // ===========================================
+  // 20 NEW ENHANCEMENTS
+  // ===========================================
+
+  // Enhancement 1: javascript: URI Deep Scanner
+  function scanJavascriptURIs() {
+    const findings = [];
+    document.querySelectorAll("[href], [src], [action], [formaction], [data], [poster], [background]").forEach((el) => {
+      ["href", "src", "action", "formaction", "data", "poster", "background"].forEach((attr) => {
+        const val = el.getAttribute(attr);
+        if (val && /^\s*javascript\s*:/i.test(val)) {
+          findings.push({ element: el.tagName + "#" + (el.id || ""), attribute: attr, value: val.substring(0, 80), risk: "CRITICAL" });
+        }
+      });
+    });
+    console.log("%c⚡ javascript: URI Deep Scan:", styles.critical);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo javascript: URIs.", styles.reflection);
+    return findings;
+  }
+  window.scanJavascriptURIs = scanJavascriptURIs;
+
+  // Enhancement 2: DOM Clobbering Deep Scanner
+  function scanDOMClobberingDeep() {
+    const findings = [];
+    const globals = new Set(["document", "window", "self", "top", "parent", "location", "chrome", "fetch", "XMLHttpRequest", "localStorage", "sessionStorage", "navigator", "history", "screen", "performance", "crypto", "JSON", "Math", "Array", "Object", "String", "Number", "Boolean", "Function", "RegExp", "Date", "console"]);
+    document.querySelectorAll("[id], [name]").forEach((el) => {
+      const id = el.id || el.getAttribute("name");
+      if (id && globals.has(id)) {
+        let usedInScript = false;
+        document.querySelectorAll("script:not([src])").forEach((s) => {
+          const regex = new RegExp(`(?<![.["'\\w])\\b${id}\\b(?![\\w"'])`);
+          if (regex.test(s.textContent)) usedInScript = true;
+        });
+        findings.push({ identifier: id, tag: el.tagName, usedInScript, risk: usedInScript ? "CRITICAL" : "HIGH" });
+      }
+    });
+    console.log("%c🔍 DOM Clobbering Deep:", styles.critical);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo DOM clobbering.", styles.reflection);
+    return findings;
+  }
+  window.scanDOMClobberingDeep = scanDOMClobberingDeep;
+
+  // Enhancement 3: Open Redirect Chain Mapper
+  function mapOpenRedirectChains() {
+    const findings = [];
+    const url = new URL(window.location.href);
+    const redirectParams = ["redirect", "return", "next", "go", "url", "continue", "redir", "back", "forward", "to", "rurl", "dest", "destination", "checkout_url", "return_url", "redirect_uri", "redirect_url", "return_to"];
+    url.searchParams.forEach((value, key) => {
+      if (redirectParams.some((p) => key.toLowerCase().includes(p))) {
+        let targetUrl;
+        try { targetUrl = new URL(value); } catch (e) {}
+        if (targetUrl) {
+          const isExternal = targetUrl.origin !== window.location.origin;
+          findings.push({ param: key, value: value.substring(0, 80), isExternal, risk: isExternal ? "CRITICAL" : "MEDIUM" });
+        }
+      }
+    });
+    document.querySelectorAll("a[href]").forEach((a) => {
+      const href = a.getAttribute("href");
+      if (href && /redirect|return|next|url|back|forward/i.test(href) && href.includes("=")) findings.push({ type: "link", href: href.substring(0, 100), risk: "MEDIUM" });
+    });
+    console.log("%c🔄 Open Redirect Chains:", styles.warning);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo open redirects.", styles.reflection);
+    return findings;
+  }
+  window.mapOpenRedirectChains = mapOpenRedirectChains;
+
+  // Enhancement 4: PostMessage Handler Deep Audit
+  function auditPostMessageDeep() {
+    const findings = [];
+    document.querySelectorAll("script:not([src])").forEach((script) => {
+      const code = script.textContent;
+      if (code.includes("addEventListener") && code.includes("message")) {
+        const hasOrigin = /event\.origin|e\.origin|\.origin\s*===/.test(code);
+        const hasSource = /event\.source|e\.source/.test(code);
+        const hasData = /event\.data|e\.data/.test(code);
+        const sinks = [];
+        if (/innerHTML/.test(code)) sinks.push("innerHTML");
+        if (/document\.write/.test(code)) sinks.push("document.write");
+        if (/eval\(/.test(code)) sinks.push("eval");
+        if (/\.html\(/.test(code)) sinks.push("$.html");
+        if (/location/.test(code)) sinks.push("location");
+        findings.push({ hasOrigin, hasSource, hasData, sinks, risk: !hasOrigin && sinks.length > 0 ? "CRITICAL" : sinks.length > 0 ? "HIGH" : "LOW" });
+      }
+    });
+    console.log("%c📨 PostMessage Deep Audit:", styles.warning);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo postMessage handlers.", styles.reflection);
+    return findings;
+  }
+  window.auditPostMessageDeep = auditPostMessageDeep;
+
+  // Enhancement 5: Prototype Pollution Chain Detector
+  function detectPrototypePollutionChains() {
+    const findings = [];
+    const scripts = [];
+    document.querySelectorAll("script:not([src])").forEach((s) => scripts.push(s.textContent));
+    const allCode = scripts.join("\n");
+    const patterns = [
+      { regex: /\bextend\b.*\b__proto__\b/g, name: "extend(__proto__)", risk: "CRITICAL" },
+      { regex: /\bmerge\b.*\b__proto__\b/g, name: "merge(__proto__)", risk: "CRITICAL" },
+      { regex: /Object\.assign\b/g, name: "Object.assign", risk: "MEDIUM" },
+      { regex: /\bdeepCopy\b|\bcloneDeep\b|\bdeepMerge\b/g, name: "deep-clone", risk: "MEDIUM" },
+      { regex: /\[\s*['"]__proto__['"]\s*\]/g, name: "__proto__ bracket", risk: "HIGH" },
+      { regex: /\[\s*['"]constructor['"]\s*\]/g, name: "constructor bracket", risk: "HIGH" },
+      { regex: /prototype\s*\[/g, name: "prototype bracket", risk: "HIGH" },
+      { regex: /\.constructor\s*\[/g, name: ".constructor[", risk: "HIGH" },
+    ];
+    patterns.forEach(({ regex, name, risk }) => {
+      const matches = allCode.match(regex);
+      if (matches) findings.push({ pattern: name, count: matches.length, risk });
+    });
+    console.log("%c🔬 Prototype Pollution Chains:", styles.critical);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo prototype pollution.", styles.reflection);
+    return findings;
+  }
+  window.detectPrototypePollutionChains = detectPrototypePollutionChains;
+
+  // Enhancement 6: Storage → Sink Flow Mapper
+  function mapStorageSinkFlows() {
+    const findings = [];
+    const sinks = ["innerHTML", "outerHTML", "document.write", "eval", "setTimeout", "setInterval", "Function", "location.href"];
+    ["localStorage", "sessionStorage"].forEach((storage) => {
+      try {
+        const store = window[storage];
+        for (let i = 0; i < store.length; i++) {
+          const key = store.key(i);
+          const value = store.getItem(key);
+          if (!value || value.length < 3) continue;
+          document.querySelectorAll("script:not([src])").forEach((script) => {
+            const code = script.textContent;
+            if (code.includes(key)) {
+              const usedSinks = sinks.filter((s) => code.includes(s));
+              if (usedSinks.length > 0) findings.push({ storage, key, sinks: usedSinks, risk: "CRITICAL" });
+            }
+          });
+        }
+      } catch (e) {}
+    });
+    console.log("%c💾 Storage → Sink Flows:", styles.critical);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo storage → sink flows.", styles.reflection);
+    return findings;
+  }
+  window.mapStorageSinkFlows = mapStorageSinkFlows;
+
+  // Enhancement 7: CSS Exfiltration Vector Scanner
+  function scanCSSExfiltrationVectors() {
+    const findings = [];
+    const patterns = [/expression\s*\(/gi, /behavior\s*:/gi, /-moz-binding\s*:.*url\(/gi, /url\s*\(\s*['"]?\s*javascript:/gi, /url\s*\(\s*['"]?\s*data:/gi];
+    document.querySelectorAll("[style]").forEach((el) => {
+      const style = el.getAttribute("style");
+      patterns.forEach((regex) => {
+        const match = style.match(regex);
+        if (match) findings.push({ element: el.tagName + "#" + (el.id || ""), pattern: match[0], risk: "HIGH" });
+      });
+    });
+    document.querySelectorAll("style").forEach((el) => {
+      const content = el.textContent || "";
+      patterns.forEach((regex) => {
+        const match = content.match(regex);
+        if (match) findings.push({ element: "STYLE", pattern: match[0], risk: "HIGH" });
+      });
+    });
+    console.log("%c🎨 CSS Exfiltration Vectors:", styles.warning);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo CSS exfiltration.", styles.reflection);
+    return findings;
+  }
+  window.scanCSSExfiltrationVectors = scanCSSExfiltrationVectors;
+
+  // Enhancement 8: Framework Sink Deep Detector
+  function detectFrameworkSinksDeep() {
+    const findings = [];
+    const checks = [
+      { name: "React dangerouslySetInnerHTML", test: () => document.querySelectorAll("[data-reactroot]").length > 0 || /dangerouslySetInnerHTML/.test(document.body.innerHTML), risk: "HIGH" },
+      { name: "Vue v-html", test: () => document.querySelectorAll("[v-html]").length > 0, risk: "HIGH" },
+      { name: "Angular [innerHTML]", test: () => document.querySelectorAll("[ng-bind-html], [innerHTML]").length > 0, risk: "HIGH" },
+      { name: "jQuery .html()", test: () => { try { return !!window.jQuery; } catch (e) { return false; } }, risk: "MEDIUM" },
+      { name: "Svelte {@html}", test: () => /\{@html/.test(document.body.innerHTML), risk: "HIGH" },
+    ];
+    checks.forEach(({ name, test, risk }) => { try { if (test()) findings.push({ framework: name, risk }); } catch (e) {} });
+    console.log("%c🛠️ Framework Sinks Deep:", styles.warning);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo framework sinks.", styles.reflection);
+    return findings;
+  }
+  window.detectFrameworkSinksDeep = detectFrameworkSinksDeep;
+
+  // Enhancement 9: Contenteditable XSS Mapper
+  function mapContenteditableXSS() {
+    const findings = [];
+    document.querySelectorAll("[contenteditable='true'], [contenteditable='']").forEach((el) => {
+      const hasHandler = Array.from(el.attributes).some((a) => a.name.startsWith("on"));
+      findings.push({ tag: el.tagName, id: el.id || "none", hasInlineHandler: hasHandler, risk: hasHandler ? "CRITICAL" : "HIGH" });
+    });
+    console.log("%c📝 Contenteditable XSS:", styles.warning);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo contenteditable.", styles.reflection);
+    return findings;
+  }
+  window.mapContenteditableXSS = mapContenteditableXSS;
+
+  // Enhancement 10: Clickjacking Vulnerability Mapper
+  function mapClickjackingVulnerabilities() {
+    const findings = [];
+    const frameOptions = document.querySelector('meta[http-equiv="X-Frame-Options"]');
+    const csp = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    const hasFrameAncestors = csp && /frame-ancestors/.test(csp.getAttribute("content"));
+    if (!frameOptions && !hasFrameAncestors) findings.push({ type: "no-protection", risk: "HIGH", note: "Page can be framed" });
+    document.querySelectorAll("iframe").forEach((iframe) => {
+      if (!iframe.sandbox || iframe.sandbox.length === 0) findings.push({ type: "unsandboxed", src: (iframe.src || "").substring(0, 80), risk: "MEDIUM" });
+    });
+    console.log("%c🎯 Clickjacking:", styles.warning);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo clickjacking vectors.", styles.reflection);
+    return findings;
+  }
+  window.mapClickjackingVulnerabilities = mapClickjackingVulnerabilities;
+
+  // Enhancement 11: Document.write Sink Deep Analyzer
+  function analyzeDocumentWriteDeep() {
+    const findings = [];
+    document.querySelectorAll("script:not([src])").forEach((script) => {
+      const code = script.textContent;
+      if (/document\.write\s*\(|document\.writeln\s*\(/.test(code)) {
+        const hasUserInput = /location\.|document\.URL|document\.referrer|window\.name|document\.cookie|location\.search|location\.hash/.test(code);
+        findings.push({ script: script.src || "inline", hasUserInput, risk: hasUserInput ? "CRITICAL" : "HIGH" });
+      }
+    });
+    console.log("%c📝 Document.write Deep:", styles.critical);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo document.write sinks.", styles.reflection);
+    return findings;
+  }
+  window.analyzeDocumentWriteDeep = analyzeDocumentWriteDeep;
+
+  // Enhancement 12: Mixed Content Vulnerability Mapper
+  function mapMixedContentVulnerabilities() {
+    const findings = [];
+    if (window.location.protocol === "https:") {
+      document.querySelectorAll("script[src^='http:'], link[href^='http:'], img[src^='http:'], iframe[src^='http:']").forEach((el) => {
+        const src = el.getAttribute("src") || el.getAttribute("href");
+        if (src && src.startsWith("http:")) findings.push({ tag: el.tagName, src: src.substring(0, 80), risk: el.tagName === "SCRIPT" ? "HIGH" : "MEDIUM" });
+      });
+    }
+    console.log("%c🔀 Mixed Content:", styles.warning);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo mixed content.", styles.reflection);
+    return findings;
+  }
+  window.mapMixedContentVulnerabilities = mapMixedContentVulnerabilities;
+
+  // Enhancement 13: URL Validation Bypass Mapper
+  function mapURLValidationBypass() {
+    const findings = [];
+    const bypasses = [
+      { payload: "javascript:alert(1)", technique: "direct" },
+      { payload: "jAvAsCrIpT:alert(1)", technique: "case-mixing" },
+      { payload: "javascript%3Aalert(1)", technique: "url-encoding" },
+      { payload: "javascript&#58;alert(1)", technique: "html-entity" },
+      { payload: "data:text/html,<script>alert(1)</script>", technique: "data-uri" },
+    ];
+    document.querySelectorAll("a[href]").forEach((a) => {
+      const href = a.getAttribute("href");
+      if (!href) return;
+      bypasses.forEach(({ payload, technique }) => {
+        if (href.toLowerCase().includes(payload.toLowerCase().substring(0, 8))) {
+          findings.push({ element: "A#" + (a.id || ""), href: href.substring(0, 80), technique, risk: "CRITICAL" });
+        }
+      });
+    });
+    console.log("%c🔗 URL Validation Bypass:", styles.critical);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo URL bypass.", styles.reflection);
+    return findings;
+  }
+  window.mapURLValidationBypass = mapURLValidationBypass;
+
+  // Enhancement 14: Service Worker Chain Mapper
+  function mapServiceWorkerChains() {
+    const findings = { registered: false, chains: [] };
+    if ("serviceWorker" in navigator) {
+      findings.registered = true;
+      navigator.serviceWorker.getRegistrations().then((regs) => {
+        findings.registrations = regs.map((r) => ({ scope: r.scope, active: !!r.active }));
+        regs.forEach((reg) => {
+          if (reg.active) findings.chains.push({ scope: reg.scope, risks: ["Intercepts fetch", "Can modify responses", "Can cache XSS payloads"] });
+        });
+        console.log("%c⚙️ Service Worker Chains:", styles.warning);
+        if (findings.chains.length > 0) console.table(findings.chains);
+      });
+    }
+    return findings;
+  }
+  window.mapServiceWorkerChains = mapServiceWorkerChains;
+
+  // Enhancement 15: Redirect Chain Deep Auditor
+  function auditRedirectChainDeep() {
+    const findings = [];
+    const url = new URL(window.location.href);
+    const redirectParams = ["redirect", "return", "next", "go", "url", "continue", "redir", "back", "forward", "to"];
+    url.searchParams.forEach((value, key) => {
+      if (redirectParams.some((p) => key.toLowerCase().includes(p))) {
+        let isExternal = false;
+        try { const u = new URL(value); isExternal = u.origin !== window.location.origin; } catch (e) {}
+        findings.push({ param: key, value: value.substring(0, 80), isExternal, risk: isExternal ? "CRITICAL" : "MEDIUM" });
+      }
+    });
+    document.querySelectorAll("meta[http-equiv='refresh']").forEach((meta) => {
+      const content = meta.getAttribute("content");
+      if (content && /url\s*=/i.test(content)) findings.push({ type: "meta-refresh", value: content.substring(0, 80), risk: "MEDIUM" });
+    });
+    console.log("%c🔄 Redirect Chain Deep:", styles.warning);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo redirect chains.", styles.reflection);
+    return findings;
+  }
+  window.auditRedirectChainDeep = auditRedirectChainDeep;
+
+  // Enhancement 16: XSS Vector Comprehensive Scanner
+  function scanXSSVectorComprehensive() {
+    const vectors = [];
+    document.querySelectorAll("a[href^='javascript:'], a[href^='data:']").forEach((a) => vectors.push({ tag: "A", href: a.getAttribute("href").substring(0, 80), risk: "CRITICAL" }));
+    document.querySelectorAll("[src^='javascript:'], [src^='data:']").forEach((el) => vectors.push({ tag: el.tagName, src: el.getAttribute("src").substring(0, 80), risk: "CRITICAL" }));
+    document.querySelectorAll("iframe[src^='javascript:'], iframe[src^='data:'], iframe[srcdoc]").forEach((el) => vectors.push({ tag: "IFRAME", risk: "CRITICAL" }));
+    document.querySelectorAll("*[onclick], *[onload], *[onerror]").forEach((el) => {
+      ["onclick", "onload", "onerror"].forEach((attr) => {
+        if (el.hasAttribute(attr) && /alert\(|eval\(|document\.write/.test(el.getAttribute(attr))) {
+          vectors.push({ tag: el.tagName, handler: attr, risk: "HIGH" });
+        }
+      });
+    });
+    console.log("%c🎯 XSS Vectors Comprehensive:", styles.critical);
+    if (vectors.length > 0) console.table(vectors);
+    else console.log("%cNo XSS vectors.", styles.reflection);
+    return vectors;
+  }
+  window.scanXSSVectorComprehensive = scanXSSVectorComprehensive;
+
+  // Enhancement 17: Encoded Sink Deep Scanner
+  function scanEncodedSinksDeep() {
+    const findings = [];
+    const patterns = [
+      { name: "eval(atob(...))", regex: /eval\s*\(\s*atob\s*\(/g, risk: "CRITICAL" },
+      { name: "Function(atob(...))", regex: /Function\s*\(\s*atob\s*\(/g, risk: "CRITICAL" },
+      { name: "String.fromCharCode", regex: /String\.fromCharCode\s*\(/g, risk: "HIGH" },
+      { name: "unescape(...)", regex: /unescape\s*\(/g, risk: "HIGH" },
+      { name: "decodeURIComponent(...)", regex: /decodeURIComponent\s*\(/g, risk: "MEDIUM" },
+    ];
+    document.querySelectorAll("script:not([src])").forEach((script) => {
+      const code = script.textContent;
+      patterns.forEach(({ name, regex, risk }) => {
+        const matches = code.match(regex);
+        if (matches) findings.push({ script: script.src || "inline", encoding: name, count: matches.length, risk });
+      });
+    });
+    console.log("%c🔐 Encoded Sinks Deep:", styles.critical);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo encoded sinks.", styles.reflection);
+    return findings;
+  }
+  window.scanEncodedSinksDeep = scanEncodedSinksDeep;
+
+  // Enhancement 18: Base Tag Hijack Mapper
+  function mapBaseTagHijack() {
+    const findings = [];
+    document.querySelectorAll("base").forEach((base) => {
+      const href = base.getAttribute("href");
+      if (!href) return;
+      const isExternal = !href.startsWith(window.location.origin) && !href.startsWith("/");
+      const isJS = /^\s*javascript\s*:/i.test(href);
+      findings.push({ href: href.substring(0, 100), isExternal, isJS, risk: isJS ? "CRITICAL" : isExternal ? "HIGH" : "MEDIUM" });
+    });
+    console.log("%c📌 Base Tag Hijack:", styles.critical);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo base tag hijack.", styles.reflection);
+    return findings;
+  }
+  window.mapBaseTagHijack = mapBaseTagHijack;
+
+  // Enhancement 19: Event Handler Sink Deep Auditor
+  function auditEventHandlersDeep() {
+    const findings = [];
+    const sinks = ["innerHTML", "outerHTML", "document.write", "eval", "setTimeout", "setInterval", "Function", "location.href"];
+    document.querySelectorAll("*").forEach((el) => {
+      if (!el || !el.tagName) return;
+      for (const attr of el.attributes) {
+        if (attr.name.toLowerCase().startsWith("on") && attr.value) {
+          const found = sinks.filter((s) => attr.value.includes(s));
+          if (found.length > 0) findings.push({ element: el.tagName + "#" + (el.id || ""), handler: attr.name, sinks: found.join(", "), risk: "CRITICAL" });
+        }
+      }
+    });
+    console.log("%c📋 Event Handlers Deep:", styles.critical);
+    if (findings.length > 0) console.table(findings);
+    else console.log("%cNo dangerous event handlers.", styles.reflection);
+    return findings;
+  }
+  window.auditEventHandlersDeep = auditEventHandlersDeep;
+
+  // Enhancement 20: Full Recon Report Generator
+  function generateFullReconReport() {
+    const report = { timestamp: new Date().toISOString(), url: window.location.href, sections: {} };
+    console.log("%c📊 GENERATING FULL RECON REPORT...", styles.banner);
+    console.log("=".repeat(60));
+    try { report.sections.javascriptURIs = scanJavascriptURIs(); } catch (e) { report.sections.javascriptURIs = []; }
+    try { report.sections.domClobbering = scanDOMClobberingDeep(); } catch (e) { report.sections.domClobbering = []; }
+    try { report.sections.openRedirects = mapOpenRedirectChains(); } catch (e) { report.sections.openRedirects = []; }
+    try { report.sections.postMessage = auditPostMessageDeep(); } catch (e) { report.sections.postMessage = []; }
+    try { report.sections.prototypePollution = detectPrototypePollutionChains(); } catch (e) { report.sections.prototypePollution = []; }
+    try { report.sections.storageFlows = mapStorageSinkFlows(); } catch (e) { report.sections.storageFlows = []; }
+    try { report.sections.cssExfiltration = scanCSSExfiltrationVectors(); } catch (e) { report.sections.cssExfiltration = []; }
+    try { report.sections.frameworkSinks = detectFrameworkSinksDeep(); } catch (e) { report.sections.frameworkSinks = []; }
+    try { report.sections.csp = analyzeCSP(); } catch (e) { report.sections.csp = {}; }
+    try { report.sections.sourceToSink = analyzeSourceToSink(); } catch (e) { report.sections.sourceToSink = {}; }
+    try { report.sections.clickjacking = mapClickjackingVulnerabilities(); } catch (e) { report.sections.clickjacking = []; }
+    try { report.sections.mixedContent = mapMixedContentVulnerabilities(); } catch (e) { report.sections.mixedContent = []; }
+    try { report.sections.urlBypass = mapURLValidationBypass(); } catch (e) { report.sections.urlBypass = []; }
+    try { report.sections.xssVectors = scanXSSVectorComprehensive(); } catch (e) { report.sections.xssVectors = []; }
+    try { report.sections.encodedSinks = scanEncodedSinksDeep(); } catch (e) { report.sections.encodedSinks = []; }
+    try { report.sections.baseTag = mapBaseTagHijack(); } catch (e) { report.sections.baseTag = []; }
+    try { report.sections.eventHandlers = auditEventHandlersDeep(); } catch (e) { report.sections.eventHandlers = []; }
+    try { report.sections.documentWrite = analyzeDocumentWriteDeep(); } catch (e) { report.sections.documentWrite = []; }
+    const totalFindings = Object.values(report.sections).flat().length;
+    const criticalCount = Object.values(report.sections).flat().filter((f) => f && f.risk === "CRITICAL").length;
+    report.summary = { totalFindings, criticalCount, riskLevel: criticalCount > 0 ? "CRITICAL" : totalFindings > 5 ? "HIGH" : "LOW" };
+    console.log("=".repeat(60));
+    console.log("%c📊 RECON REPORT SUMMARY:", styles.critical);
+    console.log("  Total: " + totalFindings + " | Critical: " + criticalCount + " | Risk: " + report.summary.riskLevel);
+    window.lastFullReconReport = report;
+    return report;
+  }
+  window.generateFullReconReport = generateFullReconReport;
+
+  // ===========================================
   // 🎯 ENHANCED GLOBAL EXPOSURE
   // ===========================================
 
@@ -4161,6 +4600,7 @@ async function batchProcessElements(selectors, options = {}) {
   console.log("%c  ✅ Security dashboard", styles.reflection);
   console.log("%c  ✅ Auto-scan functionality", styles.reflection);
   console.log("%c  ✅ Batch processing", styles.reflection);
+  console.log("%c  ✅ 20 NEW ENHANCEMENTS LOADED", styles.critical);
 
   console.log("\n%c📋 QUICK COMMANDS:", styles.warning);
   console.log(
