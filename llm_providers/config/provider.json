@@ -1,0 +1,309 @@
+{
+  "version": "3.0.0",
+  "description": "Provider connection and endpoint configuration",
+  "connection": {
+    "timeout": 60000,
+    "maxRetries": 3,
+    "retryDelay": 1000,
+    "connectionPool": {
+      "maxConnections": 10,
+      "maxSockets": 5,
+      "keepAlive": true,
+      "keepAliveMsecs": 30000
+    },
+    "tls": {
+      "enabled": true,
+      "rejectUnauthorized": true,
+      "certPath": null,
+      "keyPath": null,
+      "caPath": null
+    },
+    "proxy": {
+      "enabled": false,
+      "http": null,
+      "https": null,
+      "noProxy": ["localhost", "127.0.0.1"]
+    }
+  },
+  "endpoints": {
+    "xai": {
+      "base": "https://api.x.ai/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "openai": {
+      "base": "https://api.openai.com/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "anthropic": {
+      "base": "https://api.anthropic.com/v1",
+      "chat": "/messages",
+      "models": "/models",
+      "timeout": 60000,
+      "requiresOrg": false,
+      "headers": {
+        "anthropic-version": "2023-06-01"
+      }
+    },
+    "google": {
+      "base": "https://generativelanguage.googleapis.com/v1beta",
+      "chat": "/models/:model:generateContent",
+      "models": "/models",
+      "embeddings": "/models/embedding-001:embedContent",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "groq": {
+      "base": "https://api.groq.com/openai/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "timeout": 30000,
+      "requiresOrg": false
+    },
+    "deepseek": {
+      "base": "https://api.deepseek.com/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "ollama": {
+      "base": "http://localhost:11434",
+      "chat": "/api/chat",
+      "models": "/api/tags",
+      "embeddings": "/api/embeddings",
+      "timeout": 120000,
+      "requiresOrg": false
+    },
+    "mistral": {
+      "base": "https://api.mistral.ai/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "cohere": {
+      "base": "https://api.cohere.ai/v1",
+      "chat": "/chat",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "azure": {
+      "base": "${AZURE_OPENAI_ENDPOINT}",
+      "chat": "/openai/deployments/${AZURE_OPENAI_DEPLOYMENT}/chat/completions",
+      "models": "/openai/models",
+      "embeddings": "/openai/deployments/${AZURE_OPENAI_DEPLOYMENT}/embeddings",
+      "timeout": 60000,
+      "requiresOrg": true,
+      "apiVersion": "2024-02-01"
+    },
+    "aws": {
+      "base": "https://bedrock-runtime.${AWS_REGION}.amazonaws.com",
+      "chat": "/model/anthropic.claude-3-sonnet-20240229-v1:0/invoke",
+      "models": "/models",
+      "timeout": 60000,
+      "requiresOrg": true,
+      "auth": "aws-signature-v4"
+    },
+    "bedrock": {
+      "base": "https://bedrock-runtime.${AWS_REGION}.amazonaws.com",
+      "chat": "/model/${BEDROCK_MODEL_ID}/invoke",
+      "models": "/models",
+      "timeout": 60000,
+      "requiresOrg": true,
+      "auth": "aws-signature-v4"
+    },
+    "openrouter": {
+      "base": "https://openrouter.ai/api/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "huggingface": {
+      "base": "https://router.huggingface.co/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "timeout": 120000,
+      "requiresOrg": false
+    },
+    "togetherai": {
+      "base": "https://api.together.ai/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "fireworks": {
+      "base": "https://api.fireworks.ai/inference/v1",
+      "chat": "/accounts/fireworks/models/${MODEL_ID}/chat_completions",
+      "models": "/models",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "perplexity": {
+      "base": "https://api.perplexity.ai",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "zhipu": {
+      "base": "https://open.bigmodel.cn/api/paas/v4",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "moonshot": {
+      "base": "https://api.moonshot.cn/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "qwen": {
+      "base": "https://dashscope.aliyuncs.com/api/v1",
+      "chat": "/services/aigc/text-generation/generation",
+      "models": "/models",
+      "embeddings": "/services/aigc/text-embedding/embedding",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "minimax": {
+      "base": "https://api.minimax.io/v1",
+      "chat": "/text/chatcompletion_v2",
+      "models": "/v1/models",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "nvidia": {
+      "base": "https://integrate.api.nvidia.com/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "vercel": {
+      "base": "https://api.vercel.ai/v1",
+      "chat": "/chat",
+      "models": "/models",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "vscode": {
+      "base": "https://api.codexapi.com",
+      "chat": "/v1/chat",
+      "models": "/v1/models",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "kilo": {
+      "base": "https://api.kilo.ai/api/gateway",
+      "chat": "/chat/completions",
+      "models": "/v1/models",
+      "timeout": 60000,
+      "requiresOrg": false
+    },
+    "opencode": {
+      "base": "https://opencode.ai/zen/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "timeout": 60000,
+      "requiresOrg": false
+    }
+  },
+  "headers": {
+    "default": {
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    },
+    "openai": {
+      "Content-Type": "application/json"
+    },
+    "anthropic": {
+      "Content-Type": "application/json",
+      "anthropic-version": "2023-06-01"
+    }
+  },
+  "modelMapping": {
+    "xai": {
+      "grok-4": "grok-4",
+      "grok-3": "grok-3",
+      "grok-2": "grok-2"
+    },
+    "openai": {
+      "gpt-4o": "gpt-4o",
+      "gpt-4o-mini": "gpt-4o-mini",
+      "o1-preview": "o1-preview",
+      "o1-mini": "o1-mini"
+    },
+    "anthropic": {
+      "claude-4-opus": "claude-3-opus-20240229",
+      "claude-4-sonnet": "claude-3-5-sonnet-20241022",
+      "claude-3-haiku": "claude-3-haiku-20240307"
+    },
+    "google": {
+      "gemini-2.0-flash": "gemini-2.0-flash-exp",
+      "gemini-1.5-pro": "gemini-1.5-pro-002",
+      "gemini-1.5-flash": "gemini-1.5-flash-002"
+    },
+    "groq": {
+      "llama-3.3-70b": "llama-3.3-70b-versatile",
+      "llama-3.2-90b": "llama-3.2-90b-preview",
+      "mixtral-8x7b": "mixtral-8x7b-32768"
+    },
+    "deepseek": {
+      "deepseek-chat": "deepseek-chat",
+      "deepseek-coder": "deepseek-coder",
+      "deepseek-reasoner": "deepseek-reasoner"
+    },
+    "ollama": {
+      "llama3.2": "llama3.2",
+      "mistral": "mistral",
+      "codellama": "codellama"
+    },
+    "mistral": {
+      "mistral-large": "mistral-large-latest",
+      "mistral-small": "mistral-small-latest",
+      "codestral": "codestral-latest"
+    },
+    "cohere": {
+      "command-r-plus": "command-r-plus",
+      "command-r": "command-r"
+    }
+  },
+  "fallback": {
+    "enabled": true,
+    "timeout": 5000,
+    "providers": {
+      "xai": ["openai", "google"],
+      "openai": ["google", "anthropic"],
+      "anthropic": ["openai", "google"],
+      "google": ["openai", "anthropic"],
+      "default": ["openai", "google"]
+    }
+  },
+  "healthCheck": {
+    "enabled": true,
+    "interval": 60000,
+    "timeout": 5000,
+    "failureThreshold": 3,
+    "successThreshold": 1
+  }
+}

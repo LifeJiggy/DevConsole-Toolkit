@@ -1,0 +1,244 @@
+{
+  "version": "3.0.0",
+  "description": "API endpoints for all supported providers",
+  "regions": {
+    "default": "us-east-1",
+    "supported": ["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1", "ap-northeast-1"]
+  },
+  "endpoints": {
+    "openai": {
+      "base": "https://api.openai.com/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "images": "/images/generations",
+      "audio": "/audio",
+      "files": "/files",
+      "fine-tunes": "/fine-tunes",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "anthropic": {
+      "base": "https://api.anthropic.com/v1",
+      "messages": "/messages",
+      "models": "/models",
+      "count_tokens": "/count_tokens",
+      "timeout": 60000,
+      "streaming": true,
+      "version": "2023-06-01"
+    },
+    "google": {
+      "base": "https://generativelanguage.googleapis.com/v1",
+      "chat": "/models/{model}:generateContent",
+      "stream": "/models/{model}:streamGenerateContent",
+      "models": "/models",
+      "embeddings": "/models/embedding-001:embedContent",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "xai": {
+      "base": "https://api.x.ai/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "deepseek": {
+      "base": "https://api.deepseek.com/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "groq": {
+      "base": "https://api.groq.com/openai/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "timeout": 30000,
+      "streaming": true
+    },
+    "mistral": {
+      "base": "https://api.mistral.ai/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "files": "/files",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "cohere": {
+      "base": "https://api.cohere.ai/v1",
+      "chat": "/chat",
+      "generate": "/generate",
+      "models": "/models",
+      "embed": "/embed",
+      "classify": "/classify",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "togetherai": {
+      "base": "https://api.together.ai/v1",
+      "chat": "/chat/completions",
+      "inference": "/inference",
+      "models": "/models",
+      "timeout": 120000,
+      "streaming": true
+    },
+    "fireworks": {
+      "base": "https://api.fireworks.ai/v1",
+      "chat": "/accounts/me/inferences",
+      "models": "/models",
+      "timeout": 120000,
+      "streaming": true
+    },
+    "perplexity": {
+      "base": "https://api.perplexity.ai",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "ollama": {
+      "base": "http://localhost:11434",
+      "chat": "/api/chat",
+      "models": "/api/tags",
+      "generate": "/api/generate",
+      "embeddings": "/api/embeddings",
+      "timeout": 300000,
+      "streaming": true
+    },
+    "openrouter": {
+      "base": "https://openrouter.ai/api/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "litellm": {
+      "base": "https://api.litellm.ai",
+      "chat": "/v1/chat/completions",
+      "models": "/v1/model_list",
+      "embeddings": "/v1/embeddings",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "huggingface": {
+      "base": "https://router.huggingface.co/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "timeout": 120000,
+      "streaming": true
+    },
+    "azure": {
+      "base": "https://{resource}.openai.azure.com",
+      "deployment": "/openai/deployments/{deployment}",
+      "models": "/openai/models",
+      "files": "/openai/files",
+      "timeout": 60000,
+      "streaming": true,
+      "apiVersion": "2024-02-15-preview"
+    },
+    "aws": {
+      "base": "https://bedrock-runtime.{region}.amazonaws.com",
+      "invoke": "/model/{model}/invoke",
+      "invoke-with-response-stream": "/model/{model}/invoke-with-response-stream",
+      "customizations": "/customizations/{customization}/model/{model}/invoke",
+      "timeout": 300000,
+      "streaming": true
+    },
+    "bedrock": {
+      "base": "https://bedrock-runtime.{region}.amazonaws.com",
+      "invoke": "/model/{model}/invoke",
+      "invoke-with-response-stream": "/model/{model}/invoke-with-response-stream",
+      "timeout": 300000,
+      "streaming": true
+    },
+    "vercel": {
+      "base": "https://gateway.ai.cloudflare.com/v1/{accountId}/{gatewayId}",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "moonshot": {
+      "base": "https://api.moonshot.cn/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "zhipu": {
+      "base": "https://open.bigmodel.cn/api/paas/v4",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "images": "/images/generations",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "qwen": {
+      "base": "https://dashscope.aliyuncs.com/api/v1",
+      "chat": "/services/aigc/text-generation/generation",
+      "models": "/models",
+      "images": "/services/aigc/image-generation/generation",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "minimax": {
+      "base": "https://api.minimax.io/v1",
+      "chat": "/text/chatcompletion_v2",
+      "models": "/v1/models",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "nvidia": {
+      "base": "https://integrate.api.nvidia.com/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "timeout": 120000,
+      "streaming": true
+    },
+    "deepinfra": {
+      "base": "https://api.deepinfra.com/v1",
+      "chat": "/inference",
+      "models": "/models",
+      "timeout": 120000,
+      "streaming": true
+    },
+    "lmstudio": {
+      "base": "http://localhost:1234/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "embeddings": "/embeddings",
+      "timeout": 300000,
+      "streaming": true
+    },
+    "opencode": {
+      "base": "https://api.opencode.ai/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "timeout": 60000,
+      "streaming": true
+    },
+    "kilo": {
+      "base": "https://api.kilo.ai/api/gateway/v1",
+      "chat": "/chat/completions",
+      "models": "/models",
+      "timeout": 60000,
+      "streaming": true
+    }
+  },
+  "healthCheck": {
+    "enabled": true,
+    "interval": 60000,
+    "timeout": 5000,
+    "endpoints": {
+      "openai": "https://api.openai.com/v1/models",
+      "anthropic": "https://api.anthropic.com/v1/models",
+      "google": "https://generativelanguage.googleapis.com/v1/models"
+    }
+  }
+}

@@ -1,0 +1,217 @@
+{
+  "version": "3.0.0",
+  "description": "Model policies and access control rules - different from model metadata",
+  "policies": {
+    "global": {
+      "defaultTier": "free",
+      "maxConcurrentRequests": 10,
+      "rateLimitWindow": 60000,
+      "requireApiKey": true,
+      "enableStreaming": true,
+      "enableVision": true,
+      "enableFunctionCalling": true
+    },
+    "byProvider": {
+      "openai": {
+        "tier": "free",
+        "maxRequestsPerMinute": 60,
+        "maxTokensPerMinute": 90000,
+        "maxConcurrentRequests": 5,
+        "requiresOrg": false,
+        "blockedModels": [],
+        "restrictedRegions": []
+      },
+      "anthropic": {
+        "tier": "free",
+        "maxRequestsPerMinute": 50,
+        "maxTokensPerMinute": 100000,
+        "maxConcurrentRequests": 5,
+        "requiresOrg": false,
+        "blockedModels": [],
+        "restrictedRegions": ["CN", "RU"]
+      },
+      "google": {
+        "tier": "free",
+        "maxRequestsPerMinute": 60,
+        "maxTokensPerMinute": 120000,
+        "maxConcurrentRequests": 5,
+        "requiresOrg": false,
+        "blockedModels": [],
+        "restrictedRegions": []
+      },
+      "xai": {
+        "tier": "free",
+        "maxRequestsPerMinute": 30,
+        "maxTokensPerMinute": 50000,
+        "maxConcurrentRequests": 3,
+        "requiresOrg": false,
+        "blockedModels": [],
+        "restrictedRegions": []
+      },
+      "deepseek": {
+        "tier": "free",
+        "maxRequestsPerMinute": 60,
+        "maxTokensPerMinute": 100000,
+        "maxConcurrentRequests": 5,
+        "requiresOrg": false,
+        "blockedModels": [],
+        "restrictedRegions": []
+      },
+      "groq": {
+        "tier": "free",
+        "maxRequestsPerMinute": 100,
+        "maxTokensPerMinute": 6000,
+        "maxConcurrentRequests": 10,
+        "requiresOrg": false,
+        "blockedModels": [],
+        "restrictedRegions": []
+      },
+      "ollama": {
+        "tier": "free",
+        "maxRequestsPerMinute": 1000,
+        "maxTokensPerMinute": 1000000,
+        "maxConcurrentRequests": 20,
+        "requiresOrg": false,
+        "blockedModels": [],
+        "restrictedRegions": []
+      },
+      "openrouter": {
+        "tier": "free",
+        "maxRequestsPerMinute": 50,
+        "maxTokensPerMinute": 50000,
+        "maxConcurrentRequests": 5,
+        "requiresOrg": false,
+        "blockedModels": [],
+        "restrictedRegions": []
+      }
+    },
+    "byModel": {
+      "gpt-4": {
+        "premiumOnly": false,
+        "maxContextLength": 8192,
+        "maxOutputTokens": 4096,
+        "supportsVision": false,
+        "supportsFunctionCalling": true,
+        "requiresHigherTier": false,
+        "beta": false
+      },
+      "gpt-4-turbo": {
+        "premiumOnly": false,
+        "maxContextLength": 128000,
+        "maxOutputTokens": 4096,
+        "supportsVision": true,
+        "supportsFunctionCalling": true,
+        "requiresHigherTier": false,
+        "beta": false
+      },
+      "gpt-4o": {
+        "premiumOnly": false,
+        "maxContextLength": 128000,
+        "maxOutputTokens": 16384,
+        "supportsVision": true,
+        "supportsFunctionCalling": true,
+        "requiresHigherTier": false,
+        "beta": false
+      },
+      "gpt-4o-mini": {
+        "premiumOnly": false,
+        "maxContextLength": 128000,
+        "maxOutputTokens": 16384,
+        "supportsVision": true,
+        "supportsFunctionCalling": true,
+        "requiresHigherTier": false,
+        "beta": false
+      },
+      "o1": {
+        "premiumOnly": true,
+        "maxContextLength": 200000,
+        "maxOutputTokens": 100000,
+        "supportsVision": false,
+        "supportsFunctionCalling": false,
+        "requiresHigherTier": true,
+        "beta": true,
+        "reasoning": true
+      },
+      "o1-mini": {
+        "premiumOnly": true,
+        "maxContextLength": 128000,
+        "maxOutputTokens": 65536,
+        "supportsVision": false,
+        "supportsFunctionCalling": false,
+        "requiresHigherTier": true,
+        "beta": true,
+        "reasoning": true
+      },
+      "claude-3-5-sonnet": {
+        "premiumOnly": false,
+        "maxContextLength": 200000,
+        "maxOutputTokens": 8192,
+        "supportsVision": true,
+        "supportsFunctionCalling": true,
+        "requiresHigherTier": false,
+        "beta": false
+      },
+      "claude-3-opus": {
+        "premiumOnly": true,
+        "maxContextLength": 200000,
+        "maxOutputTokens": 4096,
+        "supportsVision": true,
+        "supportsFunctionCalling": true,
+        "requiresHigherTier": true,
+        "beta": false
+      },
+      "gemini-2.0-flash": {
+        "premiumOnly": false,
+        "maxContextLength": 1000000,
+        "maxOutputTokens": 8192,
+        "supportsVision": true,
+        "supportsFunctionCalling": true,
+        "requiresHigherTier": false,
+        "beta": false
+      },
+      "grok-2": {
+        "premiumOnly": false,
+        "maxContextLength": 131072,
+        "maxOutputTokens": 8192,
+        "supportsVision": true,
+        "supportsFunctionCalling": true,
+        "requiresHigherTier": false,
+        "beta": false
+      },
+      "grok-2-vision": {
+        "premiumOnly": false,
+        "maxContextLength": 32768,
+        "maxOutputTokens": 8192,
+        "supportsVision": true,
+        "supportsFunctionCalling": true,
+        "requiresHigherTier": false,
+        "beta": false
+      }
+    },
+    "featureFlags": {
+      "enableCaching": true,
+      "enableStreaming": true,
+      "enableVision": true,
+      "enableFunctionCalling": true,
+      "enablePromptCaching": true,
+      "enableJsonMode": true,
+      "enableSeed": true,
+      "enableLogProbs": true
+    },
+    "safety": {
+      "maxPromptLength": 1000000,
+      "maxTokens": 100000,
+      "contentFiltering": {
+        "enabled": true,
+        "strictness": "medium",
+        "blockCategories": ["hate", "violence", "sexual", "self-harm"]
+      },
+      "rateLimitBurst": 20,
+      "circuitBreaker": {
+        "enabled": true,
+        "failureThreshold": 5,
+        "resetTimeout": 30000
+      }
+    }
+  }
+}

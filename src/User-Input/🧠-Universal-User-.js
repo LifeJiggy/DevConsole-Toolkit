@@ -1,3 +1,4 @@
+//🧠-Universal-User-Input-Extractor-Client-Side
 // 🧠 Universal User Input Extractor & Handler-Network Mapper (Final Full Mapping Version)
 // Includes extractInteractiveInputs, mapInteractiveInputsNetwork, mapInputListenersHandlers (trigger, listener, handler, file/line for every input+event+listener)
 
@@ -5,6 +6,50 @@
   const inputMap = new Map();
   const networkTriggers = [];
   let CURRENT_HANDLER_CONTEXT = null;
+
+  // Shared dangerous attributes list - single source of truth
+  const DANGEROUS_ATTRS = [
+    "onclick", "onload", "onerror", "onmouseover", "onfocus", "onblur",
+    "onchange", "onsubmit", "onreset", "onkeydown", "onkeyup", "onkeypress",
+    "onmouseenter", "onmouseleave", "onmousedown", "onmouseup", "onwheel",
+    "oncontextmenu", "ondrag", "ondrop", "oninput", "onpaste", "oncut", "oncopy",
+    "onselect", "onunload", "onabort", "onbeforeunload", "onhashchange",
+    "oninvalid", "onresize", "onscroll", "ondblclick", "onmousemove",
+    "ondragend", "ondragenter", "ondragleave", "ondragover", "ondragstart",
+    "onanimationstart", "onanimationend", "onanimationiteration",
+    "ontransitionend", "onmessage", "onopen", "onclose", "onpopstate",
+    "onstorage", "onpointerdown", "onpointerup", "onpointermove",
+    "onpointerover", "onpointerout", "onpointerenter", "onpointerleave",
+    "onselectstart", "onshow",
+    "src", "href", "style", "action", "formaction", "data", "srcdoc",
+    "poster", "background", "codebase", "classid", "profile", "usemap",
+    "longdesc", "cite",
+    "innerHTML", "outerHTML", "insertAdjacentHTML", "documentURI", "textContent",
+    "autoplay", "controls", "loop", "muted", "preload", "target", "sandbox",
+    "allow", "allowfullscreen", "frameborder", "scrolling",
+    "autocomplete", "enctype", "method", "novalidate", "inputmode", "dirname",
+    "form", "formenctype", "formmethod", "formtarget",
+    "http-equiv", "content", "refresh", "charset",
+  ];
+
+  const DANGEROUS_ATTRS_SET = new Set(DANGEROUS_ATTRS.map((a) => a.toLowerCase()));
+
+  // Shared events list - single source of truth
+  const COMMON_EVENTS = [
+    "input", "change", "click", "submit", "mouseover", "mouseout",
+    "focus", "blur", "keydown", "keyup", "paste", "mousedown", "mouseup",
+    "dblclick", "contextmenu", "touchstart", "touchend", "touchmove",
+    "pointerdown", "pointerup", "pointerenter", "pointerleave", "drop",
+    "dragover", "dragenter", "dragleave", "reset", "keypress", "cut", "copy",
+    "mouseenter", "mouseleave", "wheel", "touchcancel", "pointermove",
+    "pointercancel", "dragstart", "dragend", "drag",
+    "animationstart", "animationend", "animationiteration",
+    "transitionstart", "transitionend", "transitioncancel",
+    "focusin", "focusout", "select", "invalid", "beforeinput",
+    "compositionstart", "compositionupdate", "compositionend",
+    "scroll", "resize", "pointerout", "pointerover",
+    "gotpointercapture", "lostpointercapture", "error",
+  ];
 
   function isDangerousAttr(attr) {
     if (!attr || typeof attr !== "string") {
@@ -16,90 +61,7 @@
     }
 
     const dangerous =
-      /^on[a-z]+$/.test(attr) ||
-      [
-        // Event handlersK
-        "onclick",
-        "onload",
-        "onerror",
-        "onmouseover",
-        "onfocus",
-        "onblur",
-        "onchange",
-        "onsubmit",
-        "onreset",
-        "onkeydown",
-        "onkeyup",
-        "onkeypress",
-        "onmouseenter",
-        "onmouseleave",
-        "onmousedown",
-        "onmouseup",
-        "onwheel",
-        "oncontextmenu",
-        "ondrag",
-        "ondrop",
-        "oninput",
-        "onpaste",
-        "oncut",
-        "oncopy",
-
-        // Injection-prone attributes
-        "src",
-        "href",
-        "style",
-        "action",
-        "formaction",
-        "data",
-        "srcdoc",
-        "poster",
-        "background",
-        "codebase",
-        "classid",
-        "profile",
-        "usemap",
-        "longdesc",
-        "cite",
-
-        // DOM manipulation
-        "innerHTML",
-        "outerHTML",
-        "insertAdjacentHTML",
-        "documentURI",
-        "textContent",
-
-        // Media and embeds
-        "autoplay",
-        "controls",
-        "loop",
-        "muted",
-        "preload",
-        "target",
-        "sandbox",
-        "allow",
-        "allowfullscreen",
-        "frameborder",
-        "scrolling",
-
-        // Form and input
-        "autocomplete",
-        "enctype",
-        "method",
-        "novalidate",
-        "target",
-        "inputmode",
-        "dirname",
-        "form",
-        "formenctype",
-        "formmethod",
-        "formtarget",
-
-        // Meta and redirects
-        "http-equiv",
-        "content",
-        "refresh",
-        "charset",
-      ].includes(attr.toLowerCase());
+      /^on[a-z]+$/.test(attr) || DANGEROUS_ATTRS_SET.has(attr.toLowerCase());
 
     console.log(`Attribute '${attr}' is ${dangerous ? "DANGEROUS" : "safe"}`);
     return dangerous;
@@ -237,41 +199,12 @@
   }
 
   function deepWrapElementHandlers(el, inputMeta) {
-    const events = [
-      "input",
-      "change",
-      "click",
-      "submit",
-      "mouseover",
-      "mouseout",
-      "focus",
-      "blur",
-      "keydown",
-      "keyup",
-      "paste",
-      "mousedown",
-      "mouseup",
-      "dblclick",
-      "contextmenu",
-      "touchstart",
-      "touchend",
-      "touchmove",
-      "pointerdown",
-      "pointerup",
-      "pointerenter",
-      "pointerleave",
-      "drop",
-      "dragover",
-      "dragenter",
-      "dragleave",
-    ];
-
     // Initialize handler tracking
     if (!el._upe_eventHandlers) {
       el._upe_eventHandlers = [];
     }
 
-    events.forEach((evtName) => {
+    COMMON_EVENTS.forEach((evtName) => {
       let attrHandler = el.getAttribute && el.getAttribute("on" + evtName);
       if (attrHandler && typeof attrHandler === "string") {
         try {
@@ -1030,70 +963,7 @@
 
   // Helper function to check for dangerous attributes
   function checkForDangerousAttributes(el) {
-    const dangerousAttrs = [
-      "onclick",
-      "onload",
-      "onerror",
-      "onmouseover",
-      "onfocus",
-      "onblur",
-      "src",
-      "href",
-      "action",
-      "formaction",
-      "onchange",
-      "onsubmit",
-      "onreset",
-      "onselect",
-      "onunload",
-      "onabort",
-      "onbeforeunload",
-      "onhashchange",
-      "oninput",
-      "oninvalid",
-      "onresize",
-      "onscroll",
-      "onwheel",
-      "oncontextmenu",
-      "ondblclick",
-      "onmousedown",
-      "onmouseup",
-      "onmousemove",
-      "onmouseenter",
-      "onmouseleave",
-      "onkeydown",
-      "onkeypress",
-      "onkeyup",
-      "oncut",
-      "oncopy",
-      "onpaste",
-      "ondrag",
-      "ondragend",
-      "ondragenter",
-      "ondragleave",
-      "ondragover",
-      "ondragstart",
-      "ondrop",
-      "onanimationstart",
-      "onanimationend",
-      "onanimationiteration",
-      "ontransitionend",
-      "onmessage",
-      "onopen",
-      "onclose",
-      "onpopstate",
-      "onstorage",
-      "onpointerdown",
-      "onpointerup",
-      "onpointermove",
-      "onpointerover",
-      "onpointerout",
-      "onpointerenter",
-      "onpointerleave",
-      "onselectstart",
-      "onshow",
-    ];
-    return dangerousAttrs.some((attr) => el.hasAttribute(attr));
+    return DANGEROUS_ATTRS.some((attr) => el.hasAttribute(attr));
   }
 
   // 🎯 ENHANCED INPUT TYPE DETECTION - Categorize wide range of input types
@@ -1292,85 +1162,7 @@
     const all = [];
     inputMap.forEach((meta, el) => {
       const listeners = [];
-      const events = [
-        "input",
-        "change",
-        "click",
-        "submit",
-        "mouseover",
-        "mouseout",
-        "focus",
-        "blur",
-        "keydown",
-        "keyup",
-        "paste",
-        "mousedown",
-        "mouseup",
-        "dblclick",
-        "contextmenu",
-        "touchstart",
-        "touchend",
-        "touchmove",
-        "pointerdown",
-        "pointerup",
-        "pointerenter",
-        "pointerleave",
-        "drop",
-        "dragover",
-        "dragenter",
-        "dragleave",
-        "reset", // Form reset
-        "keydown", // Key pressed
-        "keyup", // Key released
-        "keypress", // Key character input (deprecated but still used)
-        "cut", // Content cut
-        "copy", // Content copied
-        "mouseenter", // Mouse enters element
-        "mouseleave", // Mouse leaves element
-        "wheel", // Mouse wheel scroll
-        "touchstart", // Touch begins
-        "touchend", // Touch ends
-        "touchcancel", // Touch interrupted
-        "pointermove", // Pointer moves
-        "pointercancel", // Pointer canceled
-        "dragstart", // Drag begins
-        "dragend", // Drag ends
-        "drop", // Dropped on target
-        "animationstart", // CSS animation begins
-        "animationend", // CSS animation ends
-        "transitionend", // CSS transition ends
-        "focusin", // Focus enters an element or its children
-        "focusout", // Focus leaves an element or its children
-        "reset", // Form reset
-        "select", // Text selected
-        "invalid", // Form element fails validation
-        "beforeinput", // Before input is processed
-        "compositionstart", // IME composition begins
-        "compositionupdate", // IME composition updates
-        "compositionend", // IME composition ends
-        "wheel", // Mouse wheel scroll
-        "scroll", // Element or document scrolls
-        "resize", // Window or element resizes
-        "animationstart", // CSS animation begins
-        "animationend", // CSS animation ends
-        "animationiteration", // CSS animation repeats
-        "transitionstart", // CSS transition begins
-        "transitionend", // CSS transition ends
-        "transitioncancel", // CSS transition canceled
-        "dragstart", // Drag begins
-        "dragend", // Drag ends
-        "drag", // Dragging in progress
-        "pointermove", // Pointer moves
-        "pointercancel", // Pointer canceled
-        "pointerout", // Pointer leaves element
-        "pointerover", // Pointer enters element
-        "gotpointercapture", // Pointer captured
-        "lostpointercapture", // Pointer released
-        "mouseenter", // Mouse enters element (no bubbling)
-        "mouseleave", // Mouse leaves element (no bubbling)
-        "error", // Resource loading error
-      ];
-      events.forEach((eventName) => {
+      COMMON_EVENTS.forEach((eventName) => {
         // Check property handler
         if (typeof el["on" + eventName] === "function") {
           listeners.push({
@@ -1417,86 +1209,7 @@
     const all = [];
     inputMap.forEach((meta, el) => {
       const listeners = [];
-      const events = [
-        "input",
-        "change",
-        "click",
-        "submit",
-        "mouseover",
-        "mouseout",
-        "focus",
-        "blur",
-        "keydown",
-        "keyup",
-        "paste",
-        "mousedown",
-        "mouseup",
-        "dblclick",
-        "contextmenu",
-        "touchstart",
-        "touchend",
-        "touchmove",
-        "pointerdown",
-        "pointerup",
-        "pointerenter",
-        "pointerleave",
-        "drop",
-        "dragover",
-        "dragenter",
-        "dragleave",
-        "reset", // Form reset
-        "keydown", // Key pressed
-        "keyup", // Key released
-        "keypress", // Key character input (deprecated but still used)
-        "cut", // Content cut
-        "copy", // Content copied
-        "mouseenter", // Mouse enters element
-        "mouseleave", // Mouse leaves element
-        "wheel", // Mouse wheel scroll
-        "touchstart", // Touch begins
-        "touchend", // Touch ends
-        "touchcancel", // Touch interrupted
-        "pointermove", // Pointer moves
-        "pointercancel", // Pointer canceled
-        "dragstart", // Drag begins
-        "dragend", // Drag ends
-        "drop", // Dropped on target
-        "animationstart", // CSS animation begins
-        "animationend", // CSS animation ends
-        "transitionend", // CSS transition ends
-        "focusin", // Focus enters an element or its children
-        "focusout", // Focus leaves an element or its children
-        "reset", // Form reset
-        "select", // Text selected
-        "invalid", // Form element fails validation
-        "beforeinput", // Before input is processed
-        "compositionstart", // IME composition begins
-        "compositionupdate", // IME composition updates
-        "compositionend", // IME composition ends
-        "wheel", // Mouse wheel scroll
-        "scroll", // Element or document scrolls
-        "resize", // Window or element resizes
-        "animationstart", // CSS animation begins
-        "animationend", // CSS animation ends
-        "animationiteration", // CSS animation repeats
-        "transitionstart", // CSS transition begins
-        "transitionend", // CSS transition ends
-        "transitioncancel", // CSS transition canceled
-        "dragstart", // Drag begins
-        "dragend", // Drag ends
-        "drag", // Dragging in progress
-        "pointermove", // Pointer moves
-        "pointercancel", // Pointer canceled
-        "pointerout", // Pointer leaves element
-        "pointerover", // Pointer enters element
-        "gotpointercapture", // Pointer captured
-        "lostpointercapture", // Pointer released
-        "mouseenter", // Mouse enters element (no bubbling)
-        "mouseleave", // Mouse leaves element (no bubbling)
-        "error", // Resource loading error
-      ];
-
-      events.forEach((eventName) => {
+      COMMON_EVENTS.forEach((eventName) => {
         // Check property handler (unwrapped)
         const propHandler = el["on" + eventName];
         if (typeof propHandler === "function") {
@@ -1636,51 +1349,7 @@
       };
 
       // Check for inline event handlers
-      const events = [
-        "click",
-        "change",
-        "submit",
-        "focus",
-        "blur",
-        "keydown",
-        "keyup",
-        "mousedown",
-        "mouseup",
-        "mouseover",
-        "mouseout",
-        "input",
-        "dblclick", // Double click
-        "contextmenu", // Right-click menu
-        "touchstart", // Touch begins
-        "touchend", // Touch ends
-        "touchmove", // Touch moves
-        "pointerdown", // Pointer interaction begins
-        "pointerup", // Pointer interaction ends
-        "pointermove", // Pointer moves
-        "pointerenter", // Pointer enters element
-        "pointerleave", // Pointer leaves element
-        "pointercancel", // Pointer canceled
-        "dragstart", // Drag begins
-        "drag", // Dragging in progress
-        "dragenter", // Drag enters drop target
-        "dragover", // Drag over drop target
-        "dragleave", // Drag leaves drop target
-        "drop", // Dropped on target
-        "animationstart", // CSS animation begins
-        "animationend", // CSS animation ends
-        "animationiteration", // CSS animation repeats
-        "transitionstart", // CSS transition begins
-        "transitionend", // CSS transition ends
-        "transitioncancel", // CSS transition canceled
-        "wheel", // Mouse wheel scroll
-        "scroll", // Element or window scrolls
-        "resize", // Window or element resizes
-        "select", // Text selection
-        "paste", // Content pasted
-        "cut", // Content cut
-        "copy",
-      ];
-      events.forEach((eventName) => {
+      COMMON_EVENTS.forEach((eventName) => {
         const attrName = "on" + eventName;
         if (el.hasAttribute(attrName)) {
           elementInfo.listeners.push({
@@ -2181,69 +1850,6 @@
       }
 
       // Check ONLY dangerous attributes (focused approach)
-      const dangerousAttrs = [
-        "onclick",
-        "onload",
-        "onerror",
-        "onmouseover",
-        "onfocus",
-        "onblur",
-        "src",
-        "href",
-        "action",
-        "formaction",
-        "onchange",
-        "onsubmit",
-        "onreset",
-        "onselect",
-        "onunload",
-        "onabort",
-        "onbeforeunload",
-        "onhashchange",
-        "oninput",
-        "oninvalid",
-        "onresize",
-        "onscroll",
-        "onwheel",
-        "oncontextmenu",
-        "ondblclick",
-        "onmousedown",
-        "onmouseup",
-        "onmousemove",
-        "onmouseenter",
-        "onmouseleave",
-        "onkeydown",
-        "onkeypress",
-        "onkeyup",
-        "oncut",
-        "oncopy",
-        "onpaste",
-        "ondrag",
-        "ondragend",
-        "ondragenter",
-        "ondragleave",
-        "ondragover",
-        "ondragstart",
-        "ondrop",
-        "onanimationstart",
-        "onanimationend",
-        "onanimationiteration",
-        "ontransitionend",
-        "onmessage",
-        "onopen",
-        "onclose",
-        "onpopstate",
-        "onstorage",
-        "onpointerdown",
-        "onpointerup",
-        "onpointermove",
-        "onpointerover",
-        "onpointerout",
-        "onpointerenter",
-        "onpointerleave",
-        "onselectstart",
-        "onshow",
-      ];
       const elementsToCheck = [
         ...document.body.querySelectorAll("*"),
         ...document.head.querySelectorAll("*"),
@@ -2473,19 +2079,7 @@
               // Check if attribute is dangerous (suppress console output)
               const isDangerous =
                 /^on[a-z]+$/.test(attr.name) ||
-                [
-                  "src",
-                  "href",
-                  "style",
-                  "action",
-                  "formaction",
-                  "data",
-                  "srcdoc",
-                  "innerHTML",
-                  "outerHTML",
-                  "insertAdjacentHTML",
-                  "poster",
-                ].includes(attr.name.toLowerCase());
+                DANGEROUS_ATTRS_SET.has(attr.name.toLowerCase());
 
               if (isDangerous) {
                 foundDangerous = true;
@@ -2507,89 +2101,7 @@
 
               const isDangerous =
                 /^on[a-z]+$/.test(attr.name) ||
-                [
-                  // Event handlers
-                  "onclick",
-                  "onload",
-                  "onerror",
-                  "onmouseover",
-                  "onfocus",
-                  "onblur",
-                  "onchange",
-                  "onsubmit",
-                  "onreset",
-                  "onkeydown",
-                  "onkeyup",
-                  "onkeypress",
-                  "onmouseenter",
-                  "onmouseleave",
-                  "onmousedown",
-                  "onmouseup",
-                  "onwheel",
-                  "oncontextmenu",
-                  "ondrag",
-                  "ondrop",
-                  "oninput",
-                  "onpaste",
-                  "oncut",
-                  "oncopy",
-
-                  // Injection-prone attributes
-                  "src",
-                  "href",
-                  "style",
-                  "action",
-                  "formaction",
-                  "data",
-                  "srcdoc",
-                  "poster",
-                  "background",
-                  "codebase",
-                  "classid",
-                  "profile",
-                  "usemap",
-                  "longdesc",
-                  "cite",
-
-                  // DOM manipulation
-                  "innerHTML",
-                  "outerHTML",
-                  "insertAdjacentHTML",
-                  "documentURI",
-                  "textContent",
-
-                  // Media and embeds
-                  "autoplay",
-                  "controls",
-                  "loop",
-                  "muted",
-                  "preload",
-                  "target",
-                  "sandbox",
-                  "allow",
-                  "allowfullscreen",
-                  "frameborder",
-                  "scrolling",
-
-                  // Form and input
-                  "autocomplete",
-                  "enctype",
-                  "method",
-                  "novalidate",
-                  "target",
-                  "inputmode",
-                  "dirname",
-                  "form",
-                  "formenctype",
-                  "formmethod",
-                  "formtarget",
-
-                  // Meta and redirects
-                  "http-equiv",
-                  "content",
-                  "refresh",
-                  "charset",
-                ].includes((attr.name || "").toLowerCase());
+                DANGEROUS_ATTRS_SET.has((attr.name || "").toLowerCase());
 
               if (isDangerous) {
                 foundDangerous = true;
@@ -2817,15 +2329,15 @@
 
       logChange(element, event, oldValue, newValue) {
         const meta = inputMap.get(element);
+        const selector = element.id
+          ? `#${element.id}`
+          : element.name
+          ? `[name="${element.name}"]`
+          : element.tagName.toLowerCase();
         const change = {
           timestamp: Date.now(),
           time: new Date().toLocaleTimeString(),
-          element: element,
-          selector: element.id
-            ? `#${element.id}`
-            : element.name
-            ? `[name="${element.name}"]`
-            : element.tagName.toLowerCase(),
+          selector: selector,
           type: meta?.type || element.tagName.toLowerCase(),
           event: event.type,
           oldValue: oldValue,
@@ -4034,81 +3546,6 @@
     if (typeof Error !== "undefined" && UPE_CONFIG.stackTraceLimit) {
       Error.stackTraceLimit = UPE_CONFIG.stackTraceLimit;
     }
-  } catch {}
-  try {
-    (function () {
-      const defaults = {
-        observerEnabled: true,
-        throttleMs: 250,
-        maskSensitive: true,
-        maskFieldsPatterns: [
-          /pass(word)?/i,
-          /token/i,
-          /secret/i,
-          /apikey/i,
-          /api-key/i,
-          /ssn/i,
-          /credit|card/i,
-          /email/i,
-        ],
-        selectorProfile: "balanced",
-        extraSelectors: [
-          ".select2",
-          ".select2-selection__rendered",
-          ".ql-editor",
-          ".tox-tinymce",
-          ".tox-edit-area iframe",
-          ".mce-content-body",
-        ],
-        excludeSelectors: [],
-        overlay: { enabled: false },
-        safeMode: false,
-        monkeyPatch: {
-          fetch: true,
-          xhr: true,
-          websocket: true,
-          eventsource: true,
-          timers: true,
-        },
-        stackTraceLimit: 50,
-        captureStacks: false,
-        useRobustReflection: false,
-      };
-      let _cfg = Object.assign({}, defaults, window.UPE_CONFIG || {});
-      if (!Array.isArray(_cfg.extraSelectors)) _cfg.extraSelectors = [];
-      if (!_cfg.monkeyPatch)
-        _cfg.monkeyPatch = {
-          fetch: true,
-          xhr: true,
-          websocket: true,
-          eventsource: true,
-          timers: true,
-        };
-      try {
-        Object.defineProperty(window, "UPE_CONFIG", {
-          configurable: true,
-          enumerable: true,
-          get: function () {
-            return _cfg;
-          },
-          set: function (v) {
-            _cfg = Object.assign({}, defaults, v || {});
-            if (!Array.isArray(_cfg.extraSelectors)) _cfg.extraSelectors = [];
-            if (!_cfg.monkeyPatch)
-              _cfg.monkeyPatch = {
-                fetch: true,
-                xhr: true,
-                websocket: true,
-                eventsource: true,
-                timers: true,
-              };
-          },
-        });
-      } catch (e) {
-        window.UPE_CONFIG = _cfg;
-      }
-      window.UPE_PLUGINS = window.UPE_PLUGINS || [];
-    })();
   } catch {}
   try {
     (function () {

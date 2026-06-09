@@ -23,7 +23,7 @@ A professional, single-snippet tool for discovering high-value secrets, sensitiv
 
 Get up and running in seconds.
 
-#### Method 1: Console Paste (Recommended)
+## Method 1: Console Paste (Recommended)
 
 1.  Open the target website.
 2.  Open your browser's Developer Tools (**F12** or **Cmd+Option+I**).
@@ -31,7 +31,7 @@ Get up and running in seconds.
 4.  Paste the entire contents of `Qwen-Gold.js`.
 5.  Press **Enter**. The tool will automatically run and display a summary of its findings.
 
-#### Method 2: Browser Snippet
+## Method 2: Browser Snippet
 
 For repeated use, save the script as a Snippet for one-click execution.
 

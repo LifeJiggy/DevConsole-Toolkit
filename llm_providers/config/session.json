@@ -1,0 +1,170 @@
+{
+  "version": "3.0.0",
+  "description": "Session tracking and usage configuration",
+  "session": {
+    "idPrefix": "grok-session",
+    "idLength": 16,
+    "timeout": 3600000,
+    "maxInactiveTime": 1800000,
+    "persistent": false,
+    "storagePath": "~/.grok/sessions"
+  },
+  "tracking": {
+    "enabled": true,
+    "trackTokens": true,
+    "trackCost": true,
+    "trackLatency": true,
+    "trackProvider": true,
+    "trackModel": true,
+    "trackErrors": true,
+    "sampleRate": 1.0,
+    "batchSize": 10,
+    "flushInterval": 60000
+  },
+  "usage": {
+    "daily": {
+      "enabled": true,
+      "resetAt": "00:00:00",
+      "timezone": "UTC",
+      "alerts": [
+        {
+          "threshold": 0.5,
+          "type": "warning",
+          "message": "50% of daily limit used"
+        },
+        {
+          "threshold": 0.8,
+          "type": "alert",
+          "message": "80% of daily limit used"
+        },
+        {
+          "threshold": 0.95,
+          "type": "critical",
+          "message": "95% of daily limit used"
+        }
+      ]
+    },
+    "session": {
+      "enabled": true,
+      "resetOnCommand": true,
+      "maxDuration": 28800000,
+      "alerts": [
+        {
+          "threshold": 0.75,
+          "type": "warning",
+          "message": "Session cost at 75% of limit"
+        }
+      ]
+    },
+    "request": {
+      "enabled": true,
+      "maxTokens": 100000,
+      "maxCost": 10.0,
+      "timeout": 120000
+    }
+  },
+  "costCalculation": {
+    "enabled": true,
+    "currency": "USD",
+    "precision": 6,
+    "modelCosts": {
+      "xai": {
+        "grok-4": { "input": 0.03, "output": 0.03 },
+        "grok-3": { "input": 0.01, "output": 0.01 },
+        "grok-2": { "input": 0.0006, "output": 0.0006 }
+      },
+      "openai": {
+        "gpt-4o": { "input": 0.0025, "output": 0.01 },
+        "gpt-4o-mini": { "input": 0.00015, "output": 0.0006 },
+        "o1-preview": { "input": 0.015, "output": 0.06 },
+        "o1-mini": { "input": 0.003, "output": 0.012 }
+      },
+      "anthropic": {
+        "claude-3-opus": { "input": 0.015, "output": 0.075 },
+        "claude-3-5-sonnet": { "input": 0.003, "output": 0.015 },
+        "claude-3-haiku": { "input": 0.00025, "output": 0.00125 }
+      },
+      "google": {
+        "gemini-1.5-pro": { "input": 0.00125, "output": 0.005 },
+        "gemini-1.5-flash": { "input": 0.000075, "output": 0.0003 }
+      },
+      "groq": {
+        "llama-3.3-70b": { "input": 0.00059, "output": 0.00079 },
+        "mixtral-8x7b": { "input": 0.00024, "output": 0.00024 }
+      },
+      "deepseek": {
+        "deepseek-chat": { "input": 0.00014, "output": 0.00028 },
+        "deepseek-coder": { "input": 0.00014, "output": 0.00028 }
+      },
+      "ollama": {
+        "default": { "input": 0, "output": 0 }
+      },
+      "mistral": {
+        "mistral-large": { "input": 0.002, "output": 0.006 },
+        "mistral-small": { "input": 0.0002, "output": 0.0006 }
+      },
+      "cohere": {
+        "command-r-plus": { "input": 0.003, "output": 0.015 },
+        "command-r": { "input": 0.0005, "output": 0.0015 }
+      },
+      "azure": {
+        "gpt-4o": { "input": 0.0025, "output": 0.01 }
+      },
+      "aws": {
+        "claude-3-sonnet": { "input": 0.003, "output": 0.015 }
+      },
+      "default": { "input": 0.01, "output": 0.01 }
+    },
+    "cacheTokens": false,
+    "cacheDuration": 300000
+  },
+  "limits": {
+    "daily": {
+      "requests": 1000,
+      "tokens": 10000000,
+      "cost": 100.0
+    },
+    "session": {
+      "requests": 500,
+      "tokens": 5000000,
+      "cost": 50.0
+    },
+    "request": {
+      "maxTokens": 100000,
+      "maxCost": 10.0,
+      "maxRetries": 3
+    }
+  },
+  "budget": {
+    "enabled": true,
+    "mode": "hard",
+    "autoReset": true,
+    "resetPeriod": "daily",
+    "warningThreshold": 0.8,
+    "criticalThreshold": 0.95,
+    "notificationChannels": ["console", "log"]
+  },
+  "reporting": {
+    "enabled": true,
+    "format": "json",
+    "outputPath": "~/.grok/usage",
+    "includeRawData": false,
+    "aggregateBy": ["provider", "model", "day"],
+    "retention": {
+      "days": 90,
+      "maxSize": 104857600
+    }
+  },
+  "analytics": {
+    "enabled": false,
+    "analyzePatterns": true,
+    "analyzeCosts": true,
+    "analyzePerformance": true,
+    "suggestOptimizations": true,
+    "dashboard": {
+      "enabled": false,
+      "port": 8080,
+      "path": "/dashboard"
+    }
+  }
+}

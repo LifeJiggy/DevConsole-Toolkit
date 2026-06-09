@@ -1,0 +1,338 @@
+{
+  "version": "3.0.0",
+  "description": "Authentication service configuration for provider API keys",
+  "encryption": {
+    "algorithm": "AES-256-GCM",
+    "keyDerivation": {
+      "function": "PBKDF2",
+      "iterations": 100000,
+      "saltLength": 32,
+      "hashFunction": "SHA-256"
+    },
+    "storageFormat": "base64"
+  },
+  "storage": {
+    "type": "encrypted-file",
+    "path": "~/.grok/secure-keys.enc",
+    "backupEnabled": true,
+    "backupPath": "~/.grok/secure-keys.backup.enc"
+  },
+  "providers": {
+    "xai": {
+      "envKey": "XAI_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^xai-[a-zA-Z0-9_-]+$",
+        "minLength": 20,
+        "maxLength": 100
+      },
+      "signupUrl": "https://console.x.ai/",
+      "docsUrl": "https://docs.x.ai/api"
+    },
+    "openai": {
+      "envKey": "OPENAI_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^sk-[a-zA-Z0-9_-]+$",
+        "minLength": 40,
+        "maxLength": 60
+      },
+      "signupUrl": "https://platform.openai.com/api-keys",
+      "docsUrl": "https://platform.openai.com/docs/api-reference"
+    },
+    "anthropic": {
+      "envKey": "ANTHROPIC_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^sk-ant-[a-zA-Z0-9_-]+$",
+        "minLength": 40,
+        "maxLength": 60
+      },
+      "signupUrl": "https://console.anthropic.com/",
+      "docsUrl": "https://docs.anthropic.com/en/api"
+    },
+    "google": {
+      "envKey": "GOOGLE_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://aistudio.google.com/app/apikey",
+      "docsUrl": "https://ai.google.dev/docs"
+    },
+    "groq": {
+      "envKey": "GROQ_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^gsk_[a-zA-Z0-9_-]+$",
+        "minLength": 40,
+        "maxLength": 60
+      },
+      "signupUrl": "https://console.groq.com/",
+      "docsUrl": "https://console.groq.com/docs"
+    },
+    "deepseek": {
+      "envKey": "DEEPSEEK_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://platform.deepseek.com/",
+      "docsUrl": "https://platform.deepseek.com/docs"
+    },
+    "ollama": {
+      "envKey": "OLLAMA_API_KEY",
+      "required": false,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]*$",
+        "minLength": 0,
+        "maxLength": 50
+      },
+      "defaultBaseUrl": "http://localhost:11434",
+      "docsUrl": "https://github.com/ollama/ollama/blob/main/docs/api.md"
+    },
+    "mistral": {
+      "envKey": "MISTRAL_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://console.mistral.ai/",
+      "docsUrl": "https://docs.mistral.ai/"
+    },
+    "cohere": {
+      "envKey": "COHERE_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://dashboard.cohere.com/",
+      "docsUrl": "https://docs.cohere.com/"
+    },
+    "azure": {
+      "envKey": "AZURE_OPENAI_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 60
+      },
+      "additionalConfig": ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT"],
+      "signupUrl": "https://azure.microsoft.com/services/cognitive-services/",
+      "docsUrl": "https://learn.microsoft.com/azure/cognitive-services/openai/"
+    },
+    "aws": {
+      "envKey": "AWS_ACCESS_KEY_ID",
+      "required": true,
+      "validation": {
+        "pattern": "^[A-Z0-9]{20}$",
+        "minLength": 20,
+        "maxLength": 20
+      },
+      "additionalConfig": ["AWS_SECRET_ACCESS_KEY", "AWS_REGION"],
+      "signupUrl": "https://aws.amazon.com/bedrock/",
+      "docsUrl": "https://docs.aws.amazon.com/bedrock/"
+    },
+    "bedrock": {
+      "envKey": "AWS_ACCESS_KEY_ID",
+      "required": true,
+      "validation": {
+        "pattern": "^[A-Z0-9]{20}$",
+        "minLength": 20,
+        "maxLength": 20
+      },
+      "additionalConfig": ["AWS_SECRET_ACCESS_KEY", "AWS_REGION"],
+      "signupUrl": "https://aws.amazon.com/bedrock/",
+      "docsUrl": "https://docs.aws.amazon.com/bedrock/"
+    },
+    "openrouter": {
+      "envKey": "OPENROUTER_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://openrouter.ai/settings",
+      "docsUrl": "https://openrouter.ai/docs"
+    },
+    "huggingface": {
+      "envKey": "HF_TOKEN",
+      "required": false,
+      "validation": {
+        "pattern": "^hf_[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 60
+      },
+      "signupUrl": "https://huggingface.co/settings/tokens",
+      "docsUrl": "https://huggingface.co/docs/api-inference"
+    },
+    "togetherai": {
+      "envKey": "TOGETHER_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://api.together.ai/",
+      "docsUrl": "https://docs.together.ai/"
+    },
+    "fireworks": {
+      "envKey": "FIREWORKS_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://fireworks.ai/",
+      "docsUrl": "https://docs.fireworks.ai/"
+    },
+    "perplexity": {
+      "envKey": "PERPLEXITY_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://www.perplexity.ai/pro",
+      "docsUrl": "https://docs.perplexity.ai/"
+    },
+    "zhipu": {
+      "envKey": "ZHIPU_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://open.bigmodel.cn/",
+      "docsUrl": "https://open.bigmodel.cn/dev/api"
+    },
+    "kimi": {
+      "envKey": "KIMI_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://kimi.moonshot.cn/",
+      "docsUrl": "https://kimi.moonshot.cn/docs"
+    },
+    "moonshot": {
+      "envKey": "MOONSHOT_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://platform.moonshot.cn/",
+      "docsUrl": "https://platform.moonshot.cn/docs"
+    },
+    "qwen": {
+      "envKey": "DASHSCOPE_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://dashscope.console.aliyun.com/",
+      "docsUrl": "https://help.aliyun.com/document_detail/271013.html"
+    },
+    "minimax": {
+      "envKey": "MINIMAX_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://platform.minimax.io/",
+      "docsUrl": "https://platform.minimax.io/docs"
+    },
+    "nvidia": {
+      "envKey": "nvidia_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://build.nvidia.com/",
+      "docsUrl": "https://docs.nvidia.com/"
+    },
+    "vercel": {
+      "envKey": "VERCEL_AI_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://vercel.com/",
+      "docsUrl": "https://vercel.com/docs"
+    },
+    "vscode": {
+      "envKey": "VSCODE_LM_API_KEY",
+      "required": false,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]*$",
+        "minLength": 0,
+        "maxLength": 50
+      },
+      "docsUrl": "https://code.visualstudio.com/docs"
+    },
+    "kilo": {
+      "envKey": "KILO_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://kilo.ai/",
+      "docsUrl": "https://docs.kilo.ai/"
+    },
+    "opencode": {
+      "envKey": "OPENCODE_API_KEY",
+      "required": true,
+      "validation": {
+        "pattern": "^[a-zA-Z0-9_-]+$",
+        "minLength": 30,
+        "maxLength": 50
+      },
+      "signupUrl": "https://opencode.ai/",
+      "docsUrl": "https://docs.opencode.ai/"
+    }
+  },
+  "security": {
+    "maxKeyAge": 7776000000,
+    "rotationReminderDays": 30,
+    "auditLogging": true,
+    "maxFailedAttempts": 5,
+    "lockoutDuration": 300000,
+    "requireKeyForProviders": ["xai", "openai", "anthropic", "google", "groq", "deepseek"]
+  },
+  "validation": {
+    "checkOnStartup": true,
+    "autoRefresh": false,
+    "timeout": 10000
+  },
+  "fallback": {
+    "envVarPrefixes": ["GROK_PROVIDER_", "PROVIDER_", ""],
+    "configFilePath": "~/.grok/providers.json"
+  }
+}

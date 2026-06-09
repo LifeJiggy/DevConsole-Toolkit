@@ -1,0 +1,174 @@
+{
+  "version": "3.0.0",
+  "description": "User quotas and limits configuration",
+  "global": {
+    "defaultPlan": "free",
+    "maxApiKeys": 10,
+    "maxProviders": 20,
+    "maxConcurrentRequests": 10,
+    "maxRequestSize": 10485760,
+    "maxResponseSize": 52428800
+  },
+  "plans": {
+    "free": {
+      "name": "Free",
+      "price": 0,
+      "limits": {
+        "requestsPerMinute": 60,
+        "requestsPerDay": 1000,
+        "tokensPerDay": 100000,
+        "concurrentRequests": 2,
+        "storageMB": 100,
+        "customModels": 0,
+        "webhooks": 0,
+        "teamMembers": 1
+      },
+      "features": {
+        "allModels": false,
+        "streaming": true,
+        "apiAccess": true,
+        "customPrompt": false,
+        "history": 7,
+        "support": "community"
+      },
+      "allowedProviders": ["openai", "anthropic", "google", "groq", "deepseek"]
+    },
+    "pro": {
+      "name": "Pro",
+      "price": 19,
+      "limits": {
+        "requestsPerMinute": 500,
+        "requestsPerDay": 50000,
+        "tokensPerDay": 5000000,
+        "concurrentRequests": 10,
+        "storageMB": 1000,
+        "customModels": 5,
+        "webhooks": 5,
+        "teamMembers": 5
+      },
+      "features": {
+        "allModels": true,
+        "streaming": true,
+        "apiAccess": true,
+        "customPrompt": true,
+        "history": 30,
+        "support": "email"
+      },
+      "allowedProviders": [
+        "openai",
+        "anthropic",
+        "google",
+        "xai",
+        "groq",
+        "deepseek",
+        "mistral",
+        "cohere",
+        "togetherai",
+        "fireworks",
+        "perplexity",
+        "ollama",
+        "openrouter"
+      ]
+    },
+    "team": {
+      "name": "Team",
+      "price": 49,
+      "limits": {
+        "requestsPerMinute": 2000,
+        "requestsPerDay": 200000,
+        "tokensPerDay": 20000000,
+        "concurrentRequests": 50,
+        "storageMB": 10000,
+        "customModels": 20,
+        "webhooks": 20,
+        "teamMembers": 25
+      },
+      "features": {
+        "allModels": true,
+        "streaming": true,
+        "apiAccess": true,
+        "customPrompt": true,
+        "history": 90,
+        "support": "priority"
+      },
+      "allowedProviders": "all"
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "price": "custom",
+      "limits": {
+        "requestsPerMinute": -1,
+        "requestsPerDay": -1,
+        "tokensPerDay": -1,
+        "concurrentRequests": -1,
+        "storageMB": -1,
+        "customModels": -1,
+        "webhooks": -1,
+        "teamMembers": -1
+      },
+      "features": {
+        "allModels": true,
+        "streaming": true,
+        "apiAccess": true,
+        "customPrompt": true,
+        "history": -1,
+        "support": "dedicated",
+        "sla": true,
+        "customIntegrations": true
+      },
+      "allowedProviders": "all"
+    }
+  },
+  "providerQuotas": {
+    "openai": {
+      "free": { "requestsPerMinute": 3, "tokensPerMinute": 200 },
+      "pro": { "requestsPerMinute": 500, "tokensPerMinute": 150000 },
+      "team": { "requestsPerMinute": 5000, "tokensPerMinute": -1 }
+    },
+    "anthropic": {
+      "free": { "requestsPerMinute": 5, "tokensPerMinute": 1000 },
+      "pro": { "requestsPerMinute": 100, "tokensPerMinute": 100000 },
+      "team": { "requestsPerMinute": 1000, "tokensPerMinute": -1 }
+    },
+    "google": {
+      "free": { "requestsPerMinute": 60, "tokensPerMinute": 60000 },
+      "pro": { "requestsPerMinute": 500, "tokensPerMinute": 500000 },
+      "team": { "requestsPerMinute": 5000, "tokensPerMinute": -1 }
+    },
+    "xai": {
+      "free": { "requestsPerMinute": 15, "tokensPerMinute": 10000 },
+      "pro": { "requestsPerMinute": 200, "tokensPerMinute": 200000 },
+      "team": { "requestsPerMinute": 2000, "tokensPerMinute": -1 }
+    }
+  },
+  "overages": {
+    "enabled": true,
+    "billing": "per-request",
+    "costs": {
+      "per1000Tokens": 0.001,
+      "perRequest": 0.001,
+      "perGBStorage": 0.1
+    },
+    "gracePeriod": 5,
+    "hardLimitBuffer": 0.1
+  },
+  "rateLimiting": {
+    "enabled": true,
+    "strategy": "sliding-window",
+    "byPlan": {
+      "free": { "windowMs": 60000, "maxRequests": 60 },
+      "pro": { "windowMs": 60000, "maxRequests": 500 },
+      "team": { "windowMs": 60000, "maxRequests": 2000 },
+      "enterprise": { "windowMs": 60000, "maxRequests": -1 }
+    }
+  },
+  "fairUse": {
+    "enabled": true,
+    "maxTokensPerSecond": 10000,
+    "burstAllowance": 1.5,
+    "educational": {
+      "maxDailyRequests": 100,
+      "requiresVerification": true
+    }
+  }
+}

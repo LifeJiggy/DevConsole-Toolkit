@@ -1,0 +1,418 @@
+{
+  "version": "3.0.0",
+  "lastUpdated": "2024-01-15T00:00:00.000Z",
+  "description": "Provider metadata and capabilities configuration",
+  "providers": {
+    "xai": {
+      "name": "xAI (Grok)",
+      "displayName": "xAI (Grok)",
+      "description": "Elon Musk's xAI - Advanced reasoning and coding models",
+      "website": "https://x.ai",
+      "documentation": "https://docs.x.ai",
+      "baseUrl": "https://api.x.ai/v1",
+      "supportsStreaming": true,
+      "supportsFunctions": true,
+      "supportsVision": true,
+      "supportsJson": true,
+      "defaultModels": {
+        "free": "grok-2",
+        "premium": "grok-3",
+        "enterprise": "grok-4"
+      },
+      "capabilities": [
+        "chat",
+        "code-generation",
+        "reasoning",
+        "vision",
+        "function-calling",
+        "json-mode"
+      ],
+      "rateLimits": {
+        "requestsPerMinute": 60,
+        "tokensPerMinute": 150000,
+        "tokensPerDay": 10000000
+      },
+      "pricing": {
+        "currency": "USD",
+        "models": {
+          "grok-4": {
+            "inputPer1k": 0.03,
+            "outputPer1k": 0.03,
+            "contextWindow": 256000
+          },
+          "grok-3": {
+            "inputPer1k": 0.01,
+            "outputPer1k": 0.01,
+            "contextWindow": 131072
+          },
+          "grok-2": {
+            "inputPer1k": 0.0006,
+            "outputPer1k": 0.0006,
+            "contextWindow": 131072
+          }
+        }
+      },
+      "regions": ["us-east-1", "us-west-1"],
+      "statusPage": "https://status.x.ai",
+      "supportUrl": "https://x.ai/contact"
+    },
+    "openai": {
+      "name": "OpenAI",
+      "displayName": "OpenAI",
+      "description": "Industry-leading AI models including GPT-4",
+      "website": "https://openai.com",
+      "documentation": "https://platform.openai.com/docs",
+      "baseUrl": "https://api.openai.com/v1",
+      "supportsStreaming": true,
+      "supportsFunctions": true,
+      "supportsVision": true,
+      "supportsJson": true,
+      "defaultModels": {
+        "free": "gpt-4o-mini",
+        "premium": "gpt-4o",
+        "enterprise": "o1-preview"
+      },
+      "capabilities": [
+        "chat",
+        "code-generation",
+        "reasoning",
+        "vision",
+        "function-calling",
+        "json-mode",
+        "embeddings"
+      ],
+      "rateLimits": {
+        "requestsPerMinute": 500,
+        "tokensPerMinute": 150000,
+        "tokensPerDay": 10000000
+      },
+      "pricing": {
+        "currency": "USD",
+        "models": {
+          "gpt-4o": {
+            "inputPer1k": 0.0025,
+            "outputPer1k": 0.01,
+            "contextWindow": 128000
+          },
+          "gpt-4o-mini": {
+            "inputPer1k": 0.00015,
+            "outputPer1k": 0.0006,
+            "contextWindow": 128000
+          },
+          "o1-preview": {
+            "inputPer1k": 0.015,
+            "outputPer1k": 0.06,
+            "contextWindow": 128000
+          }
+        }
+      },
+      "regions": ["us-east-1", "us-west-2", "eu-west-1"],
+      "statusPage": "https://status.openai.com",
+      "supportUrl": "https://help.openai.com"
+    },
+    "anthropic": {
+      "name": "Anthropic",
+      "displayName": "Anthropic (Claude)",
+      "description": "Safe and helpful AI assistants",
+      "website": "https://www.anthropic.com",
+      "documentation": "https://docs.anthropic.com",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "supportsStreaming": true,
+      "supportsFunctions": true,
+      "supportsVision": true,
+      "supportsJson": true,
+      "defaultModels": {
+        "free": "claude-3-haiku",
+        "premium": "claude-3-5-sonnet",
+        "enterprise": "claude-3-opus"
+      },
+      "capabilities": [
+        "chat",
+        "code-generation",
+        "reasoning",
+        "vision",
+        "function-calling",
+        "json-mode"
+      ],
+      "rateLimits": {
+        "requestsPerMinute": 50,
+        "tokensPerMinute": 100000,
+        "tokensPerDay": 5000000
+      },
+      "pricing": {
+        "currency": "USD",
+        "models": {
+          "claude-3-opus": {
+            "inputPer1k": 0.015,
+            "outputPer1k": 0.075,
+            "contextWindow": 200000
+          },
+          "claude-3-5-sonnet": {
+            "inputPer1k": 0.003,
+            "outputPer1k": 0.015,
+            "contextWindow": 200000
+          },
+          "claude-3-haiku": {
+            "inputPer1k": 0.00025,
+            "outputPer1k": 0.00125,
+            "contextWindow": 200000
+          }
+        }
+      },
+      "regions": ["us-east-1", "eu-west-1"],
+      "statusPage": "https://status.anthropic.com",
+      "supportUrl": "https://support.anthropic.com"
+    },
+    "google": {
+      "name": "Google",
+      "displayName": "Google Gemini",
+      "description": "Google's advanced multimodal models",
+      "website": "https://gemini.google.com",
+      "documentation": "https://ai.google.dev/docs",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+      "supportsStreaming": true,
+      "supportsFunctions": true,
+      "supportsVision": true,
+      "supportsJson": true,
+      "defaultModels": {
+        "free": "gemini-1.5-flash",
+        "premium": "gemini-1.5-pro",
+        "enterprise": "gemini-2.0-flash-exp"
+      },
+      "capabilities": [
+        "chat",
+        "code-generation",
+        "reasoning",
+        "vision",
+        "function-calling",
+        "json-mode"
+      ],
+      "rateLimits": {
+        "requestsPerMinute": 60,
+        "tokensPerMinute": 120000,
+        "tokensPerDay": 5000000
+      },
+      "pricing": {
+        "currency": "USD",
+        "models": {
+          "gemini-1.5-pro": {
+            "inputPer1k": 0.00125,
+            "outputPer1k": 0.005,
+            "contextWindow": 2000000
+          },
+          "gemini-1.5-flash": {
+            "inputPer1k": 0.000075,
+            "outputPer1k": 0.0003,
+            "contextWindow": 1000000
+          }
+        }
+      },
+      "regions": ["us-central1", "europe-west1"],
+      "statusPage": "https://status.googlecloud.com",
+      "supportUrl": "https://cloud.google.com/support"
+    },
+    "groq": {
+      "name": "Groq",
+      "displayName": "Groq",
+      "description": "Fast inference with custom hardware",
+      "website": "https://groq.com",
+      "documentation": "https://console.groq.com/docs",
+      "baseUrl": "https://api.groq.com/openai/v1",
+      "supportsStreaming": true,
+      "supportsFunctions": true,
+      "supportsVision": false,
+      "supportsJson": true,
+      "defaultModels": {
+        "free": "llama-3.2-90b-preview",
+        "premium": "llama-3.3-70b-versatile",
+        "enterprise": "mixtral-8x7b-32768"
+      },
+      "capabilities": ["chat", "code-generation", "function-calling", "json-mode"],
+      "rateLimits": {
+        "requestsPerMinute": 30,
+        "tokensPerMinute": 60000,
+        "tokensPerDay": 1000000
+      },
+      "pricing": {
+        "currency": "USD",
+        "models": {
+          "llama-3.3-70b-versatile": {
+            "inputPer1k": 0.00059,
+            "outputPer1k": 0.00079,
+            "contextWindow": 128000
+          },
+          "mixtral-8x7b-32768": {
+            "inputPer1k": 0.00024,
+            "outputPer1k": 0.00024,
+            "contextWindow": 32768
+          }
+        }
+      },
+      "regions": ["us-east-1"],
+      "statusPage": "https://status.groq.com",
+      "supportUrl": "https://groq.com/contact"
+    },
+    "deepseek": {
+      "name": "DeepSeek",
+      "displayName": "DeepSeek",
+      "description": "Open-source large language models",
+      "website": "https://www.deepseek.com",
+      "documentation": "https://platform.deepseek.com/docs",
+      "baseUrl": "https://api.deepseek.com/v1",
+      "supportsStreaming": true,
+      "supportsFunctions": true,
+      "supportsVision": false,
+      "supportsJson": true,
+      "defaultModels": {
+        "free": "deepseek-chat",
+        "premium": "deepseek-coder",
+        "enterprise": "deepseek-reasoner"
+      },
+      "capabilities": ["chat", "code-generation", "reasoning", "function-calling", "json-mode"],
+      "rateLimits": {
+        "requestsPerMinute": 60,
+        "tokensPerMinute": 120000,
+        "tokensPerDay": 5000000
+      },
+      "pricing": {
+        "currency": "USD",
+        "models": {
+          "deepseek-chat": {
+            "inputPer1k": 0.00014,
+            "outputPer1k": 0.00028,
+            "contextWindow": 64000
+          },
+          "deepseek-coder": {
+            "inputPer1k": 0.00014,
+            "outputPer1k": 0.00028,
+            "contextWindow": 16000
+          }
+        }
+      },
+      "regions": ["cn", "us"],
+      "statusPage": "https://status.deepseek.com",
+      "supportUrl": "https://www.deepseek.com/contact"
+    },
+    "ollama": {
+      "name": "Ollama",
+      "displayName": "Ollama (Local)",
+      "description": "Run large language models locally",
+      "website": "https://ollama.com",
+      "documentation": "https://github.com/ollama/ollama",
+      "baseUrl": "http://localhost:11434",
+      "supportsStreaming": true,
+      "supportsFunctions": true,
+      "supportsVision": false,
+      "supportsJson": true,
+      "defaultModels": {
+        "free": "llama3.2",
+        "premium": "mistral",
+        "enterprise": "codellama"
+      },
+      "capabilities": ["chat", "code-generation", "function-calling"],
+      "rateLimits": {
+        "requestsPerMinute": 9999,
+        "tokensPerMinute": 999999,
+        "tokensPerDay": 99999999
+      },
+      "pricing": {
+        "currency": "USD",
+        "models": {}
+      },
+      "regions": ["local"],
+      "statusPage": null,
+      "supportUrl": "https://github.com/ollama/ollama/issues"
+    },
+    "mistral": {
+      "name": "Mistral AI",
+      "displayName": "Mistral AI",
+      "description": "European AI leader with open weights",
+      "website": "https://mistral.ai",
+      "documentation": "https://docs.mistral.ai",
+      "baseUrl": "https://api.mistral.ai/v1",
+      "supportsStreaming": true,
+      "supportsFunctions": true,
+      "supportsVision": false,
+      "supportsJson": true,
+      "defaultModels": {
+        "free": "mistral-small-latest",
+        "premium": "mistral-large-latest",
+        "enterprise": "codestral-latest"
+      },
+      "capabilities": ["chat", "code-generation", "function-calling", "json-mode"],
+      "rateLimits": {
+        "requestsPerMinute": 30,
+        "tokensPerMinute": 60000,
+        "tokensPerDay": 2000000
+      },
+      "pricing": {
+        "currency": "USD",
+        "models": {
+          "mistral-large-latest": {
+            "inputPer1k": 0.002,
+            "outputPer1k": 0.006,
+            "contextWindow": 128000
+          },
+          "mistral-small-latest": {
+            "inputPer1k": 0.0002,
+            "outputPer1k": 0.0006,
+            "contextWindow": 128000
+          }
+        }
+      },
+      "regions": ["fr", "us-east-1"],
+      "statusPage": "https://status.mistral.ai",
+      "supportUrl": "https://mistral.ai/contact"
+    },
+    "cohere": {
+      "name": "Cohere",
+      "displayName": "Cohere",
+      "description": "Enterprise AI platform",
+      "website": "https://cohere.com",
+      "documentation": "https://docs.cohere.com",
+      "baseUrl": "https://api.cohere.ai/v1",
+      "supportsStreaming": true,
+      "supportsFunctions": true,
+      "supportsVision": false,
+      "supportsJson": true,
+      "defaultModels": {
+        "free": "command-r",
+        "premium": "command-r-plus",
+        "enterprise": "command-xlarge-nightly"
+      },
+      "capabilities": ["chat", "code-generation", "embeddings"],
+      "rateLimits": {
+        "requestsPerMinute": 50,
+        "tokensPerMinute": 100000,
+        "tokensPerDay": 3000000
+      },
+      "pricing": {
+        "currency": "USD",
+        "models": {
+          "command-r-plus": {
+            "inputPer1k": 0.003,
+            "outputPer1k": 0.015,
+            "contextWindow": 128000
+          }
+        }
+      },
+      "regions": ["us-east-1", "eu-west-1"],
+      "statusPage": "https://status.cohere.ai",
+      "supportUrl": "https://cohere.com/contact"
+    }
+  },
+  "tierDescriptions": {
+    "free": "Limited usage for personal projects",
+    "premium": "Enhanced limits for professional use",
+    "enterprise": "Unlimited access with SLA"
+  },
+  "capabilityDescriptions": {
+    "chat": "Conversational AI interactions",
+    "code-generation": "Generate and complete code",
+    "reasoning": "Advanced logical reasoning",
+    "vision": "Image understanding and analysis",
+    "function-calling": "Execute custom functions",
+    "json-mode": "Structured JSON output",
+    "embeddings": "Text vectorization"
+  }
+}

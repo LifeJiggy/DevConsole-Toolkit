@@ -1,0 +1,136 @@
+{
+  "version": "3.0.0",
+  "description": "Security configuration for API providers",
+  "encryption": {
+    "enabled": true,
+    "algorithm": "AES-256-GCM",
+    "keyDerivation": {
+      "function": "PBKDF2",
+      "iterations": 100000,
+      "saltLength": 32
+    },
+    "storage": {
+      "useSystemKeychain": true,
+      "encryptAtRest": true
+    }
+  },
+  "apiKeys": {
+    "storage": "encrypted",
+    "autoRotate": false,
+    "rotateAfterDays": 90,
+    "requireConfirmation": true,
+    "maskInLogs": true,
+    "maskPattern": "sk-****"
+  },
+  "network": {
+    "tls": {
+      "enabled": true,
+      "minVersion": "TLSv1.2",
+      "cipherSuites": [
+        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+      ],
+      "rejectUnauthorized": true
+    },
+    "proxy": {
+      "enabled": false,
+      "http": null,
+      "https": null,
+      "bypass": ["localhost", "127.0.0.1"]
+    },
+    "allowedHosts": [
+      "api.openai.com",
+      "api.anthropic.com",
+      "generativelanguage.googleapis.com",
+      "api.x.ai",
+      "api.deepseek.com",
+      "api.groq.com",
+      "api.mistral.ai",
+      "api.cohere.ai",
+      "api.together.ai",
+      "api.fireworks.ai",
+      "api.perplexity.ai"
+    ],
+    "blockedHosts": [],
+    "rateLimit": {
+      "enabled": true,
+      "windowMs": 60000,
+      "maxRequests": 100
+    }
+  },
+  "authentication": {
+    "methods": ["api-key", "bearer", "oauth", "aws-sigv4"],
+    "defaultMethod": "api-key",
+    "oauth": {
+      "providers": ["google", "github"],
+      "callbackUrl": "http://localhost:3000/auth/callback",
+      "scopes": ["read", "write"]
+    },
+    "session": {
+      "timeout": 3600000,
+      "refreshEnabled": true,
+      "secureCookie": true,
+      "sameSite": "strict"
+    }
+  },
+  "audit": {
+    "enabled": true,
+    "logLevel": "info",
+    "logSensitiveData": false,
+    "events": ["authentication", "api-request", "model-selection", "error", "security-violation"],
+    "storage": "file",
+    "rotation": {
+      "enabled": true,
+      "maxSize": "10MB",
+      "maxFiles": 10
+    }
+  },
+  "compliance": {
+    "gdpr": {
+      "enabled": true,
+      "dataRetentionDays": 30,
+      "rightToDeletion": true,
+      "rightToPortability": true
+    },
+    "dataHandling": {
+      "storeApiKeys": false,
+      "storeModelMetrics": true,
+      "storeUserMetrics": true,
+      "anonymizeLogs": true
+    }
+  },
+  "firewall": {
+    "enabled": true,
+    "rules": [
+      {
+        "name": "block-known-bad-ips",
+        "action": "block",
+        "condition": "ip-in-list",
+        "list": "bad-ips"
+      },
+      {
+        "name": "rate-limit-excessive",
+        "action": "throttle",
+        "condition": "requests-per-minute-gt-100",
+        "threshold": 100
+      }
+    ]
+  },
+  "secrets": {
+    "providers": {
+      "env": {
+        "enabled": true,
+        "prefix": ""
+      },
+      "keychain": {
+        "enabled": true,
+        "service": "grok-code"
+      },
+      "vault": {
+        "enabled": false,
+        "url": null,
+        "path": "secret/grok-code"
+      }
+    }
+  }
+}

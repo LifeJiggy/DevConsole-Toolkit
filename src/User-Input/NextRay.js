@@ -1,4 +1,6 @@
 /*
+Validation&Exploit Helper-all‑in‑one Snippet
+
  NextRay – Console Validation & Exploit Helper (All‑in‑One Snippet)
  Version: 1.0.0 (2025‑08‑19)
  Author: ArkhAngelLifeJiggy
@@ -290,71 +292,25 @@
     ],
   };
 
-  const HEAVY_EXTRA_ENCODINGS = [
-    "url",
-    "url2",
-    "html",
-    "html_hex",
-    "base64",
-    "js_unicode",
-    "unicode_nfkd",
-    "unicode_confusables",
-    // Additional encodings
-    "css_escape",
-    "json_escape",
-    "xml_escape",
-    "sql_escape",
-    "ldap_escape",
-    "shell_escape",
-    "percent_encoding",
-    "double_encoding",
-    "utf7_encoding",
-    "utf8_overlong",
-    "utf16_surrogate",
-    "ucs2_encoding",
-    "iso8859_encoding",
-    "windows1252_encoding",
-    "ebcdic_encoding",
-    "base32_encoding",
-    "base85_encoding",
-    "uu_encoding",
-    "quoted_printable",
-    "mime_encoding",
-    "punycode_encoding",
-    "idna_encoding",
-    "ascii85_encoding",
-    "yenc_encoding",
-    "binhex_encoding",
-    "uuencode_encoding",
-    "xxencode_encoding",
-    "radix64_encoding",
-    "crypt_encoding",
-    "rot13_encoding",
-    "caesar_cipher",
-    "atbash_cipher",
-    "vigenere_cipher",
-    "xor_encoding",
-    "hex_encoding",
-    "octal_encoding",
-    "binary_encoding",
-    "morse_code",
-    "braille_encoding",
-    "barcode_encoding",
-    "qrcode_encoding",
-    "data_uri_encoding",
-    "jwt_encoding",
-    "protobuf_encoding",
-    "msgpack_encoding",
-    "bson_encoding",
-    "cbor_encoding",
-    "ubjson_encoding",
-    "bjdata_encoding",
-    "ion_encoding",
-    "thrift_encoding",
-    "avro_encoding",
-    "parquet_encoding",
-    "orc_encoding",
-  ];
+  const HEAVY_ENCODING_MAP = {
+    url: (e, p) => ({ label: "url", value: e.url(p) }),
+    url2: (e, p) => ({ label: "url2", value: e.url2(p) }),
+    html_hex: (e, p) => ({ label: "html_hex", value: e.htmlHex(p) }),
+    html_entities: (e, p) => ({ label: "html_entities", value: e.htmlEntities(p) }),
+    html_dec: (e, p) => ({ label: "html_dec", value: e.htmlDec(p) }),
+    base64: (e, p) => ({ label: "base64", value: e.b64(p) }),
+    base64url: (e, p) => ({ label: "base64url", value: e.b64url(p) }),
+    js_unicode: (e, p) => ({ label: "js_unicode", value: e.jsUnicode(p) }),
+    js_hex: (e, p) => ({ label: "js_hex", value: e.jsHex(p) }),
+    css_escape: (e, p) => ({ label: "css_escape", value: e.cssEscape(p) }),
+    unicode_confusables: (e, p) => ({ label: "unicode_confusables", value: e.confusables(p) }),
+    slashes_escaped: (e, p) => ({ label: "slashes_escaped", value: e.slashEscapes(p) }),
+    url_lower: (e, p) => ({ label: "url_lower", value: e.urlLower(p) }),
+    url_double: (e, p) => ({ label: "url_double", value: e.urlDouble(p) }),
+    nfd: (e, p) => ({ label: "nfd", value: e.nfd(p) }),
+    nfc: (e, p) => ({ label: "nfc", value: e.nfc(p) }),
+    nfkd: (e, p) => ({ label: "nfkd", value: e.nfkd(p) }),
+  };
 
   // ---------------------------
   // Helpers: DOM + Net + Encoding
@@ -366,40 +322,34 @@
     const tag = (el.tagName || "").toLowerCase();
     if (tag === "input") {
       const t = (el.type || "").toLowerCase();
-      // Avoid dangerous input types
-      if (
-        [
-          "button",
-          "submit",
-          "text",
-          "search",
-          "email",
-          "url",
-          "number",
-          "password",
-          "tel",
-          "hidden",
-          "date",
-          "datetime",
-          "datetime-local",
-          "month",
-          "time",
-          "week",
-          "color",
-          "range",
-          "file",
-          "image",
-          "checkbox",
-          "radio",
-          "reset",
-        ].includes(t)
-      )
-        return true;
+      const submittableTypes = [
+        "text",
+        "search",
+        "email",
+        "url",
+        "number",
+        "password",
+        "tel",
+        "hidden",
+        "date",
+        "datetime",
+        "datetime-local",
+        "month",
+        "time",
+        "week",
+        "color",
+        "range",
+        "file",
+        "image",
+        "checkbox",
+        "radio",
+      ];
+      if (submittableTypes.includes(t)) return true;
       if (t === "") return true; // default text
       return false;
     }
     if (tag === "textarea" || tag === "select") return true;
-    if (tag === "button" && (el.type || "").toLowerCase() === "submit")
+    if (tag === "button" && ["submit", "button"].includes((el.type || "").toLowerCase()))
       return true;
     if (tag === "button" && !el.type) return true; // default submit
     if (el.contentEditable === "true") return true;
@@ -538,8 +488,8 @@
             ...$$(root, "[role=search]"),
             ...$$(root, "dialog, [role=dialog]"),
             ...$$(root, "[role=alertdialog]"),
-            ...$$(root, "[role=tooltip"),
-            ...$$(root, "[data-tooltip"),
+            ...$$(root, "[role=tooltip]"),
+            ...$$(root, "[data-tooltip]"),
             // Additional Client Side
             ...$$(root, "audio[controls]"),
             ...$$(root, "video[controls]"),
@@ -1011,16 +961,11 @@
     const e = encoders();
     const variants = [{ label: "raw", value: payload }];
     if (heavy) {
-      // Curated list for 'heavy' to reduce request volume significantly.
-      // The HEAVY_EXTRA_ENCODINGS list is currently unused.
-      variants.push(
-        { label: "url", value: e.url(payload) },
-        { label: "html_hex", value: e.htmlHex(payload) },
-        { label: "base64", value: e.b64(payload) },
-        { label: "js_unicode", value: e.jsUnicode(payload) },
-        { label: "unicode_confusables", value: e.confusables(payload) },
-        { label: "slashes_escaped", value: e.slashEscapes(payload) }
-      );
+      for (const [key, fn] of Object.entries(HEAVY_ENCODING_MAP)) {
+        try {
+          variants.push(fn(e, payload));
+        } catch (_) {}
+      }
     }
     return variants;
   }
