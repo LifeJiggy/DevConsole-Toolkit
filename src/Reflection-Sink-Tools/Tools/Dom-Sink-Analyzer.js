@@ -81,11 +81,13 @@
       uiDiv.style.maxHeight = "80vh";
       uiDiv.style.overflow = "auto";
       uiDiv.style.zIndex = "10000";
-      uiDiv.innerHTML = `<h3>Feature ${featureNum} Output</h3><pre style="white-space: pre-wrap;">${JSON.stringify(
-        output,
-        null,
-        2
-      )}</pre>`;
+      const pre = document.createElement("pre");
+      pre.style.whiteSpace = "pre-wrap";
+      pre.textContent = JSON.stringify(output, null, 2);
+      const heading = document.createElement("h3");
+      heading.textContent = `Feature ${featureNum} Output`;
+      uiDiv.appendChild(heading);
+      uiDiv.appendChild(pre);
       const closeBtn = document.createElement("button");
       closeBtn.textContent = "Close";
       closeBtn.style.marginTop = "10px";
@@ -127,7 +129,8 @@
       "Function",
     ];
 
-    elements.forEach((el) => {
+    Array.from(elements).forEach((el) => {
+      if (!el || !el.tagName) return;
       const elInfo = `${el.tagName}#${el.id || ""}.${el.className || ""}`;
       // Check reflections (DOM/body)
       const inputs =

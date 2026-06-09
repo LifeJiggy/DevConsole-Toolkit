@@ -10,6 +10,29 @@
 // Usage: Run to map context, then call checkReflectionsAndSinks([element1, element2]) for specific elements.
 
 (function () {
+  "use strict";
+
+  // HTML entity escape helper - prevents XSS in innerHTML injection
+  function escapeHTML(str) {
+    if (str == null) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  // Safe CSV field escape - prevents CSV injection and formatting issues
+  function escapeCSV(val) {
+    const s = String(val == null ? "" : val);
+    if (s.includes('"') || s.includes(",") || s.includes("\n") || s.includes("\r")) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    if (/^[=+\-@\t\r]/.test(s)) return "'" + s;
+    return s;
+  }
+
   // Banner
   console.log(
     "%cDOM Reflection & Sink Mapper",
@@ -67,8 +90,11 @@
       a.download = `mapper_feature_${featureNum}.json`;
       document.body.appendChild(a);
       a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      // Delay cleanup to avoid cancelling the download on some browsers
+      setTimeout(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      }, 100);
     }
 
     if (choice.includes("ui")) {
@@ -83,13 +109,13 @@
       uiDiv.style.maxHeight = "80vh";
       uiDiv.style.overflow = "auto";
       uiDiv.style.zIndex = "10000";
-      uiDiv.innerHTML = `<h3>Feature ${featureNum}: ${
-        output.description
-      }</h3><pre style="white-space: pre-wrap;">${JSON.stringify(
-        output.data,
-        null,
-        2
-      )}</pre>`;
+      const heading = document.createElement("h3");
+      heading.textContent = `Feature ${featureNum}: ${output.description}`;
+      const pre = document.createElement("pre");
+      pre.style.whiteSpace = "pre-wrap";
+      pre.textContent = JSON.stringify(output.data, null, 2);
+      uiDiv.appendChild(heading);
+      uiDiv.appendChild(pre);
       const closeBtn = document.createElement("button");
       closeBtn.textContent = "Close";
       closeBtn.style.marginTop = "10px";
@@ -113,12 +139,18 @@
     a.download = "mapper_all_outputs.json";
     document.body.appendChild(a);
     a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      a.remove();
+      URL.revokeObjectURL(url);
+    }, 100);
   }
 
   // Core Function: Check Reflections and Sinks (User-called)
   window.checkReflectionsAndSinks = function (elements) {
+    if (!elements || typeof elements[Symbol.iterator] !== "function") {
+      console.error("checkReflectionsAndSinks: elements must be an iterable (e.g., NodeList or Array)");
+      return [];
+    }
     const results = [];
     const sinks = [
       "innerHTML",
@@ -148,7 +180,7 @@
       // Map listeners and handlers
       const handlers = {};
       for (let attr in el)
-        if (attr.startsWith("on") && el[attr])
+        if (Object.prototype.hasOwnProperty.call(el, attr) && attr.startsWith("on") && el[attr])
           handlers[attr] = el[attr].toString();
       result.handlers = Object.entries(handlers).map(([k, v]) => ({
         event: k,
@@ -175,7 +207,7 @@
         // Check Body (page content)
         const bodyCheck =
           document.body.textContent.includes(testValue) ||
-          document.body.innerHTML.includes(testValue);
+          (document.body.innerHTML && document.body.innerHTML.includes(testValue));
         if (bodyCheck) {
           result.bodyReflection = "Yes";
           result.state.body = {
@@ -188,7 +220,7 @@
               .filter(
                 (e) =>
                   e.textContent.includes(testValue) ||
-                  e.innerHTML.includes(testValue)
+                  (e.innerHTML && e.innerHTML.includes(testValue))
               )
               .map((e) => `${e.tagName.toLowerCase()}#${e.id || ""}`),
           };
@@ -203,7 +235,7 @@
             (e) =>
               e !== input &&
               (e.textContent.includes(testValue) ||
-                e.innerHTML.includes(testValue))
+                (e.innerHTML && e.innerHTML.includes(testValue)))
           );
         if (domCheck) {
           result.domReflection = "Yes";
@@ -221,7 +253,7 @@
               .filter(
                 (e) =>
                   e.textContent.includes(testValue) ||
-                  e.innerHTML.includes(testValue)
+                  (e.innerHTML && e.innerHTML.includes(testValue))
               )
               .map((e) => `${e.tagName.toLowerCase()}#${e.id || ""}`),
           };
@@ -284,7 +316,7 @@
       const data = interactiveElements.map(({ element: el }) => {
         const handlers = {};
         for (let attr in el)
-          if (attr.startsWith("on") && el[attr])
+          if (Object.prototype.hasOwnProperty.call(el, attr) && attr.startsWith("on") && el[attr])
             handlers[attr] = el[attr].toString();
         const listeners =
           typeof getEventListeners === "function" ? getEventListeners(el) : {};
@@ -302,11 +334,13 @@
           })),
         };
       });
+      // Clean up previous click listeners to prevent accumulation
       interactiveElements.forEach(({ element: el }) => {
         el.style.border = "2px solid cyan";
-        el.addEventListener("click", () =>
-          console.trace(`Trigger on ${el.tagName.toLowerCase()}#${el.id || ""}`)
-        );
+        if (el._reconClickHandler) el.removeEventListener("click", el._reconClickHandler);
+        el._reconClickHandler = () =>
+          console.trace(`Trigger on ${el.tagName.toLowerCase()}#${el.id || ""}`);
+        el.addEventListener("click", el._reconClickHandler);
       });
       return { description: features[1], data };
     },
@@ -883,7 +917,12 @@
   function detectGadgetChains(element) {
     const detectedChains = [];
 
-    if (element.__proto__ || element.constructor?.prototype) {
+    const hasUserProps = element && (
+      element.constructor !== Object &&
+      element.constructor !== Array &&
+      typeof element.constructor === "function"
+    );
+    if (hasUserProps && element.constructor.prototype !== Object.prototype) {
       detectedChains.push({ ...gadgetChainCatalog.prototypePollution, detected: true });
     }
 
@@ -985,9 +1024,15 @@
       { name: "Function", risk: "CRITICAL" },
     ];
 
+    const safeSourceNames = new Set([
+      "location", "document.URL", "document.referrer",
+      "window.name", "location.search", "location.hash",
+      "document.cookie", "localStorage", "sessionStorage",
+    ]);
+
     sources.forEach((source) => {
       try {
-        if (eval(source.name)) {
+        if (safeSourceNames.has(source.name) || typeof window[source.name] !== "undefined") {
           analysis.sources.push(source);
         }
       } catch (e) {}
@@ -1098,8 +1143,10 @@
       a.download = `comprehensive-dom-report-${Date.now()}.json`;
       document.body.appendChild(a);
       a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      }, 100);
       console.log("%c✅ Comprehensive report exported as JSON!", "color: #00ced1; font-weight: bold;");
     } else if (format === "html") {
       const htmlReport = generateHTMLReport(report);
@@ -1110,8 +1157,10 @@
       a.download = `comprehensive-dom-report-${Date.now()}.html`;
       document.body.appendChild(a);
       a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      }, 100);
       console.log("%c✅ Comprehensive report exported as HTML!", "color: #00ced1; font-weight: bold;");
     }
 
@@ -1152,7 +1201,7 @@
         <div class="section">
             <h2>Report Metadata</h2>
             <p><strong>Generated:</strong> ${report.metadata.timestamp}</p>
-            <p><strong>URL:</strong> ${report.metadata.url}</p>
+            <p><strong>URL:</strong> ${escapeHTML(report.metadata.url)}</p>
             <p><strong>Overall Risk:</strong> <span class="risk-badge risk-${report.summary.overallRisk.toLowerCase()}">${report.summary.overallRisk}</span></p>
         </div>
         <div class="section">
@@ -1167,11 +1216,11 @@
             <h2>CSP Analysis</h2>
             <p><strong>CSP Present:</strong> ${report.cspAnalysis.hasCSP ? "Yes" : "No"}</p>
             <p><strong>Risk Level:</strong> <span class="risk-badge risk-${report.cspAnalysis.riskLevel.toLowerCase()}">${report.cspAnalysis.riskLevel}</span></p>
-            ${report.cspAnalysis.weaknesses.length > 0 ? `<h3>Weaknesses:</h3><ul>${report.cspAnalysis.weaknesses.map(w => `<li>${w}</li>`).join("")}</ul>` : ""}
+            ${report.cspAnalysis.weaknesses.length > 0 ? `<h3>Weaknesses:</h3><ul>${report.cspAnalysis.weaknesses.map(w => `<li>${escapeHTML(w)}</li>`).join("")}</ul>` : ""}
         </div>
         <div class="section">
             <h2>Recommendations</h2>
-            ${report.recommendations.map(rec => `<div class="${rec.priority.toLowerCase()}"><strong>[${rec.priority}]</strong> ${rec.recommendation}</div>`).join("")}
+            ${report.recommendations.map(rec => `<div class="${escapeHTML(rec.priority.toLowerCase())}"><strong>[${escapeHTML(rec.priority)}]</strong> ${escapeHTML(rec.recommendation)}</div>`).join("")}
         </div>
     </div>
 </body>
@@ -1248,10 +1297,9 @@
 
   function autoScan(options = {}) {
     const config = {
-      maxElements: options.maxElements || 500,
-      includeHidden: options.includeHidden || false,
-      focusSelectors: options.focusSelectors || [],
-      ...options,
+      maxElements: Math.max(1, Math.min(Number(options.maxElements) || 500, 10000)),
+      includeHidden: Boolean(options.includeHidden),
+      focusSelectors: Array.isArray(options.focusSelectors) ? options.focusSelectors : [],
     };
 
     console.log("%c🔄 Starting Auto-Scan...", "color: #00ced1; font-weight: bold;");
@@ -1293,10 +1341,13 @@
   // ===========================================
 
   async function batchProcessElements(selectors, options = {}) {
+    if (!Array.isArray(selectors)) {
+      console.error("batchProcessElements: selectors must be an array");
+      return [];
+    }
     const config = {
-      delay: options.delay || 100,
-      batchSize: options.batchSize || 50,
-      ...options,
+      delay: Math.max(0, Number(options.delay) || 100),
+      batchSize: Math.max(1, Math.min(Number(options.batchSize) || 50, 500)),
     };
 
     const results = [];
@@ -2988,13 +3039,13 @@
     ['critical', 'high', 'medium', 'low'].forEach(riskLevel => {
       report.sinkAnalysis[riskLevel].forEach(sink => {
         rows.push([
-          sink.category,
-          sink.subCategory,
-          sink.sink,
-          sink.risk,
-          `"${sink.description}"`,
-          `"${sink.attackVector}"`,
-          `"${sink.mitigation}"`,
+          escapeCSV(sink.category),
+          escapeCSV(sink.subCategory),
+          escapeCSV(sink.sink),
+          escapeCSV(sink.risk),
+          escapeCSV(sink.description),
+          escapeCSV(sink.attackVector),
+          escapeCSV(sink.mitigation),
         ]);
       });
     });
@@ -3030,7 +3081,7 @@
 
     let html = `
       <h2 style="color: #00ced1; margin-top: 0;">🎯 Sink Visualization</h2>
-      <button onclick="document.getElementById('sink-visualization').remove()"
+      <button id="sink-viz-close"
         style="position: absolute; top: 10px; right: 10px; background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">
         ✕
       </button>
@@ -3039,38 +3090,38 @@
         <h3 style="color: #34495e;">Risk Distribution</h3>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <div style="background: #e74c3c; color: white; padding: 10px 20px; border-radius: 5px; text-align: center;">
-            <div style="font-size: 24px; font-weight: bold;">${report.sinkAnalysis.summary.riskDistribution.CRITICAL}</div>
+            <div style="font-size: 24px; font-weight: bold;">${escapeHTML(report.sinkAnalysis.summary.riskDistribution.CRITICAL)}</div>
             <div style="font-size: 12px;">CRITICAL</div>
           </div>
           <div style="background: #f39c12; color: white; padding: 10px 20px; border-radius: 5px; text-align: center;">
-            <div style="font-size: 24px; font-weight: bold;">${report.sinkAnalysis.summary.riskDistribution.HIGH}</div>
+            <div style="font-size: 24px; font-weight: bold;">${escapeHTML(report.sinkAnalysis.summary.riskDistribution.HIGH)}</div>
             <div style="font-size: 12px;">HIGH</div>
           </div>
           <div style="background: #3498db; color: white; padding: 10px 20px; border-radius: 5px; text-align: center;">
-            <div style="font-size: 24px; font-weight: bold;">${report.sinkAnalysis.summary.riskDistribution.MEDIUM}</div>
+            <div style="font-size: 24px; font-weight: bold;">${escapeHTML(report.sinkAnalysis.summary.riskDistribution.MEDIUM)}</div>
             <div style="font-size: 12px;">MEDIUM</div>
           </div>
           <div style="background: #27ae60; color: white; padding: 10px 20px; border-radius: 5px; text-align: center;">
-            <div style="font-size: 24px; font-weight: bold;">${report.sinkAnalysis.summary.riskDistribution.LOW}</div>
+            <div style="font-size: 24px; font-weight: bold;">${escapeHTML(report.sinkAnalysis.summary.riskDistribution.LOW)}</div>
             <div style="font-size: 12px;">LOW</div>
           </div>
         </div>
       </div>
 
       <div style="margin-bottom: 20px;">
-        <h3 style="color: #34495e;">Total Sinks: ${report.sinkAnalysis.summary.totalDetected}</h3>
+        <h3 style="color: #34495e;">Total Sinks: ${escapeHTML(report.sinkAnalysis.summary.totalDetected)}</h3>
       </div>
     `;
 
     if (report.sinkAnalysis.critical.length > 0) {
       html += `
         <div style="margin-bottom: 15px;">
-          <h4 style="color: #e74c3c;">⚠️ Critical Sinks (${report.sinkAnalysis.critical.length})</h4>
+          <h4 style="color: #e74c3c;">⚠️ Critical Sinks (${escapeHTML(report.sinkAnalysis.critical.length)})</h4>
           <ul style="list-style: none; padding: 0;">
             ${report.sinkAnalysis.critical.map(sink => `
               <li style="padding: 8px; margin: 5px 0; background: #ffebee; border-left: 3px solid #e74c3c; border-radius: 3px;">
-                <strong>${sink.sink}</strong><br>
-                <small style="color: #666;">${sink.description}</small>
+                <strong>${escapeHTML(sink.sink)}</strong><br>
+                <small style="color: #666;">${escapeHTML(sink.description)}</small>
               </li>
             `).join("")}
           </ul>
@@ -3081,12 +3132,12 @@
     if (report.sinkAnalysis.high.length > 0) {
       html += `
         <div style="margin-bottom: 15px;">
-          <h4 style="color: #f39c12;">⚠️ High-Risk Sinks (${report.sinkAnalysis.high.length})</h4>
+          <h4 style="color: #f39c12;">⚠️ High-Risk Sinks (${escapeHTML(report.sinkAnalysis.high.length)})</h4>
           <ul style="list-style: none; padding: 0;">
             ${report.sinkAnalysis.high.map(sink => `
               <li style="padding: 8px; margin: 5px 0; background: #fff3e0; border-left: 3px solid #f39c12; border-radius: 3px;">
-                <strong>${sink.sink}</strong><br>
-                <small style="color: #666;">${sink.description}</small>
+                <strong>${escapeHTML(sink.sink)}</strong><br>
+                <small style="color: #666;">${escapeHTML(sink.description)}</small>
               </li>
             `).join("")}
           </ul>
@@ -3101,7 +3152,7 @@
           <ul style="list-style: none; padding: 0;">
             ${report.recommendations.map(rec => `
               <li style="padding: 8px; margin: 5px 0; background: #e0f7fa; border-left: 3px solid #00ced1; border-radius: 3px;">
-                <strong>[${rec.priority}]</strong> ${rec.action}
+                <strong>[${escapeHTML(rec.priority)}]</strong> ${escapeHTML(rec.action)}
               </li>
             `).join("")}
           </ul>
@@ -3110,6 +3161,9 @@
     }
 
     vizContainer.innerHTML = html;
+    // Attach close handler safely (no inline onclick)
+    const closeBtn = vizContainer.querySelector("#sink-viz-close");
+    if (closeBtn) closeBtn.addEventListener("click", () => vizContainer.remove());
     document.body.appendChild(vizContainer);
     console.log("%c✅ Sink visualization displayed!", "color: #00ced1; font-weight: bold;");
   }
@@ -3121,6 +3175,10 @@
   // ===========================================
 
   function exploreSink(sinkName) {
+    if (typeof sinkName !== "string" || !sinkName) {
+      console.error("exploreSink: sinkName must be a non-empty string");
+      return null;
+    }
     const registry = comprehensiveSinkRegistry;
     let foundSink = null;
     let category = "";
@@ -4453,12 +4511,15 @@
   // ===========================================
 
   function targetedScan(selectors, options = {}) {
+    if (!Array.isArray(selectors)) {
+      console.error("targetedScan: selectors must be an array");
+      return null;
+    }
     const config = {
       includeReflections: options.includeReflections !== false,
       includeSinks: options.includeSinks !== false,
       includeGadgetChains: options.includeGadgetChains !== false,
       includeSecurity: options.includeSecurity !== false,
-      ...options,
     };
 
     console.log("%c🎯 Starting Targeted Scan...", "font-size: 16px; font-weight: bold; color: #00ced1;");
@@ -4581,8 +4642,10 @@
       a.download = `complete-analysis-${Date.now()}.json`;
       document.body.appendChild(a);
       a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      }, 100);
       console.log("%c✅ Complete analysis exported as JSON!", "color: #00ced1; font-weight: bold;");
     }
 

@@ -516,7 +516,7 @@
               tagName: el.tagName,
               id: el.id || "no-id",
               className: el.className || "no-class",
-              reflectionType: el.innerHTML.includes(elementIdentifier)
+              reflectionType: (el.innerHTML && el.innerHTML.includes(elementIdentifier))
                 ? "innerHTML"
                 : "textContent",
             });
@@ -853,12 +853,14 @@
   }
 
   function getElementXPath(element) {
+    if (!element) return "";
     if (element.id !== "") {
       return 'id("' + element.id + '")';
     }
     if (element === document.body) {
       return element.tagName;
     }
+    if (!element.parentNode) return element.tagName || "";
     var ix = 0;
     var siblings = element.parentNode.childNodes;
     for (var i = 0; i < siblings.length; i++) {
@@ -2979,7 +2981,12 @@ function detectGadgetChains(element) {
   const detectedChains = [];
 
   // Check for prototype pollution patterns
-  if (element.__proto__ || element.constructor?.prototype) {
+  const hasUserProps = element && (
+    element.constructor !== Object &&
+    element.constructor !== Array &&
+    typeof element.constructor === "function"
+  );
+  if (hasUserProps && element.constructor.prototype !== Object.prototype) {
     detectedChains.push({
       ...gadgetChainCatalog.prototypePollution,
       detected: true,

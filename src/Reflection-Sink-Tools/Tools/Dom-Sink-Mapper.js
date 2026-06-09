@@ -10,6 +10,30 @@
 // Usage: Run to extract/map, then call checkReflectionsAndSinks([element1, element2]) to analyze specific elements.
 
 (function () {
+  "use strict";
+
+  // HTML entity escape helper - prevents XSS in innerHTML injection
+  function escapeHTML(str) {
+    if (str == null) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  // Safe CSV field escape - prevents CSV injection and formatting issues
+  function escapeCSV(val) {
+    const s = String(val == null ? "" : val);
+    if (s.includes('"') || s.includes(",") || s.includes("\n") || s.includes("\r")) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    // Prefix formula-triggering characters
+    if (/^[=+\-@\t\r]/.test(s)) return "'" + s;
+    return s;
+  }
+
   // Banner
   console.log(
     "%cDOM Reflection & Sink Mapper",
@@ -65,8 +89,11 @@
       a.download = `mapper_feature_${featureNum}.json`;
       document.body.appendChild(a);
       a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      // Delay cleanup to avoid cancelling the download on some browsers
+      setTimeout(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      }, 100);
     }
 
     if (choice.includes("ui")) {
@@ -81,11 +108,13 @@
       uiDiv.style.maxHeight = "80vh";
       uiDiv.style.overflow = "auto";
       uiDiv.style.zIndex = "10000";
-      uiDiv.innerHTML = `<h3>Feature ${featureNum} Output</h3><pre style="white-space: pre-wrap;">${JSON.stringify(
-        output,
-        null,
-        2
-      )}</pre>`;
+      const pre = document.createElement("pre");
+      pre.style.whiteSpace = "pre-wrap";
+      pre.textContent = JSON.stringify(output, null, 2);
+      const heading = document.createElement("h3");
+      heading.textContent = `Feature ${featureNum} Output`;
+      uiDiv.appendChild(heading);
+      uiDiv.appendChild(pre);
       const closeBtn = document.createElement("button");
       closeBtn.textContent = "Close";
       closeBtn.style.marginTop = "10px";
@@ -109,12 +138,18 @@
     a.download = "mapper_all_outputs.json";
     document.body.appendChild(a);
     a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      a.remove();
+      URL.revokeObjectURL(url);
+    }, 100);
   }
 
   // Core Function: Check Reflections and Sinks (User-called)
   window.checkReflectionsAndSinks = function (elements) {
+    if (!elements || typeof elements[Symbol.iterator] !== "function") {
+      console.error("checkReflectionsAndSinks: elements must be an iterable (e.g., NodeList or Array)");
+      return { reflections: [], sinks: [] };
+    }
     const results = { reflections: [], sinks: [] };
     const sinks = [
       "innerHTML",
@@ -161,7 +196,7 @@
           .filter(
             (e) =>
               e.textContent.includes(testValue) ||
-              e.innerHTML.includes(testValue)
+              (e.innerHTML && e.innerHTML.includes(testValue))
           )
           .map((e) => `${e.tagName}#${e.id || ""}`);
         if (bodyCheck.length) {
@@ -180,7 +215,7 @@
       // Task 2: Check Sinks
       const handlers = {};
       for (let attr in el)
-        if (attr.startsWith("on") && el[attr])
+        if (Object.prototype.hasOwnProperty.call(el, attr) && attr.startsWith("on") && el[attr])
           handlers[attr] = el[attr].toString();
       const listeners =
         typeof getEventListeners === "function" ? getEventListeners(el) : {};
@@ -226,7 +261,7 @@
       const data = interactiveElements.map(({ element: el }) => {
         const handlers = {};
         for (let attr in el)
-          if (attr.startsWith("on") && el[attr])
+          if (Object.prototype.hasOwnProperty.call(el, attr) && attr.startsWith("on") && el[attr])
             handlers[attr] = el[attr].toString();
         const listeners =
           typeof getEventListeners === "function" ? getEventListeners(el) : {};
@@ -239,11 +274,13 @@
           })),
         };
       });
+      // Clean up previous click listeners to prevent accumulation
       interactiveElements.forEach(({ element: el }) => {
         el.style.border = "2px solid orange";
-        el.addEventListener("click", () =>
-          console.trace(`Trigger on ${el.tagName}#${el.id || ""}`)
-        );
+        if (el._mapperClickHandler) el.removeEventListener("click", el._mapperClickHandler);
+        el._mapperClickHandler = () =>
+          console.trace(`Trigger on ${el.tagName}#${el.id || ""}`);
+        el.addEventListener("click", el._mapperClickHandler);
       });
       return { description: features[1], data };
     },
@@ -762,7 +799,15 @@
     }
 
     onMutation(callback) {
-      this.callbacks.push(callback);
+      // Prevent duplicate callback registration
+      if (!this.callbacks.includes(callback)) {
+        this.callbacks.push(callback);
+      }
+    }
+
+    offMutation(callback) {
+      const idx = this.callbacks.indexOf(callback);
+      if (idx !== -1) this.callbacks.splice(idx, 1);
     }
 
     getMutationSummary() {
@@ -820,7 +865,13 @@
   function detectGadgetChains(element) {
     const detectedChains = [];
 
-    if (element.__proto__ || element.constructor?.prototype) {
+    // Only flag if element has user-controlled properties that could pollute prototype
+    const hasUserProps = element && (
+      element.constructor !== Object &&
+      element.constructor !== Array &&
+      typeof element.constructor === "function"
+    );
+    if (hasUserProps && element.constructor.prototype !== Object.prototype) {
       detectedChains.push({ ...gadgetChainCatalog.prototypePollution, detected: true });
     }
 
@@ -922,9 +973,15 @@
       { name: "Function", risk: "CRITICAL" },
     ];
 
+    const safeSourceNames = new Set([
+      "location", "document.URL", "document.referrer",
+      "window.name", "location.search", "location.hash",
+      "document.cookie", "localStorage", "sessionStorage",
+    ]);
+
     sources.forEach((source) => {
       try {
-        if (eval(source.name)) {
+        if (safeSourceNames.has(source.name) || typeof window[source.name] !== "undefined") {
           analysis.sources.push(source);
         }
       } catch (e) {}
@@ -1035,8 +1092,10 @@
       a.download = `comprehensive-dom-report-${Date.now()}.json`;
       document.body.appendChild(a);
       a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      }, 100);
       console.log("%c✅ Comprehensive report exported as JSON!", "color: #27ae60; font-weight: bold;");
     } else if (format === "html") {
       const htmlReport = generateHTMLReport(report);
@@ -1047,8 +1106,10 @@
       a.download = `comprehensive-dom-report-${Date.now()}.html`;
       document.body.appendChild(a);
       a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      }, 100);
       console.log("%c✅ Comprehensive report exported as HTML!", "color: #27ae60; font-weight: bold;");
     }
 
@@ -1089,7 +1150,7 @@
         <div class="section">
             <h2>Report Metadata</h2>
             <p><strong>Generated:</strong> ${report.metadata.timestamp}</p>
-            <p><strong>URL:</strong> ${report.metadata.url}</p>
+            <p><strong>URL:</strong> ${escapeHTML(report.metadata.url)}</p>
             <p><strong>Overall Risk:</strong> <span class="risk-badge risk-${report.summary.overallRisk.toLowerCase()}">${report.summary.overallRisk}</span></p>
         </div>
         <div class="section">
@@ -1104,11 +1165,11 @@
             <h2>CSP Analysis</h2>
             <p><strong>CSP Present:</strong> ${report.cspAnalysis.hasCSP ? "Yes" : "No"}</p>
             <p><strong>Risk Level:</strong> <span class="risk-badge risk-${report.cspAnalysis.riskLevel.toLowerCase()}">${report.cspAnalysis.riskLevel}</span></p>
-            ${report.cspAnalysis.weaknesses.length > 0 ? `<h3>Weaknesses:</h3><ul>${report.cspAnalysis.weaknesses.map(w => `<li>${w}</li>`).join("")}</ul>` : ""}
+            ${report.cspAnalysis.weaknesses.length > 0 ? `<h3>Weaknesses:</h3><ul>${report.cspAnalysis.weaknesses.map(w => `<li>${escapeHTML(w)}</li>`).join("")}</ul>` : ""}
         </div>
         <div class="section">
             <h2>Recommendations</h2>
-            ${report.recommendations.map(rec => `<div class="${rec.priority.toLowerCase()}"><strong>[${rec.priority}]</strong> ${rec.recommendation}</div>`).join("")}
+            ${report.recommendations.map(rec => `<div class="${escapeHTML(rec.priority.toLowerCase())}"><strong>[${escapeHTML(rec.priority)}]</strong> ${escapeHTML(rec.recommendation)}</div>`).join("")}
         </div>
     </div>
 </body>
@@ -1125,24 +1186,36 @@
       this.monitoringActive = false;
       this.events = [];
       this.alerts = [];
+      this._boundHandleMutation = this.handleMutation.bind(this);
+      this._boundHandleError = this.handleError.bind(this);
+      this._MAX_EVENTS = 500;
+      this._MAX_ALERTS = 100;
+    }
+
+    _capArray(arr, max) {
+      if (arr.length > max) arr.splice(0, arr.length - max);
     }
 
     start() {
+      if (this.monitoringActive) return; // Prevent duplicate starts
       this.monitoringActive = true;
       this.mutationObserver.start();
-      this.mutationObserver.onMutation(this.handleMutation.bind(this));
-      window.addEventListener("error", this.handleError.bind(this));
+      this.mutationObserver.onMutation(this._boundHandleMutation);
+      window.addEventListener("error", this._boundHandleError);
       console.log("%c📊 Security Dashboard Started", "color: #8e44ad; font-weight: bold;");
     }
 
     stop() {
       this.monitoringActive = false;
+      this.mutationObserver.offMutation(this._boundHandleMutation);
       this.mutationObserver.stop();
+      window.removeEventListener("error", this._boundHandleError);
       console.log("%c📊 Security Dashboard Stopped", "color: #f39c12; font-weight: bold;");
     }
 
     handleMutation(analysis) {
       this.events.push({ type: "mutation", timestamp: new Date().toISOString(), data: analysis });
+      this._capArray(this.events, this._MAX_EVENTS);
       if (analysis.riskLevel === "CRITICAL" || analysis.riskLevel === "HIGH") {
         this.alerts.push({
           type: "mutation",
@@ -1150,12 +1223,15 @@
           message: `High-risk mutation: ${analysis.sinks.join(", ")}`,
           timestamp: new Date().toISOString(),
         });
+        this._capArray(this.alerts, this._MAX_ALERTS);
       }
     }
 
     handleError(event) {
       this.events.push({ type: "error", timestamp: new Date().toISOString(), data: { message: event.message } });
+      this._capArray(this.events, this._MAX_EVENTS);
       this.alerts.push({ type: "error", level: "HIGH", message: `JavaScript error: ${event.message}`, timestamp: new Date().toISOString() });
+      this._capArray(this.alerts, this._MAX_ALERTS);
     }
 
     displayDashboard() {
@@ -1185,10 +1261,9 @@
 
   function autoScan(options = {}) {
     const config = {
-      maxElements: options.maxElements || 500,
-      includeHidden: options.includeHidden || false,
-      focusSelectors: options.focusSelectors || [],
-      ...options,
+      maxElements: Math.max(1, Math.min(Number(options.maxElements) || 500, 10000)),
+      includeHidden: Boolean(options.includeHidden),
+      focusSelectors: Array.isArray(options.focusSelectors) ? options.focusSelectors : [],
     };
 
     console.log("%c🔄 Starting Auto-Scan...", "color: #8e44ad; font-weight: bold;");
@@ -1230,10 +1305,13 @@
   // ===========================================
 
   async function batchProcessElements(selectors, options = {}) {
+    if (!Array.isArray(selectors)) {
+      console.error("batchProcessElements: selectors must be an array");
+      return [];
+    }
     const config = {
-      delay: options.delay || 100,
-      batchSize: options.batchSize || 50,
-      ...options,
+      delay: Math.max(0, Number(options.delay) || 100),
+      batchSize: Math.max(1, Math.min(Number(options.batchSize) || 50, 500)),
     };
 
     const results = [];
@@ -2910,8 +2988,10 @@
       a.download = `detailed-sink-report-${Date.now()}.json`;
       document.body.appendChild(a);
       a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      }, 100);
       console.log("%c✅ Detailed sink report exported as JSON!", "color: #27ae60; font-weight: bold;");
     } else if (format === "csv") {
       const csvData = convertSinksToCSV(report);
@@ -2922,8 +3002,10 @@
       a.download = `detailed-sink-report-${Date.now()}.csv`;
       document.body.appendChild(a);
       a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      setTimeout(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      }, 100);
       console.log("%c✅ Detailed sink report exported as CSV!", "color: #27ae60; font-weight: bold;");
     }
 
@@ -2946,13 +3028,13 @@
     ['critical', 'high', 'medium', 'low'].forEach(riskLevel => {
       report.sinkAnalysis[riskLevel].forEach(sink => {
         rows.push([
-          sink.category,
-          sink.subCategory,
-          sink.sink,
-          sink.risk,
-          `"${sink.description}"`,
-          `"${sink.attackVector}"`,
-          `"${sink.mitigation}"`,
+          escapeCSV(sink.category),
+          escapeCSV(sink.subCategory),
+          escapeCSV(sink.sink),
+          escapeCSV(sink.risk),
+          escapeCSV(sink.description),
+          escapeCSV(sink.attackVector),
+          escapeCSV(sink.mitigation),
         ]);
       });
     });
@@ -2988,7 +3070,7 @@
 
     let html = `
       <h2 style="color: #8e44ad; margin-top: 0;">🎯 Sink Visualization</h2>
-      <button onclick="document.getElementById('sink-visualization').remove()"
+      <button id="sink-viz-close"
         style="position: absolute; top: 10px; right: 10px; background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer;">
         ✕
       </button>
@@ -2997,26 +3079,26 @@
         <h3 style="color: #34495e;">Risk Distribution</h3>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <div style="background: #e74c3c; color: white; padding: 10px 20px; border-radius: 5px; text-align: center;">
-            <div style="font-size: 24px; font-weight: bold;">${report.sinkAnalysis.summary.riskDistribution.CRITICAL}</div>
+            <div style="font-size: 24px; font-weight: bold;">${escapeHTML(report.sinkAnalysis.summary.riskDistribution.CRITICAL)}</div>
             <div style="font-size: 12px;">CRITICAL</div>
           </div>
           <div style="background: #f39c12; color: white; padding: 10px 20px; border-radius: 5px; text-align: center;">
-            <div style="font-size: 24px; font-weight: bold;">${report.sinkAnalysis.summary.riskDistribution.HIGH}</div>
+            <div style="font-size: 24px; font-weight: bold;">${escapeHTML(report.sinkAnalysis.summary.riskDistribution.HIGH)}</div>
             <div style="font-size: 12px;">HIGH</div>
           </div>
           <div style="background: #3498db; color: white; padding: 10px 20px; border-radius: 5px; text-align: center;">
-            <div style="font-size: 24px; font-weight: bold;">${report.sinkAnalysis.summary.riskDistribution.MEDIUM}</div>
+            <div style="font-size: 24px; font-weight: bold;">${escapeHTML(report.sinkAnalysis.summary.riskDistribution.MEDIUM)}</div>
             <div style="font-size: 12px;">MEDIUM</div>
           </div>
           <div style="background: #27ae60; color: white; padding: 10px 20px; border-radius: 5px; text-align: center;">
-            <div style="font-size: 24px; font-weight: bold;">${report.sinkAnalysis.summary.riskDistribution.LOW}</div>
+            <div style="font-size: 24px; font-weight: bold;">${escapeHTML(report.sinkAnalysis.summary.riskDistribution.LOW)}</div>
             <div style="font-size: 12px;">LOW</div>
           </div>
         </div>
       </div>
 
       <div style="margin-bottom: 20px;">
-        <h3 style="color: #34495e;">Total Sinks: ${report.sinkAnalysis.summary.totalDetected}</h3>
+        <h3 style="color: #34495e;">Total Sinks: ${escapeHTML(report.sinkAnalysis.summary.totalDetected)}</h3>
       </div>
     `;
 
@@ -3024,12 +3106,12 @@
     if (report.sinkAnalysis.critical.length > 0) {
       html += `
         <div style="margin-bottom: 15px;">
-          <h4 style="color: #e74c3c;">⚠️ Critical Sinks (${report.sinkAnalysis.critical.length})</h4>
+          <h4 style="color: #e74c3c;">⚠️ Critical Sinks (${escapeHTML(report.sinkAnalysis.critical.length)})</h4>
           <ul style="list-style: none; padding: 0;">
             ${report.sinkAnalysis.critical.map(sink => `
               <li style="padding: 8px; margin: 5px 0; background: #ffebee; border-left: 3px solid #e74c3c; border-radius: 3px;">
-                <strong>${sink.sink}</strong><br>
-                <small style="color: #666;">${sink.description}</small>
+                <strong>${escapeHTML(sink.sink)}</strong><br>
+                <small style="color: #666;">${escapeHTML(sink.description)}</small>
               </li>
             `).join("")}
           </ul>
@@ -3041,12 +3123,12 @@
     if (report.sinkAnalysis.high.length > 0) {
       html += `
         <div style="margin-bottom: 15px;">
-          <h4 style="color: #f39c12;">⚠️ High-Risk Sinks (${report.sinkAnalysis.high.length})</h4>
+          <h4 style="color: #f39c12;">⚠️ High-Risk Sinks (${escapeHTML(report.sinkAnalysis.high.length)})</h4>
           <ul style="list-style: none; padding: 0;">
             ${report.sinkAnalysis.high.map(sink => `
               <li style="padding: 8px; margin: 5px 0; background: #fff3e0; border-left: 3px solid #f39c12; border-radius: 3px;">
-                <strong>${sink.sink}</strong><br>
-                <small style="color: #666;">${sink.description}</small>
+                <strong>${escapeHTML(sink.sink)}</strong><br>
+                <small style="color: #666;">${escapeHTML(sink.description)}</small>
               </li>
             `).join("")}
           </ul>
@@ -3062,7 +3144,7 @@
           <ul style="list-style: none; padding: 0;">
             ${report.recommendations.map(rec => `
               <li style="padding: 8px; margin: 5px 0; background: #f3e5f5; border-left: 3px solid #8e44ad; border-radius: 3px;">
-                <strong>[${rec.priority}]</strong> ${rec.action}
+                <strong>[${escapeHTML(rec.priority)}]</strong> ${escapeHTML(rec.action)}
               </li>
             `).join("")}
           </ul>
@@ -3071,6 +3153,9 @@
     }
 
     vizContainer.innerHTML = html;
+    // Attach close handler safely (no inline onclick)
+    const closeBtn = vizContainer.querySelector("#sink-viz-close");
+    if (closeBtn) closeBtn.addEventListener("click", () => vizContainer.remove());
     document.body.appendChild(vizContainer);
     console.log("%c✅ Sink visualization displayed!", "color: #27ae60; font-weight: bold;");
   }
