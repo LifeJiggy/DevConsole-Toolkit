@@ -1,169 +1,265 @@
-<!-- @format -->
+# Universal Parameter Extractor (UPE)
 
-# 🧠 Universal Parameter Extractor (UPE)
+A client-side browser console tool for discovering, analyzing, and visualizing every parameter on a web application. Extracts parameters from URLs, DOM elements, cookies, meta tags, hidden inputs, inline configs, network requests (fetch/XHR), and iframes. Checks for DOM reflections and dangerous sinks. Highlights reflected parameters visually. Exports results to CSV/JSON.
 
-A powerful, client-side developer tool for discovering, analyzing, and visualizing web application parameters from every possible source. Designed for security researchers, QA engineers, and developers, UPE provides a complete intelligence map of how parameters are used, reflected, and sunk within a web page, all from a convenient, interactive UI.
-
-**No extensions. No build steps. Pure console-native execution.**
-
-
-> *(Suggestion: Replace with a GIF of the banner UI in action)*
+**No extensions. No build steps. Pure console-native power.**
 
 ---
 
-## 🚀 Key Features
+## Quick Start
 
--   **Universal Discovery**: Extracts parameters from every corner of a web application:
-    -   **URL**: Query parameters, hash fragments, and path segments.
-    -   **DOM**: All elements with URLs (`<a>`, `<img>`, `<form>`, `<script>`, etc.).
-    -   **Storage**: Cookies.
-    -   **Page Content**: Meta tags, hidden inputs, and inline JSON/JavaScript configurations.
--   **Network Interception**: Passively captures parameters from `fetch` and `XHR` request URLs, headers, and bodies by automatically patching network functions.
--   **Reflection & Sink Analysis**: Automatically checks if parameter values are reflected in the DOM (`<head>`, `<body>`, attributes, text) and identifies **dangerous sinks** like `innerHTML`, `src`, `href`, and `on*` event handlers.
--   **Interactive UI**: A draggable banner UI provides one-click access to all major functions: extract, highlight, export, and real-time scanning.
--   **Visual Highlighting**: Instantly highlights where parameters are reflected on the page, color-coding dangerous sinks (**red**) and other reflections (**orange**).
--   **Real-time Scanning**: An optional mode to continuously monitor the application, perfect for Single-Page Applications (SPAs) and dynamic content.
--   **Data Export**: Easily export the complete parameter analysis table to **CSV** or access the raw data via a global **JSON** object (`window.PARAM_REFLECTIONS_JSON`) for automation.
--   **Active Testing Stub**: Includes a function to inject test payloads into forms and cookies to observe application behavior.
+### Method 1: Console Paste
 
----
+1. Open the target website
+2. Open DevTools (**F12**) → **Console** tab
+3. Paste the entire contents of `🧠-Universal-Parameter-Extractor-Client-Side.js`
+4. Press **Enter** — the banner UI appears on the page
 
-## ⚡ Quick Start
+### Method 2: Browser Snippet
 
-Get up and running in seconds.
-
-#### Method 1: Console Paste (Recommended)
-
-1.  Open the target website.
-2.  Open your browser's Developer Tools (**F12** or **Cmd+Option+I**).
-3.  Navigate to the **Console** tab.
-4.  Paste the entire contents of `🧠-Universal-Parameter-Extractor-Client-Side.js`.
-5.  Press **Enter**. The UPE banner will appear on the page.
-
-#### Method 2: Browser Snippet
-
-For repeated use, save the script as a Snippet for one-click execution.
-
-1.  In DevTools, go to the **Sources** tab -> **Snippets** panel.
-2.  Click **New snippet**.
-3.  Paste the script and save it (e.g., as `UPE.js`).
-4.  Run it anytime with **Ctrl+Enter** (or **Cmd+Enter**).
+1. DevTools → **Sources** → **Snippets**
+2. New snippet → paste → save as `UPE.js`
+3. Run anytime with **Ctrl+Enter**
 
 ---
 
-## 📖 Usage
+## Core Features
 
-The tool is designed to be used in two primary ways: through the interactive UI or via the programmatic console API.
+### Parameter Sources (10 extraction methods)
 
-### The Interactive Banner
+| Source | What it extracts |
+|--------|-----------------|
+| URL query | `?key=value` parameters |
+| URL hash | `#key=value` fragment parameters |
+| URL path | `/user/john/profile` → `segment0=user`, `segment1=john` |
+| DOM URLs | `href`, `src`, `action`, `data` attributes on all elements |
+| Cookies | All accessible cookies (non-httpOnly) |
+| Meta tags | `<meta name="..." content="...">` |
+| Hidden inputs | `<input type="hidden">` |
+| Form fields | All form values via FormData |
+| Inline configs | JSON in `<script>` tags, JS variable assignments |
+| iframes | Same-origin iframe location params |
 
-Once loaded, a colorful, draggable banner appears on the page. This is the easiest way to control UPE:
+### Network Interception
 
--   **Extract**: Performs a one-time, full-page scan for all parameters and their reflections.
--   **Highlight**: Visually highlights all currently known reflected parameters on the page.
--   **Export CSV**: Generates and downloads a CSV file of the parameter reflection table.
--   **Show JSON**: Logs the `window.PARAM_REFLECTIONS_JSON` object to the console.
--   **Real-Time / Stop RT**: Toggles the continuous scanning mode.
--   **Inject Payload**: Injects a test payload into forms and cookies.
--   **Clear Highlights**: Removes all visual highlights from the page.
--   **Unpatch Network**: Restores the original `fetch` and `XMLHttpRequest` functions.
+- **fetch**: Patches `window.fetch` — extracts URL params, headers, body
+- **XHR**: Patches `XMLHttpRequest.open`/`.send` — extracts URL params, body
+- **Timer sinks**: Patches `setTimeout(string)`, `setInterval(string)`
+- **Location sinks**: Patches `location.assign()`, `location.replace()`, `window.location.href` setter
+- **DOM sinks**: Patches `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`
 
-### Programmatic API
+### Reflection Detection
 
-All features are available as global functions on the `window` object.
+- Checks every parameter value against the entire DOM body/head
+- Detects reflections in text nodes, attributes, and script blocks
+- Identifies dangerous sinks (`innerHTML`, `eval`, `document.write`, `location`)
+- Case-insensitive matching with multiple encoding detection (raw, URL-decoded, HTML-decoded, attribute-escaped)
+
+### Visual Highlighting
+
+- **Red outline**: Reflected in dangerous sink
+- **Orange outline**: Reflected in DOM (non-dangerous)
+- Non-destructive: preserves original DOM, only adds overlay spans
+- Highlights ALL occurrences per text node (not just first)
+
+---
+
+## Banner UI
+
+The interactive banner appears in the bottom-right corner:
+
+| Button | Action |
+|--------|--------|
+| **Extract** | Run full parameter extraction |
+| **Highlight** | Visual highlight reflected params in DOM |
+| **Export CSV** | Download parameters + reflections as CSV |
+| **Show JSON** | Print `window.PARAM_REFLECTIONS_JSON` |
+| **Real-Time** | Start continuous scanning |
+| **Stop RT** | Stop real-time scanning |
+| **Inject Payload** | Inject test payloads into all forms + cookies |
+| **Clear Highlights** | Remove all visual highlights |
+| **Unpatch Network** | Restore original fetch/XHR |
+
+### Settings Panel
+
+- **includeWindowGlobals**: Extract string values from `window.*` properties
+- **interval(ms)**: Real-time scan interval
+- **logLevel**: silent / error / warn / info / debug
+- **scan selector**: Limit scan to a CSS selector subtree (e.g., `#app`)
+
+---
+
+## Full API Reference
+
+### Core Functions
+
+| Function | Description |
+|----------|-------------|
+| `extractAllParameters()` | Run all 10 extraction methods + detect reflections + print table |
+| `highlightReflectedParams()` | Visual highlight all reflected params in DOM |
+| `exportParamReflectionsCSV()` | Download CSV with all params, reflections, sources, risk |
+| `clearParamHighlights()` | Remove all visual highlights |
+| `showBanner()` | Re-show the banner UI |
+
+### Network Patching
+
+| Function | Description |
+|----------|-------------|
+| `patchNetwork()` | Patch fetch + XHR + DOM sinks (calls interceptAPICalls internally) |
+| `unpatchNetwork()` | Restore all original functions |
+| `interceptAPICalls()` | Patch fetch + XHR only (called by patchNetwork) |
+
+### Real-Time Scanning
+
+| Function | Description |
+|----------|-------------|
+| `startRealTimeParamScan(intervalMs)` | Start continuous parameter extraction (merges, doesn't clear) |
+| `stopRealTimeParamScan()` | Stop real-time scanning |
+
+### Payload Injection
+
+| Function | Description |
+|----------|-------------|
+| `injectParamPayloads(payload)` | Inject hidden fields into all forms + set cookie. Cleans up previous injections. |
+
+### Enhancement 1–10: Analysis
+
+| Function | What it does |
+|----------|-------------|
+| `analyzeParamSecurity()` | Risk-score all params (CRITICAL/HIGH/MEDIUM/LOW) based on sinks, reflections, names |
+| `detectParamReflectionDepth()` | Classify reflection depth: body text, attribute, script block |
+| `mapParamFlow()` | Map param sources → sink flow (URL→form→innerHTML chain) |
+| `detectSensitiveParamLeakage()` | Find sensitive params (token, auth, key) exposed in URLs/cookies |
+| `analyzeCookieSecurity()` | Analyze cookie flags and sensitivity |
+| `detectCORSParams()` | Detect sensitive header params exposed via CORS |
+| `scanGraphQLParams()` | Detect GraphQL operations in params + inline scripts |
+| `detectJWTInParams()` | Find JWT tokens in parameter values + cookies |
+| `analyzeFormAutocomplete()` | Find sensitive fields with autocomplete enabled |
+| `detectOpenRedirectParams()` | Find redirect params with external URLs |
+
+### Enhancement 11–20: Deep Analysis
+
+| Function | What it does |
+|----------|-------------|
+| `scanWebSocketParams()` | Detect WebSocket URLs in params + scripts |
+| `analyzeCSPForParams()` | Analyze CSP protection for reflected params |
+| `detectPrototypePollutionParams()` | Find `__proto__`, `constructor[]` in param values |
+| `mapParamToSinkChains()` | Complete param → source → sink chain mapping |
+| `detectSSRFParams()` | Find URL-type params with internal IPs (SSRF) |
+| `analyzePathParamPatterns()` | Classify URL path segments (numeric, UUID, hash, string) |
+| `generateParamExploits()` | Auto-generate XSS payloads for reflected params |
+| `detectAuthBypassParams()` | Find auth-related params with elevated values |
+| `visualizeParamHeatmap()` | Color-coded heatmap of param risk across page |
+| `generateParamReport()` | Comprehensive security report (runs all analyses) |
+
+---
+
+## Configuration (SETTINGS)
 
 ```javascript
-// Core Features
-window.extractAllParameters(); // Run a full scan.
-window.highlightReflectedParams(); // Highlight reflected values in the DOM.
-window.exportParamReflectionsCSV(); // Download the results as a CSV file.
-window.clearParamHighlights(); // Remove all visual highlights.
-
-// Real-time Scanning
-window.startRealTimeParamScan(3000); // Start continuous scanning (interval in ms).
-window.stopRealTimeParamScan(); // Stop the real-time scanner.
-
-// Active Testing
-window.injectParamPayloads("your_payload_here"); // Inject a test payload.
-
-// UI & Network
-window.showUPEBanner(); // Show the UI banner if it was closed.
-window.patchNetwork(); // Manually patch network functions.
-window.unpatchNetwork(); // Manually unpatch network functions.
-
-// The results are always available in this global object:
-console.log(window.PARAM_REFLECTIONS_JSON);
+// Modify at runtime:
+SETTINGS.quiet = false;                    // Show all extraction logs
+SETTINGS.includeWindowGlobals = true;       // Extract window.* string values
+SETTINGS.realTimeIntervalMs = 5000;        // Real-time scan interval
+SETTINGS.scanSelector = "#app";             // Limit scan to subtree
+SETTINGS.logLevel = "debug";               // silent|error|warn|info|debug
+SETTINGS.caseInsensitive = true;            // Case-insensitive reflection matching
+SETTINGS.maxHistory = 500;                 // Max history per param
+SETTINGS.autoPatchNetwork = true;          // Auto-patch network on load
 ```
 
-### Configuration
+---
 
-You can modify the `SETTINGS` object at the top of the script *before* pasting it into the console to change its behavior.
+## Bug Hunting Workflow
+
+### Step 1: Extract All Parameters
 
 ```javascript
-const SETTINGS = {
-  // Match reflections case-insensitively.
-  caseInsensitive: true,
-  // Automatically patch network functions when the banner is shown.
-  autoPatchNetwork: true,
-  // Default interval for real-time scanning.
-  realTimeIntervalMs: 3000,
-  // ... and more.
-};
+extractAllParameters();
 ```
 
+Review the table — every param, its value, reflections, sources, dangerous sinks.
+
+### Step 2: Security Analysis
+
+```javascript
+analyzeParamSecurity();
+```
+
+Prioritized list of params scored by risk factors (sink, reflection count, name sensitivity, source exposure).
+
+### Step 3: Find Sensitive Leakage
+
+```javascript
+detectSensitiveParamLeakage();
+detectJWTInParams();
+```
+
+Sensitive params in URLs are logged in server logs, referrer headers, browser history.
+
+### Step 4: Map Attack Chains
+
+```javascript
+mapParamToSinkChains();
+mapParamFlow();
+```
+
+See the complete flow: `param → URL → form → innerHTML` — your exploitation path.
+
+### Step 5: SSRF & Open Redirect
+
+```javascript
+detectSSRFParams();
+detectOpenRedirectParams();
+```
+
+URL-type params with internal IPs or external redirect targets.
+
+### Step 6: Generate Exploits
+
+```javascript
+generateParamExploits();
+```
+
+Auto-generates XSS payloads tailored to the specific reflection context (script block, attribute, body text).
+
+### Step 7: Visual Heatmap
+
+```javascript
+visualizeParamHeatmap();
+```
+
+Color-coded overlay showing risk across the entire page.
+
+### Step 8: Full Report
+
+```javascript
+generateParamReport();
+// View: window.PARAM_SECURITY_REPORT
+```
+
+Runs all 20 analyses and produces a consolidated security report.
+
 ---
 
-## 🏹 Bug Hunting Workflow
+## File Structure
 
-UPE is built to supercharge your security testing workflow. Here’s a systematic approach to finding critical vulnerabilities:
-
-#### 1. Initial Scan & Triage
-
-Run `extractAllParameters()` to get a complete map of all parameters and their reflection status. Check the console table for a high-level overview.
-
-#### 2. Prioritize by Sink Type
-
--   **Focus on "Dangerous Sink: yes"**: These are your highest-priority targets. Parameters reflected in script blocks, event handlers (`on*`), `src`, or `href` attributes are prime candidates for **XSS**, **Open Redirect**, and other injection attacks.
--   **Investigate "DOM/Sink: yes"**: Parameters reflected anywhere in the DOM are potential vectors for **DOM-based XSS** and **HTML Injection**.
-
-#### 3. Analyze Sources
-
-Use the "Sources" column to understand where a parameter originates.
-
--   **URL-based sources** (`url`, `url-path`, `fetch-url`) are often directly controllable by an attacker and are excellent fuzzing targets.
--   **Cookie and Form sources** can be manipulated easily via the browser or scripts.
-
-#### 4. Active Testing with Payloads
-
-Use `injectParamPayloads('your_unique_marker')` to inject a traceable string into forms and cookies. Re-run the extraction and look for your marker in the "Reflection" column. If it appears in a dangerous sink, you have a strong signal of a vulnerability.
-
-#### 5. Manual & Automated Exploitation
-
--   **For Dangerous Sinks**: Try classic XSS payloads (`"><script>alert(1)</script>`, `javascript:alert(1)`), open redirect payloads (`//evil.com`), and HTML injection payloads (`<img src=x onerror=alert(1)>`).
--   **For DOM Sinks**: Probe for DOM XSS by crafting payloads that break out of the current HTML context or manipulate the DOM.
--   **For Network Parameters**: Use a proxy like Burp Suite to intercept and fuzz parameters identified in `fetch-url` or `xhr-url` sources. Look for Stored XSS, SSRF, or IDORs in the responses.
-
-#### 6. Export & Automate
-
-Use the **CSV/JSON** output to:
--   Feed parameter lists into automated fuzzing tools.
--   Generate professional reports for bug bounty submissions.
--   Keep a record of the application's attack surface.
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! If you have an idea for a new feature, a bug fix, or an improvement, please feel free to fork the repository and submit a pull request.
-
-1.  Fork the repo.
-2.  Create your feature branch (`git checkout -b feature/AmazingFeature`).
-3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4.  Push to the branch (`git push origin feature/AmazingFeature`).
-5.  Open a Pull Request.
-
-## 📧 Contact
-
--   **X**: https://x.com/ArkhLifeJiggy
--   **Email**: bloomtonjovish@gmail.com && emperorstephenpee001@gmail.com
-
+```
+src/Parameter/
+├── README.md
+├── 🧠-Universal-Parameter-Extractor-Client-Side.js
+│   ├── Settings + Utilities (_log, htmlDecode, findMatchIndex, matchesAnyEncoding)
+│   ├── Highlighting state (highlightMarkers, outlinedElements, clearHighlights)
+│   ├── Scan scope helpers (getScanRoots, forEachRoot, safeQueryAll)
+│   ├── Network patching (interceptAPICalls, patchNetwork, unpatchNetwork)
+│   ├── Sink patching (innerHTML, outerHTML, setTimeout, location.href)
+│   ├── Param management (addParam, addReflection, _newParamEntry factory)
+│   ├── Extraction (URL, DOM, cookies, meta, hidden, forms, inline, iframes)
+│   ├── Reflection detection (detectReflections, findMatchIndex)
+│   ├── Visual highlighting (highlightReflectedParams — all occurrences, case-insensitive)
+│   ├── Export (CSV)
+│   ├── Real-time scanning (merge-based, accurate interval)
+│   ├── Payload injection (with cleanup + URL encoding)
+│   ├── Banner UI (Shadow DOM, draggable, settings panel)
+│   └── 20 Enhancement functions (all window.* exposed)
+```

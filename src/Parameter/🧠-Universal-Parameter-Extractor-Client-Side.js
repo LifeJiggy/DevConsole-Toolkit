@@ -1120,6 +1120,470 @@
 
   // Auto-show banner on load
   showBanner();
+
+  // ===================================================================
+  // 20 ENHANCEMENTS - Advanced Parameter Security Analysis
+  // ===================================================================
+
+  // Enhancement 1: Analyze parameter security risk levels
+  function analyzeParamSecurity() {
+    const results = [];
+    paramMap.forEach((entry, key) => {
+      const risk = { param: key, value: String(entry.value || "").slice(0, 60), factors: [], score: 0 };
+      if (entry.dangerousSink) { risk.factors.push("dangerous-sink"); risk.score += 40; }
+      if (entry.reflections.size > 3) { risk.factors.push("many-reflections"); risk.score += 20; }
+      if (entry.reflections.has("body-script-block") || entry.reflections.has("head-script-block")) { risk.factors.push("in-script-block"); risk.score += 30; }
+      if (entry.reflectBody) { risk.factors.push("body-reflection"); risk.score += 15; }
+      const nameLC = key.toLowerCase();
+      if (/token|secret|password|key|auth|session|jwt/.test(nameLC)) { risk.factors.push("sensitive-name"); risk.score += 25; }
+      if (/id|user|account|admin/.test(nameLC)) { risk.factors.push("pii-name"); risk.score += 10; }
+      if (entry.sources.has("cookie")) { risk.factors.push("cookie-source"); risk.score += 10; }
+      if (entry.sources.has("url") || entry.sources.has("url-hash")) { risk.factors.push("url-exposed"); risk.score += 15; }
+      risk.level = risk.score >= 50 ? "CRITICAL" : risk.score >= 30 ? "HIGH" : risk.score >= 15 ? "MEDIUM" : "LOW";
+      results.push(risk);
+    });
+    results.sort((a, b) => b.score - a.score);
+    _log("info", `=== Parameter Security Analysis (${results.length} params) ===`);
+    if (results.length) console.table(results);
+    return results;
+  }
+  window.analyzeParamSecurity = analyzeParamSecurity;
+
+  // Enhancement 2: Detect parameter reflection depth (body text, attr, script, etc.)
+  function detectParamReflectionDepth() {
+    const depth = [];
+    paramMap.forEach((entry, key) => {
+      if (entry.reflections.size === 0) return;
+      const locations = Array.from(entry.reflections);
+      const isScript = locations.some(l => l.includes("script"));
+      const isAttr = locations.some(l => l.includes("attr:"));
+      const isBody = locations.some(l => l.includes("body"));
+      const isHead = locations.some(l => l.includes("head"));
+      depth.push({
+        param: key,
+        reflections: locations.length,
+        inScript: isScript,
+        inAttr: isAttr,
+        inBodyText: isBody && !isAttr && !isScript,
+        inHead: isHead,
+        depth: (isScript ? 3 : 0) + (isAttr ? 2 : 0) + (isBody ? 1 : 0) + (isHead ? 1 : 0),
+        risk: isScript ? "CRITICAL" : isAttr ? "HIGH" : isBody ? "MEDIUM" : "LOW",
+      });
+    });
+    depth.sort((a, b) => b.depth - a.depth);
+    _log("info", `=== Reflection Depth Analysis ===`);
+    if (depth.length) console.table(depth);
+    return depth;
+  }
+  window.detectParamReflectionDepth = detectParamReflectionDepth;
+
+  // Enhancement 3: Map param sources → sinks flow
+  function mapParamFlow() {
+    const flows = [];
+    paramMap.forEach((entry, key) => {
+      if (!entry.value) return;
+      const sources = Array.from(entry.sources);
+      const sinks = Array.from(entry.reflections);
+      if (sinks.length === 0) return;
+      flows.push({
+        param: key,
+        sources: sources.join(", "),
+        sinks: sinks.join(", "),
+        sourceCount: sources.length,
+        sinkCount: sinks.length,
+        dangerous: entry.dangerousSink,
+      });
+    });
+    _log("info", `=== Parameter Flow Map (${flows.length} flows) ===`);
+    if (flows.length) console.table(flows);
+    return flows;
+  }
+  window.mapParamFlow = mapParamFlow;
+
+  // Enhancement 4: Detect sensitive parameter leakage in URLs/logs
+  function detectSensitiveParamLeakage() {
+    const leaks = [];
+    const sensitivePatterns = /token|secret|password|key|auth|session|jwt|api[_-]?key|private/i;
+    paramMap.forEach((entry, key) => {
+      if (!sensitivePatterns.test(key)) return;
+      if (entry.sources.has("url") || entry.sources.has("url-hash") || entry.sources.has("fetch-url") || entry.sources.has("xhr-url")) {
+        leaks.push({ param: key, value: String(entry.value || "").slice(0, 40), sources: Array.from(entry.sources).join(", "), risk: "HIGH", issue: "Sensitive param in URL (logged in server logs, referrer, browser history)" });
+      }
+      if (entry.sources.has("cookie")) {
+        leaks.push({ param: key, value: "[cookie]", sources: "cookie", risk: "MEDIUM", issue: "Sensitive param in cookie" });
+      }
+    });
+    _log("info", `=== Sensitive Param Leakage (${leaks.length} found) ===`);
+    if (leaks.length) console.table(leaks);
+    return leaks;
+  }
+  window.detectSensitiveParamLeakage = detectSensitiveParamLeakage;
+
+  // Enhancement 5: Analyze cookie security flags
+  function analyzeCookieSecurity() {
+    const results = [];
+    document.cookie.split(";").forEach(c => {
+      const name = c.trim().split("=")[0];
+      const flags = { httpOnly: false, secure: false, sameSite: "none", path: "/" };
+      try {
+        const allCookies = document.cookie.split(";");
+        // Note: httpOnly and secure flags are not visible to JS, so we flag based on context
+        const isSensitive = /session|token|auth|jwt|secret|key/i.test(name);
+        results.push({
+          name,
+          sensitive: isSensitive,
+          httpsOnly: location.protocol === "https:",
+          note: isSensitive ? "Verify httpOnly + secure + SameSite flags server-side" : "Low risk",
+        });
+      } catch {}
+    });
+    _log("info", `=== Cookie Security Analysis (${results.length} cookies) ===`);
+    if (results.length) console.table(results);
+    return results;
+  }
+  window.analyzeCookieSecurity = analyzeCookieSecurity;
+
+  // Enhancement 6: Detect CORS-exposed parameters
+  function detectCORSParams() {
+    const findings = [];
+    paramMap.forEach((entry, key) => {
+      if (entry.sources.has("fetch-header") || entry.sources.has("xhr-header")) {
+        const nameLC = key.toLowerCase();
+        if (/origin|referer|cookie|authorization|token|key/.test(nameLC)) {
+          findings.push({ param: key, risk: "HIGH", issue: "Sensitive header param may be exposed via CORS misconfiguration" });
+        }
+      }
+    });
+    _log("info", `=== CORS Param Exposure (${findings.length} found) ===`);
+    if (findings.length) console.table(findings);
+    return findings;
+  }
+  window.detectCORSParams = detectCORSParams;
+
+  // Enhancement 7: Scan GraphQL query parameters
+  function scanGraphQLParams() {
+    const findings = [];
+    paramMap.forEach((entry, key) => {
+      const val = String(entry.value || "");
+      if (/query\s+\w+|mutation\s+\w+|subscription\s+\w+|__schema|__type/i.test(val)) {
+        findings.push({ param: key, value: val.slice(0, 80), risk: "MEDIUM", issue: "GraphQL operation in parameter value" });
+      }
+    });
+    document.querySelectorAll("script:not([src])").forEach(s => {
+      const code = s.textContent || "";
+      if (/graphql|gql/i.test(code)) {
+        const params = code.match(/["'](?:query|operationName|variables)["']\s*:/gi) || [];
+        params.forEach(p => findings.push({ param: "inline-gql", value: p.slice(0, 60), risk: "INFO", issue: "GraphQL param in inline script" }));
+      }
+    });
+    _log("info", `=== GraphQL Param Scan (${findings.length} found) ===`);
+    if (findings.length) console.table(findings);
+    return findings;
+  }
+  window.scanGraphQLParams = scanGraphQLParams;
+
+  // Enhancement 8: Detect JWT tokens in parameter values
+  function detectJWTInParams() {
+    const findings = [];
+    const jwtRegex = /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+/;
+    paramMap.forEach((entry, key) => {
+      const val = String(entry.value || "");
+      if (jwtRegex.test(val)) {
+        findings.push({ param: key, value: val.slice(0, 40) + "...", risk: "HIGH", issue: "JWT token in parameter value" });
+      }
+    });
+    document.cookie.split(";").forEach(c => {
+      const val = c.trim().split("=").slice(1).join("=");
+      if (jwtRegex.test(val)) {
+        findings.push({ param: c.split("=")[0].trim(), value: "[JWT in cookie]", risk: "MEDIUM", issue: "JWT token in cookie" });
+      }
+    });
+    _log("info", `=== JWT in Params (${findings.length} found) ===`);
+    if (findings.length) console.table(findings);
+    return findings;
+  }
+  window.detectJWTInParams = detectJWTInParams;
+
+  // Enhancement 9: Analyze form autocomplete security
+  function analyzeFormAutocomplete() {
+    const findings = [];
+    document.querySelectorAll("form").forEach(form => {
+      const sensitiveFields = form.querySelectorAll('input[name*="pass"],input[name*="token"],input[name*="key"],input[name*="secret"],input[name*="auth"],input[type="password"]');
+      sensitiveFields.forEach(f => {
+        const ac = f.getAttribute("autocomplete") || "not set";
+        if (ac === "on" || ac === "not set") {
+          findings.push({ form: form.action?.slice(0, 60) || "unknown", field: f.name || f.id || "unnamed", autocomplete: ac, risk: "LOW", issue: "Sensitive field may be cached by browser autocomplete" });
+        }
+      });
+    });
+    _log("info", `=== Form Autocomplete Security (${findings.length} found) ===`);
+    if (findings.length) console.table(findings);
+    return findings;
+  }
+  window.analyzeFormAutocomplete = analyzeFormAutocomplete;
+
+  // Enhancement 10: Detect open redirect parameters
+  function detectOpenRedirectParams() {
+    const findings = [];
+    const redirectParams = ["redirect", "redirect_url", "redirect_uri", "return", "return_to", "next", "url", "goto", "target", "dest", "destination", "redir", "continue", "rurl"];
+    paramMap.forEach((entry, key) => {
+      if (redirectParams.some(p => key.toLowerCase().includes(p))) {
+        const val = String(entry.value || "");
+        const isExternal = /^https?:\/\//i.test(val) && !val.includes(location.hostname);
+        findings.push({ param: key, value: val.slice(0, 80), external: isExternal, risk: isExternal ? "HIGH" : "MEDIUM", issue: isExternal ? "External URL in redirect param (open redirect)" : "Redirect parameter found" });
+      }
+    });
+    _log("info", `=== Open Redirect Params (${findings.length} found) ===`);
+    if (findings.length) console.table(findings);
+    return findings;
+  }
+  window.detectOpenRedirectParams = detectOpenRedirectParams;
+
+  // Enhancement 11: Scan WebSocket URL parameters
+  function scanWebSocketParams() {
+    const findings = [];
+    paramMap.forEach((entry, key) => {
+      const val = String(entry.value || "");
+      if (/^wss?:\/\//i.test(val)) {
+        findings.push({ param: key, value: val.slice(0, 100), risk: "INFO", issue: "WebSocket URL in parameter" });
+      }
+    });
+    document.querySelectorAll("script:not([src])").forEach(s => {
+      const code = s.textContent || "";
+      const wsMatches = code.match(/wss?:\/\/[^\s'"`]+/g) || [];
+      wsMatches.forEach(u => findings.push({ param: "ws-in-script", value: u.slice(0, 100), risk: "INFO", issue: "WebSocket URL in inline script" }));
+    });
+    _log("info", `=== WebSocket Params (${findings.length} found) ===`);
+    if (findings.length) console.table(findings);
+    return findings;
+  }
+  window.scanWebSocketParams = scanWebSocketParams;
+
+  // Enhancement 12: Analyze CSP for parameter-related policies
+  function analyzeCSPForParams() {
+    const findings = [];
+    const cspMeta = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    const policy = cspMeta ? cspMeta.getAttribute("content") || "" : "";
+    if (!policy) {
+      findings.push({ severity: "HIGH", issue: "No CSP meta tag found — params reflected without CSP protection" });
+    } else {
+      if (policy.includes("'unsafe-inline'")) findings.push({ severity: "HIGH", issue: "unsafe-inline allows inline script execution with reflected params" });
+      if (policy.includes("'unsafe-eval'")) findings.push({ severity: "CRITICAL", issue: "unsafe-eval allows eval() with reflected params" });
+      if (policy.includes("*")) findings.push({ severity: "HIGH", issue: "Wildcard source allows any origin to load resources" });
+    }
+    _log("info", `=== CSP Parameter Protection (${findings.length} issues) ===`);
+    if (findings.length) console.table(findings);
+    return findings;
+  }
+  window.analyzeCSPForParams = analyzeCSPForParams;
+
+  // Enhancement 13: Detect prototype pollution via params
+  function detectPrototypePollutionParams() {
+    const findings = [];
+    paramMap.forEach((entry, key) => {
+      const val = String(entry.value || "");
+      if (/__proto__|constructor\[|prototype\[/.test(val)) {
+        findings.push({ param: key, value: val.slice(0, 60), risk: "CRITICAL", issue: "Prototype pollution payload in parameter" });
+      }
+      if (/\[.*\]=|\.push\(|\.merge\(|Object\.assign/.test(val)) {
+        findings.push({ param: key, value: val.slice(0, 60), risk: "MEDIUM", issue: "Potential prototype pollution pattern" });
+      }
+    });
+    _log("info", `=== Prototype Pollution Params (${findings.length} found) ===`);
+    if (findings.length) console.table(findings);
+    return findings;
+  }
+  window.detectPrototypePollutionParams = detectPrototypePollutionParams;
+
+  // Enhancement 14: Map complete param → handler → sink chains
+  function mapParamToSinkChains() {
+    const chains = [];
+    paramMap.forEach((entry, key) => {
+      if (entry.reflections.size === 0) return;
+      const sinks = Array.from(entry.reflections);
+      const hasScript = sinks.some(s => s.includes("script"));
+      const hasInnerHTML = sinks.some(s => s.includes("innerHTML"));
+      const hasLocation = sinks.some(s => s.includes("location"));
+      const hasAttr = sinks.some(s => s.includes("attr:"));
+      let chain = "param → ";
+      if (entry.sources.has("url") || entry.sources.has("url-hash")) chain += "URL → ";
+      if (entry.sources.has("cookie")) chain += "cookie → ";
+      if (entry.sources.has("form")) chain += "form → ";
+      if (entry.sources.has("fetch-body") || entry.sources.has("xhr-body")) chain += "request-body → ";
+      chain += sinks.join(", ");
+      chains.push({
+        param: key,
+        chain,
+        scriptSink: hasScript,
+        innerHTMLSink: hasInnerHTML,
+        locationSink: hasLocation,
+        attrSink: hasAttr,
+        risk: hasScript ? "CRITICAL" : hasInnerHTML ? "HIGH" : hasLocation ? "HIGH" : hasAttr ? "MEDIUM" : "LOW",
+      });
+    });
+    _log("info", `=== Param → Sink Chains (${chains.length} chains) ===`);
+    if (chains.length) console.table(chains);
+    return chains;
+  }
+  window.mapParamToSinkChains = mapParamToSinkChains;
+
+  // Enhancement 15: Detect SSRF-prone parameters
+  function detectSSRFParams() {
+    const findings = [];
+    const ssrfParams = /url|uri|href|src|dest|target|redirect|fetch|load|image|link|api|endpoint|webhook|callback|notify/i;
+    paramMap.forEach((entry, key) => {
+      if (!ssrfParams.test(key)) return;
+      const val = String(entry.value || "");
+      if (/localhost|127\.0\.0\.1|10\.\d+|192\.168|169\.254|metadata\.google/i.test(val)) {
+        findings.push({ param: key, value: val.slice(0, 80), risk: "CRITICAL", issue: "Internal IP in URL-type parameter (SSRF)" });
+      } else if (/^https?:\/\//i.test(val)) {
+        findings.push({ param: key, value: val.slice(0, 80), risk: "MEDIUM", issue: "URL-type parameter (potential SSRF vector)" });
+      }
+    });
+    _log("info", `=== SSRF-Prone Params (${findings.length} found) ===`);
+    if (findings.length) console.table(findings);
+    return findings;
+  }
+  window.detectSSRFParams = detectSSRFParams;
+
+  // Enhancement 16: Analyze URL path parameter patterns
+  function analyzePathParamPatterns() {
+    const patterns = [];
+    const path = window.location.pathname;
+    const segments = path.split("/").filter(x => x.length);
+    segments.forEach((seg, i) => {
+      const isNumeric = /^\d+$/.test(seg);
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seg);
+      const isHash = /^[a-f0-9]{16,}$/i.test(seg);
+      patterns.push({
+        position: i,
+        value: seg,
+        type: isUUID ? "UUID" : isNumeric ? "numeric" : isHash ? "hash" : "string",
+        risk: isUUID || isHash ? "MEDIUM" : isNumeric ? "LOW" : "INFO",
+        note: isUUID ? "Potential IDOR — sequential/brutable UUID" : isNumeric ? "Potential IDOR — numeric ID" : isHash ? "Potential IDOR — hash ID" : "Path segment",
+      });
+    });
+    _log("info", `=== Path Parameter Patterns (${patterns.length} segments) ===`);
+    if (patterns.length) console.table(patterns);
+    return patterns;
+  }
+  window.analyzePathParamPatterns = analyzePathParamPatterns;
+
+  // Enhancement 17: Generate exploit payloads for reflected params
+  function generateParamExploits() {
+    const exploits = [];
+    paramMap.forEach((entry, key) => {
+      if (entry.reflections.size === 0) return;
+      const sinks = Array.from(entry.reflections);
+      const inScript = sinks.some(s => s.includes("script"));
+      const inAttr = sinks.some(s => s.includes("attr:"));
+      const inBody = sinks.some(s => s.includes("body"));
+      if (inScript) {
+        exploits.push({ param: key, vuln: "XSS via script block", payload: "';alert(1);//", severity: "CRITICAL" });
+        exploits.push({ param: key, vuln: "XSS via script block", payload: "</script><img src=x onerror=alert(1)>", severity: "CRITICAL" });
+      }
+      if (inAttr) {
+        exploits.push({ param: key, vuln: "XSS via attribute", payload: '" onmouseover="alert(1)"', severity: "HIGH" });
+        exploits.push({ param: key, vuln: "XSS via attribute", payload: "' onfocus='alert(1)' autofocus='", severity: "HIGH" });
+      }
+      if (inBody && !inScript && !inAttr) {
+        exploits.push({ param: key, vuln: "Reflected XSS", payload: '<img src=x onerror=alert(1)>', severity: "HIGH" });
+        exploits.push({ param: key, vuln: "Reflected XSS", payload: '<svg onload=alert(1)>', severity: "HIGH" });
+      }
+      if (entry.dangerousSink) {
+        exploits.push({ param: key, vuln: "DOM XSS via sink", payload: 'javascript:alert(1)', severity: "CRITICAL" });
+      }
+    });
+    _log("info", `=== Exploit Suggestions (${exploits.length} payloads) ===`);
+    if (exploits.length) console.table(exploits);
+    return exploits;
+  }
+  window.generateParamExploits = generateParamExploits;
+
+  // Enhancement 18: Detect auth bypass parameter weaknesses
+  function detectAuthBypassParams() {
+    const findings = [];
+    const authParams = /admin|role|permission|is_admin|is_superuser|user_id|account|verified|active|privilege|level/i;
+    paramMap.forEach((entry, key) => {
+      if (!authParams.test(key)) return;
+      const val = String(entry.value || "").toLowerCase();
+      const isElevated = /admin|true|1|superuser|root|god|master/.test(val);
+      findings.push({
+        param: key,
+        value: String(entry.value || "").slice(0, 40),
+        authRelated: true,
+        elevatedValue: isElevated,
+        risk: isElevated ? "HIGH" : "MEDIUM",
+        issue: isElevated ? "Auth param with elevated value (potential privilege escalation)" : "Auth-related parameter found",
+      });
+    });
+    _log("info", `=== Auth Bypass Params (${findings.length} found) ===`);
+    if (findings.length) console.table(findings);
+    return findings;
+  }
+  window.detectAuthBypassParams = detectAuthBypassParams;
+
+  // Enhancement 19: Visual heatmap of param risk across the page
+  function visualizeParamHeatmap() {
+    let highlighted = 0;
+    paramMap.forEach((entry, key) => {
+      if (!entry.value || entry.reflections.size === 0) return;
+      document.querySelectorAll("*").forEach(el => {
+        try {
+          Array.from(el.attributes).forEach(attr => {
+            if (attr.value && matchesAnyEncoding(attr.value, entry.value)) {
+              if (!el.dataset.upeHeatmap) {
+                const score = (entry.dangerousSink ? 40 : 0) + (entry.reflections.size * 5);
+                const color = score >= 50 ? "rgba(255,0,0,0.4)" : score >= 30 ? "rgba(255,165,0,0.3)" : score >= 15 ? "rgba(255,255,0,0.3)" : "rgba(0,128,255,0.2)";
+                el.style.outline = `3px solid ${color}`;
+                el.dataset.upeHeatmap = "1";
+                highlighted++;
+              }
+            }
+          });
+        } catch {}
+      });
+    });
+    _log("info", `Heatmap applied: ${highlighted} elements highlighted`);
+    return { highlighted };
+  }
+  window.visualizeParamHeatmap = visualizeParamHeatmap;
+
+  // Enhancement 20: Generate comprehensive parameter security report
+  function generateParamReport() {
+    const report = {
+      timestamp: new Date().toISOString(),
+      url: location.href,
+      totalParams: paramMap.size,
+      sections: {},
+    };
+    try { report.sections.security = analyzeParamSecurity(); } catch {}
+    try { report.sections.reflectionDepth = detectParamReflectionDepth(); } catch {}
+    try { report.sections.flow = mapParamFlow(); } catch {}
+    try { report.sections.leakage = detectSensitiveParamLeakage(); } catch {}
+    try { report.sections.ssrf = detectSSRFParams(); } catch {}
+    try { report.sections.openRedirects = detectOpenRedirectParams(); } catch {}
+    try { report.sections.jwt = detectJWTInParams(); } catch {}
+    try { report.sections.prototype = detectPrototypePollutionParams(); } catch {}
+    try { report.sections.authBypass = detectAuthBypassParams(); } catch {}
+    try { report.sections.exploits = generateParamExploits(); } catch {}
+    try { report.sections.csp = analyzeCSPForParams(); } catch {}
+    let totalFindings = 0;
+    Object.entries(report.sections).forEach(([cat, findings]) => {
+      if (Array.isArray(findings)) totalFindings += findings.length;
+    });
+    report.totalFindings = totalFindings;
+    _log("info", `=== Parameter Security Report: ${totalFindings} total findings ===`);
+    Object.entries(report.sections).forEach(([cat, findings]) => {
+      if (Array.isArray(findings) && findings.length > 0) {
+        _log("info", `[${cat}] ${findings.length} findings`);
+      }
+    });
+    window.PARAM_SECURITY_REPORT = report;
+    _log("info", "Full report: window.PARAM_SECURITY_REPORT");
+    return report;
+  }
+  window.generateParamReport = generateParamReport;
 })();
 
 
