@@ -147,23 +147,65 @@ function cmdInject(toolKey) {
 
 function cmdOpen(toolKey, url) {
   const t = TOOLS[toolKey];
-  if (!t) { console.error(c("red", "  Unknown tool: " + toolKey)); return; }
+  if (!t) { console.error(c("red", "  Unknown tool: " + toolKey)); console.log(c("dim", "  Run: node dct.js list")); return; }
   if (!url) { console.error(c("red", "  URL required: node dct.js open " + toolKey + " <url>")); return; }
-  // Ensure URL has protocol
   if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
   header();
   console.log(c("cyan", "  Opening: " + url));
   console.log(c("dim", "  Tool: " + t.name));
-  console.log(c("yellow", "\n  Instructions:"));
-  console.log(c("cyan", "  1. Browser will open to " + url));
-  console.log(c("cyan", "  2. Open DevTools (F12) → Console"));
-  console.log(c("cyan", "  3. Run: " + (t.commands[0] || "run()")));
-  console.log(c("dim", "  Or paste the full tool with: node dct.js inject " + toolKey));
   console.log();
-  // Try to open browser
+
   const platform = process.platform;
-  const cmd = platform === "win32" ? "start" : platform === "darwin" ? "open" : "xdg-open";
-  try { execSync(cmd + ' "' + url + '"', { stdio: "ignore" }); } catch (e) { /* manual open */ }
+
+  // Find Chrome/Edge on Windows
+  function findBrowser() {
+    if (platform !== "win32") return null;
+    const paths = [
+      process.env["PROGRAMFILES"] + "\\Google\\Chrome\\Application\\chrome.exe",
+      process.env["PROGRAMFILES(X86)"] + "\\Google\\Chrome\\Application\\chrome.exe",
+      process.env["LOCALAPPDATA"] + "\\Google\\Chrome\\Application\\chrome.exe",
+      process.env["PROGRAMFILES"] + "\\Microsoft\\Edge\\Application\\msedge.exe",
+      process.env["PROGRAMFILES(X86)"] + "\\Microsoft\\Edge\\Application\\msedge.exe",
+    ];
+    for (const p of paths) { if (fs.existsSync(p)) return p; }
+    return null;
+  }
+
+  const browser = findBrowser();
+  if (browser) {
+    // Open browser with DevTools auto-open
+    const args = '"' + browser + '" --auto-open-devtools-for-tabs "' + url + '"';
+    console.log(c("green", "  ✓ Launching browser with DevTools..."));
+    console.log(c("dim", "  DevTools will open automatically on the page."));
+    console.log(c("cyan", "\n  Instructions:"));
+    console.log(c("cyan", "  1. Click the Console tab in DevTools"));
+    console.log(c("cyan", "  2. Paste the tool script or run: " + (t.commands[0] || "run()")));
+    console.log(c("dim", "  Quick inject: node dct.js inject " + toolKey));
+    console.log();
+    try {
+      const { spawn } = require("child_process");
+      spawn(browser, ["--auto-open-devtools-for-tabs", url], { detached: true, stdio: "ignore" }).unref();
+    } catch (e) {
+      // Fallback: try cmd /c start
+      try { execSync('cmd /c start "" "' + browser + '" --auto-open-devtools-for-tabs "' + url + '"', { stdio: "ignore" }); } catch (e2) {}
+    }
+  } else {
+    // No Chrome found — use system default
+    console.log(c("yellow", "  ⚠ Chrome/Edge not found — opening default browser."));
+    console.log(c("yellow", "  Manually open DevTools (F12) → Console."));
+    console.log(c("cyan", "\n  Instructions:"));
+    console.log(c("cyan", "  1. Open DevTools (F12) → Console"));
+    console.log(c("cyan", "  2. Paste the tool script or run: " + (t.commands[0] || "run()")));
+    console.log(c("dim", "  Quick inject: node dct.js inject " + toolKey));
+    console.log();
+    if (platform === "win32") {
+      try { execSync('cmd /c start "" "' + url + '"', { stdio: "ignore" }); } catch (e) {}
+    } else if (platform === "darwin") {
+      try { execSync('open "' + url + '"', { stdio: "ignore" }); } catch (e) {}
+    } else {
+      try { execSync('xdg-open "' + url + '"', { stdio: "ignore" }); } catch (e) {}
+    }
+  }
 }
 
 function cmdServe(port) {
@@ -187,9 +229,17 @@ function cmdServe(port) {
   server.listen(port, () => {
     header();
     console.log(c("green", "  Server running at: http://localhost:" + port));
-    console.log(c("cyan", "  Open this page in any browser to access all tools.\n"));
+    console.log(c("cyan", "  DevTools dashboard with all tools.\n"));
     console.log(c("dim", "  Press Ctrl+C to stop.\n"));
-    try { execSync((process.platform === "win32" ? "start" : process.platform === "darwin" ? "open" : "xdg-open") + ' "http://localhost:' + port + '"', { stdio: "ignore" }); } catch (e) {}
+    const url = "http://localhost:" + port;
+    const platform = process.platform;
+    if (platform === "win32") {
+      try { execSync('cmd /c start "" "' + url + '"', { stdio: "ignore" }); } catch (e) {}
+    } else if (platform === "darwin") {
+      try { execSync('open "' + url + '"', { stdio: "ignore" }); } catch (e) {}
+    } else {
+      try { execSync('xdg-open "' + url + '"', { stdio: "ignore" }); } catch (e) {}
+    }
   });
 }
 
