@@ -2432,6 +2432,254 @@
     } catch(e) { console.warn("trafficDiff error:", e); return {}; }
   };
 
+  // ===========================================
+  // ENHANCEMENTS #11-20: Advanced Security Features
+  // ===========================================
+
+  // ENHANCEMENT 11: JWT token analyzer
+  API.analyzeJWTs = function analyzeJWTs() {
+    try {
+      var jwts = [];
+      state.log.forEach(function(entry) {
+        try {
+          var headers = entry.responseHeaders || {};
+          var auth = headers["authorization"] || "";
+          var bearer = auth.replace(/^Bearer\s+/i, "");
+          if (bearer.split(".").length === 3) {
+            try {
+              var parts = bearer.split(".");
+              var header = JSON.parse(atob(parts[0].replace(/-/g, "+").replace(/_/g, "/")));
+              var payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+              jwts.push({ url: (entry.url || "").substring(0, 60), algorithm: header.alg || "unknown", issuer: payload.iss || "unknown", subject: payload.sub || "unknown", expiry: payload.exp ? new Date(payload.exp * 1000).toISOString() : "unknown", risk: header.alg === "none" ? "CRITICAL" : header.alg === "HS256" ? "MEDIUM" : "INFO" });
+            } catch(e) {}
+          }
+          var body = entry.responseBody || "";
+          var bodyJWTs = (typeof body === "string" ? body : "").match(/\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\b/g) || [];
+          bodyJWTs.slice(0, 5).forEach(function(tok) {
+            try {
+              var p = tok.split(".");
+              var hdr = JSON.parse(atob(p[0].replace(/-/g, "+").replace(/_/g, "/")));
+              var pay = JSON.parse(atob(p[1].replace(/-/g, "+").replace(/_/g, "/")));
+              jwts.push({ url: (entry.url || "").substring(0, 60), algorithm: hdr.alg, issuer: pay.iss || "unknown", expiry: pay.exp ? new Date(pay.exp * 1000).toISOString() : "unknown", risk: hdr.alg === "none" ? "CRITICAL" : "INFO", location: "response_body" });
+            } catch(e) {}
+          });
+        } catch(e) {}
+      });
+      console.log("%c🔐 JWTs found: " + jwts.length, jwts.length > 0 ? "color: #e74c3c; font-weight: bold" : "color: #27ae60");
+      _safeTable(jwts, 20);
+      return jwts;
+    } catch(e) { console.warn("analyzeJWTs error:", e); return []; }
+  };
+
+  // ENHANCEMENT 12: GraphQL endpoint detection
+  API.detectGraphQL = function detectGraphQL() {
+    try {
+      var gql = [];
+      state.log.forEach(function(entry) {
+        try {
+          var url = entry.url || "";
+          var method = entry.method || "GET";
+          var body = entry.requestBody || "";
+          if (url.indexOf("graphql") !== -1 || url.indexOf("/gql") !== -1) {
+            gql.push({ url: url.substring(0, 80), method: method, type: "endpoint_match", risk: "MEDIUM" });
+          }
+          if (typeof body === "string" && (body.indexOf("query") !== -1 || body.indexOf("mutation") !== -1 || body.indexOf("subscription") !== -1)) {
+            var operation = body.match(/(query|mutation|subscription)\s+(\w+)/);
+            if (operation) gql.push({ url: url.substring(0, 80), method: method, type: "operation", operation: operation[1], name: operation[2], risk: "LOW" });
+          }
+        } catch(e) {}
+      });
+      console.log("%c📊 GraphQL: " + gql.length + " found", gql.length > 0 ? "color: #e67e22; font-weight: bold" : "color: #7f8c8d");
+      _safeTable(gql, 20);
+      return gql;
+    } catch(e) { console.warn("detectGraphQL error:", e); return []; }
+  };
+
+  // ENHANCEMENT 13: Subdomain takeover indicators
+  API.detectSubdomainTakeover = function detectSubdomainTakeover() {
+    try {
+      var indicators = [];
+      var patterns = [
+        { name: "Heroku", rx: /herokuapp\.com/gi, risk: "HIGH" },
+        { name: "GitHub Pages", rx: /github\.io/gi, risk: "MEDIUM" },
+        { name: "AWS S3", rx: /s3\.amazonaws\.com/gi, risk: "MEDIUM" },
+        { name: "Azure", rx: /azurewebsites\.net/gi, risk: "MEDIUM" },
+        { name: "Shopify", rx: /myshopify\.com/gi, risk: "LOW" },
+        { name: "Fastly", rx: /fastly\.net/gi, risk: "LOW" },
+        { name: "Pantheon", rx: /pantheonsite\.io/gi, risk: "LOW" }
+      ];
+      state.log.forEach(function(entry) {
+        try {
+          var url = entry.url || "";
+          var body = entry.responseBody || "";
+          var text = url + " " + (typeof body === "string" ? body : "");
+          patterns.forEach(function(p) {
+            if (p.rx.test(text)) {
+              indicators.push({ url: url.substring(0, 80), service: p.name, risk: p.risk });
+              p.rx.lastIndex = 0;
+            }
+          });
+        } catch(e) {}
+      });
+      console.log("%c🌐 Subdomain takeover indicators: " + indicators.length, indicators.length > 0 ? "color: #e67e22; font-weight: bold" : "color: #27ae60");
+      _safeTable(indicators, 20);
+      return indicators;
+    } catch(e) { console.warn("detectSubdomainTakeover error:", e); return []; }
+  };
+
+  // ENHANCEMENT 14: Sensitive path scanner
+  API.scanSensitivePaths = function scanSensitivePaths() {
+    try {
+      var found = [];
+      var paths = ["/.env", "/.git/config", "/wp-config.php", "/config.json", "/secrets.json", "/.aws/credentials", "/docker-compose.yml", "/.htaccess", "/server-status", "/.DS_Store", "/debug/vars", "/actuator", "/swagger.json", "/api-docs", "/phpinfo.php", "/.svn/entries", "/backup.zip", "/dump.sql", "/admin", "/phpmyadmin"];
+      state.log.forEach(function(entry) {
+        try {
+          var url = entry.url || "";
+          paths.forEach(function(p) {
+            if (url.indexOf(p) !== -1) {
+              found.push({ url: url.substring(0, 80), path: p, status: entry.status, risk: entry.status < 400 ? "HIGH" : "MEDIUM" });
+            }
+          });
+        } catch(e) {}
+      });
+      console.log("%c📁 Sensitive paths: " + found.length, found.length > 0 ? "color: #e74c3c; font-weight: bold" : "color: #27ae60");
+      _safeTable(found, 20);
+      return found;
+    } catch(e) { console.warn("scanSensitivePaths error:", e); return []; }
+  };
+
+  // ENHANCEMENT 15: Request/response size anomaly detector
+  API.detectSizeAnomalies = function detectSizeAnomalies() {
+    try {
+      var anomalies = [];
+      var sizes = state.log.map(function(e) { return { url: e.url || "", reqSize: (e.requestBody || "").length, resSize: (e.responseBody || "").length }; });
+      if (sizes.length < 5) return anomalies;
+      var avgRes = sizes.reduce(function(s, e) { return s + e.resSize; }, 0) / sizes.length;
+      var stdDev = Math.sqrt(sizes.reduce(function(s, e) { return s + Math.pow(e.resSize - avgRes, 2); }, 0) / sizes.length);
+      sizes.forEach(function(s) {
+        if (s.resSize > avgRes + 3 * stdDev && s.resSize > 10000) {
+          anomalies.push({ url: s.url.substring(0, 80), size: s.resSize, avg: Math.round(avgRes), deviation: Math.round((s.resSize - avgRes) / stdDev) + "x", risk: "MEDIUM" });
+        }
+      });
+      console.log("%c📏 Size anomalies: " + anomalies.length, anomalies.length > 0 ? "color: #e67e22; font-weight: bold" : "color: #27ae60");
+      _safeTable(anomalies, 20);
+      return anomalies;
+    } catch(e) { console.warn("detectSizeAnomalies error:", e); return []; }
+  };
+
+  // ENHANCEMENT 16: HTTP method distribution
+  API.analyzeMethods = function analyzeMethods() {
+    try {
+      var methods = {};
+      state.log.forEach(function(entry) {
+        try {
+          var m = (entry.method || "GET").toUpperCase();
+          methods[m] = (methods[m] || 0) + 1;
+        } catch(e) {}
+      });
+      var result = Object.keys(methods).map(function(k) { return { method: k, count: methods[k], percentage: Math.round(methods[k] / state.log.length * 100) + "%" }; });
+      result.sort(function(a, b) { return b.count - a.count; });
+      console.log("%c📡 HTTP methods:", "color: #3498db; font-weight: bold");
+      _safeTable(result, 20);
+      return result;
+    } catch(e) { console.warn("analyzeMethods error:", e); return []; }
+  };
+
+  // ENHANCEMENT 17: Status code distribution
+  API.analyzeStatusCodes = function analyzeStatusCodes() {
+    try {
+      var codes = {};
+      state.log.forEach(function(entry) {
+        try {
+          var s = entry.status || 0;
+          var bucket = Math.floor(s / 100) + "xx";
+          codes[bucket] = (codes[bucket] || 0) + 1;
+          codes[s] = (codes[s] || 0) + 1;
+        } catch(e) {}
+      });
+      var result = Object.keys(codes).map(function(k) { return { code: k, count: codes[k] }; });
+      result.sort(function(a, b) { return b.count - a.count; });
+      console.log("%c📊 Status codes:", "color: #3498db; font-weight: bold");
+      _safeTable(result.slice(0, 20), 20);
+      return result;
+    } catch(e) { console.warn("analyzeStatusCodes error:", e); return []; }
+  };
+
+  // ENHANCEMENT 18: Third-party request detector
+  API.detectThirdParty = function detectThirdParty() {
+    try {
+      var thirdParty = {};
+      var ownOrigin = location.origin;
+      state.log.forEach(function(entry) {
+        try {
+          var url = entry.url || "";
+          if (url.indexOf(ownOrigin) === -1 && url.indexOf("http") === 0) {
+            var host = url.replace(/https?:\/\/([^\/]+).*/, "$1");
+            if (!thirdParty[host]) thirdParty[host] = { host: host, count: 0, urls: [] };
+            thirdParty[host].count++;
+            if (thirdParty[host].urls.length < 3) thirdParty[host].urls.push(url.substring(0, 60));
+          }
+        } catch(e) {}
+      });
+      var result = Object.keys(thirdParty).map(function(k) { return thirdParty[k]; });
+      result.sort(function(a, b) { return b.count - a.count; });
+      console.log("%c🌐 Third-party domains: " + result.length, "color: #e67e22; font-weight: bold");
+      _safeTable(result, 20);
+      return result;
+    } catch(e) { console.warn("detectThirdParty error:", e); return []; }
+  };
+
+  // ENHANCEMENT 19: Authentication flow tracker
+  API.trackAuthFlows = function trackAuthFlows() {
+    try {
+      var authFlows = [];
+      state.log.forEach(function(entry) {
+        try {
+          var url = (entry.url || "").toLowerCase();
+          var method = (entry.method || "GET").toUpperCase();
+          var status = entry.status || 0;
+          if (url.indexOf("login") !== -1 || url.indexOf("signin") !== -1 || url.indexOf("auth") !== -1 || url.indexOf("oauth") !== -1 || url.indexOf("saml") !== -1 || url.indexOf("callback") !== -1) {
+            authFlows.push({ url: (entry.url || "").substring(0, 80), method: method, status: status, type: url.indexOf("login") !== -1 ? "login" : url.indexOf("oauth") !== -1 ? "oauth" : url.indexOf("callback") !== -1 ? "callback" : "auth", risk: status === 200 ? "INFO" : status === 302 ? "REDIRECT" : status >= 400 ? "FAILURE" : "INFO" });
+          }
+          var headers = entry.responseHeaders || {};
+          var setCookie = headers["set-cookie"] || "";
+          if (setCookie && (setCookie.indexOf("session") !== -1 || setCookie.indexOf("token") !== -1 || setCookie.indexOf("jwt") !== -1)) {
+            authFlows.push({ url: (entry.url || "").substring(0, 80), method: method, status: status, type: "session_set", risk: "INFO" });
+          }
+        } catch(e) {}
+      });
+      console.log("%c🔑 Auth flows: " + authFlows.length, authFlows.length > 0 ? "color: #3498db; font-weight: bold" : "color: #7f8c8d");
+      _safeTable(authFlows, 30);
+      return authFlows;
+    } catch(e) { console.warn("trackAuthFlows error:", e); return []; }
+  };
+
+  // ENHANCEMENT 20: Traffic summary dashboard
+  API.trafficDashboard = function trafficDashboard() {
+    try {
+      var log = state.log;
+      var total = log.length;
+      var errors = log.filter(function(e) { return (e.status || 0) >= 400; }).length;
+      var uniqueDomains = {};
+      log.forEach(function(e) { try { var h = (e.url || "").replace(/https?:\/\/([^\/]+).*/, "$1"); uniqueDomains[h] = 1; } catch(ex) {} });
+      var uniqueMethods = {};
+      log.forEach(function(e) { try { uniqueMethods[(e.method || "GET").toUpperCase()] = 1; } catch(ex) {} });
+      var dash = {
+        totalRequests: total,
+        errorRate: total > 0 ? Math.round(errors / total * 100) + "%" : "0%",
+        uniqueDomains: Object.keys(uniqueDomains).length,
+        uniqueMethods: Object.keys(uniqueMethods).join(", "),
+        avgResponseSize: total > 0 ? Math.round(log.reduce(function(s, e) { return s + (e.responseBody || "").length; }, 0) / total) : 0,
+        hasAuth: log.some(function(e) { return (e.url || "").indexOf("auth") !== -1 || (e.url || "").indexOf("login") !== -1; }) ? "YES" : "NO",
+        hasGraphQL: log.some(function(e) { return (e.url || "").indexOf("graphql") !== -1; }) ? "YES" : "NO",
+        hasCORS: log.some(function(e) { return (e.responseHeaders || {})["access-control-allow-origin"]; }) ? "YES" : "NO"
+      };
+      console.log("%c📊 TRAFFIC DASHBOARD", "color: #e74c3c; font-weight: bold; font-size: 14px");
+      _safeTable([dash], 1);
+      return dash;
+    } catch(e) { console.warn("trafficDashboard error:", e); return {}; }
+  };
+
   // Expose API
   window.NetworkMapper = API;
 

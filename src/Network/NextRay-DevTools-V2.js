@@ -1075,6 +1075,218 @@
     } catch(e) { console.warn("trafficDiff error:", e); return {}; }
   };
 
+  // ===========================================
+  // ENHANCEMENTS #11-20: Advanced Security Features
+  // ===========================================
+
+  // ENHANCEMENT 11: JWT token analyzer
+  NextRay.analyzeJWTs = function analyzeJWTs() {
+    try {
+      var jwts = [];
+      logs.forEach(function(l) {
+        try {
+          var headers = l.responseHeaders || {};
+          var auth = headers["authorization"] || "";
+          var bearer = auth.replace(/^Bearer\s+/i, "");
+          if (bearer.split(".").length === 3) {
+            try {
+              var parts = bearer.split(".");
+              var hdr = JSON.parse(atob(parts[0].replace(/-/g, "+").replace(/_/g, "/")));
+              var pay = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+              jwts.push({ url: (l.url || "").substring(0, 60), algorithm: hdr.alg || "unknown", issuer: pay.iss || "unknown", expiry: pay.exp ? new Date(pay.exp * 1000).toISOString() : "unknown", risk: hdr.alg === "none" ? "CRITICAL" : hdr.alg === "HS256" ? "MEDIUM" : "INFO" });
+            } catch(e) {}
+          }
+          var body = l.responseBody || "";
+          var bodyJWTs = (typeof body === "string" ? body : "").match(/\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\b/g) || [];
+          bodyJWTs.slice(0, 5).forEach(function(tok) {
+            try {
+              var p = tok.split(".");
+              var h = JSON.parse(atob(p[0].replace(/-/g, "+").replace(/_/g, "/")));
+              var y = JSON.parse(atob(p[1].replace(/-/g, "+").replace(/_/g, "/")));
+              jwts.push({ url: (l.url || "").substring(0, 60), algorithm: h.alg, issuer: y.iss || "unknown", expiry: y.exp ? new Date(y.exp * 1000).toISOString() : "unknown", risk: h.alg === "none" ? "CRITICAL" : "INFO", location: "body" });
+            } catch(e) {}
+          });
+        } catch(e) {}
+      });
+      console.log("%c🔐 JWTs: " + jwts.length, jwts.length > 0 ? "color: #e74c3c; font-weight: bold" : "color: #27ae60");
+      _safeTable(jwts, 20);
+      return jwts;
+    } catch(e) { console.warn("analyzeJWTs error:", e); return []; }
+  };
+
+  // ENHANCEMENT 12: GraphQL endpoint detection
+  NextRay.detectGraphQL = function detectGraphQL() {
+    try {
+      var gql = [];
+      logs.forEach(function(l) {
+        try {
+          var url = l.url || "";
+          var body = l.requestBody || "";
+          if (url.indexOf("graphql") !== -1 || url.indexOf("/gql") !== -1) {
+            gql.push({ url: url.substring(0, 80), method: l.method || "GET", type: "endpoint", risk: "MEDIUM" });
+          }
+          if (typeof body === "string" && (body.indexOf("query") !== -1 || body.indexOf("mutation") !== -1)) {
+            var op = body.match(/(query|mutation|subscription)\s+(\w+)/);
+            if (op) gql.push({ url: url.substring(0, 80), method: l.method || "POST", type: "operation", operation: op[1], name: op[2], risk: "LOW" });
+          }
+        } catch(e) {}
+      });
+      console.log("%c📊 GraphQL: " + gql.length, gql.length > 0 ? "color: #e67e22; font-weight: bold" : "color: #7f8c8d");
+      _safeTable(gql, 20);
+      return gql;
+    } catch(e) { console.warn("detectGraphQL error:", e); return []; }
+  };
+
+  // ENHANCEMENT 13: Subdomain takeover indicators
+  NextRay.detectSubdomainTakeover = function detectSubdomainTakeover() {
+    try {
+      var found = [];
+      var patterns = [
+        { name: "Heroku", rx: /herokuapp\.com/gi, risk: "HIGH" },
+        { name: "GitHub Pages", rx: /github\.io/gi, risk: "MEDIUM" },
+        { name: "AWS S3", rx: /s3\.amazonaws\.com/gi, risk: "MEDIUM" },
+        { name: "Azure", rx: /azurewebsites\.net/gi, risk: "MEDIUM" },
+        { name: "Fastly", rx: /fastly\.net/gi, risk: "LOW" }
+      ];
+      logs.forEach(function(l) {
+        try {
+          var text = (l.url || "") + " " + (typeof l.responseBody === "string" ? l.responseBody : "");
+          patterns.forEach(function(p) {
+            if (p.rx.test(text)) { found.push({ url: (l.url || "").substring(0, 80), service: p.name, risk: p.risk }); p.rx.lastIndex = 0; }
+          });
+        } catch(e) {}
+      });
+      console.log("%c🌐 Subdomain takeover: " + found.length, found.length > 0 ? "color: #e67e22; font-weight: bold" : "color: #27ae60");
+      _safeTable(found, 20);
+      return found;
+    } catch(e) { console.warn("detectSubdomainTakeover error:", e); return []; }
+  };
+
+  // ENHANCEMENT 14: Sensitive path scanner
+  NextRay.scanSensitivePaths = function scanSensitivePaths() {
+    try {
+      var found = [];
+      var paths = ["/.env", "/.git/config", "/wp-config.php", "/config.json", "/secrets.json", "/.aws/credentials", "/docker-compose.yml", "/server-status", "/.DS_Store", "/debug/vars", "/actuator", "/swagger.json", "/api-docs", "/phpinfo.php", "/.svn/entries", "/backup.zip", "/dump.sql", "/phpmyadmin"];
+      logs.forEach(function(l) {
+        try {
+          var url = l.url || "";
+          paths.forEach(function(p) {
+            if (url.indexOf(p) !== -1) found.push({ url: url.substring(0, 80), path: p, status: l.status, risk: (Number(l.status) || 0) < 400 ? "HIGH" : "MEDIUM" });
+          });
+        } catch(e) {}
+      });
+      console.log("%c📁 Sensitive paths: " + found.length, found.length > 0 ? "color: #e74c3c; font-weight: bold" : "color: #27ae60");
+      _safeTable(found, 20);
+      return found;
+    } catch(e) { console.warn("scanSensitivePaths error:", e); return []; }
+  };
+
+  // ENHANCEMENT 15: Response size anomaly detector
+  NextRay.detectSizeAnomalies = function detectSizeAnomalies() {
+    try {
+      if (logs.length < 5) return [];
+      var sizes = logs.map(function(l) { return { url: l.url || "", size: (l.responseBody || "").length }; });
+      var avg = sizes.reduce(function(s, e) { return s + e.size; }, 0) / sizes.length;
+      var std = Math.sqrt(sizes.reduce(function(s, e) { return s + Math.pow(e.size - avg, 2); }, 0) / sizes.length);
+      var anomalies = sizes.filter(function(s) { return s.size > avg + 3 * std && s.size > 10000; }).map(function(s) { return { url: s.url.substring(0, 80), size: s.size, avg: Math.round(avg), deviation: Math.round((s.size - avg) / std) + "x" }; });
+      console.log("%c📏 Size anomalies: " + anomalies.length, anomalies.length > 0 ? "color: #e67e22; font-weight: bold" : "color: #27ae60");
+      _safeTable(anomalies, 20);
+      return anomalies;
+    } catch(e) { console.warn("detectSizeAnomalies error:", e); return []; }
+  };
+
+  // ENHANCEMENT 16: HTTP method distribution
+  NextRay.analyzeMethods = function analyzeMethods() {
+    try {
+      var methods = {};
+      logs.forEach(function(l) { try { var m = (l.method || "GET").toUpperCase(); methods[m] = (methods[m] || 0) + 1; } catch(e) {} });
+      var result = Object.keys(methods).map(function(k) { return { method: k, count: methods[k], pct: Math.round(methods[k] / logs.length * 100) + "%" }; });
+      result.sort(function(a, b) { return b.count - a.count; });
+      console.log("%c📡 Methods:", "color: #3498db; font-weight: bold");
+      _safeTable(result, 20);
+      return result;
+    } catch(e) { console.warn("analyzeMethods error:", e); return []; }
+  };
+
+  // ENHANCEMENT 17: Status code distribution
+  NextRay.analyzeStatusCodes = function analyzeStatusCodes() {
+    try {
+      var codes = {};
+      logs.forEach(function(l) { try { var s = l.status || 0; codes[s] = (codes[s] || 0) + 1; } catch(e) {} });
+      var result = Object.keys(codes).map(function(k) { return { code: k, count: codes[k] }; });
+      result.sort(function(a, b) { return b.count - a.count; });
+      console.log("%c📊 Status codes:", "color: #3498db; font-weight: bold");
+      _safeTable(result.slice(0, 20), 20);
+      return result;
+    } catch(e) { console.warn("analyzeStatusCodes error:", e); return []; }
+  };
+
+  // ENHANCEMENT 18: Third-party request detector
+  NextRay.detectThirdParty = function detectThirdParty() {
+    try {
+      var tp = {};
+      var own = location.origin;
+      logs.forEach(function(l) {
+        try {
+          var url = l.url || "";
+          if (url.indexOf(own) === -1 && url.indexOf("http") === 0) {
+            var host = url.replace(/https?:\/\/([^\/]+).*/, "$1");
+            if (!tp[host]) tp[host] = { host: host, count: 0 };
+            tp[host].count++;
+          }
+        } catch(e) {}
+      });
+      var result = Object.keys(tp).map(function(k) { return tp[k]; });
+      result.sort(function(a, b) { return b.count - a.count; });
+      console.log("%c🌐 Third-party: " + result.length + " domains", "color: #e67e22; font-weight: bold");
+      _safeTable(result, 20);
+      return result;
+    } catch(e) { console.warn("detectThirdParty error:", e); return []; }
+  };
+
+  // ENHANCEMENT 19: Authentication flow tracker
+  NextRay.trackAuthFlows = function trackAuthFlows() {
+    try {
+      var flows = [];
+      logs.forEach(function(l) {
+        try {
+          var url = (l.url || "").toLowerCase();
+          if (url.indexOf("login") !== -1 || url.indexOf("signin") !== -1 || url.indexOf("auth") !== -1 || url.indexOf("oauth") !== -1 || url.indexOf("callback") !== -1) {
+            flows.push({ url: (l.url || "").substring(0, 80), method: l.method || "GET", status: l.status, type: url.indexOf("login") !== -1 ? "login" : url.indexOf("oauth") !== -1 ? "oauth" : "auth" });
+          }
+          var sc = (l.responseHeaders || {})["set-cookie"] || "";
+          if (sc && (sc.indexOf("session") !== -1 || sc.indexOf("token") !== -1)) {
+            flows.push({ url: (l.url || "").substring(0, 80), method: l.method || "GET", status: l.status, type: "session_set" });
+          }
+        } catch(e) {}
+      });
+      console.log("%c🔑 Auth flows: " + flows.length, flows.length > 0 ? "color: #3498db; font-weight: bold" : "color: #7f8c8d");
+      _safeTable(flows, 30);
+      return flows;
+    } catch(e) { console.warn("trackAuthFlows error:", e); return []; }
+  };
+
+  // ENHANCEMENT 20: Traffic summary dashboard
+  NextRay.trafficDashboard = function trafficDashboard() {
+    try {
+      var total = logs.length;
+      var errors = logs.filter(function(l) { return (Number(l.status) || 0) >= 400; }).length;
+      var domains = {};
+      logs.forEach(function(l) { try { var h = (l.url || "").replace(/https?:\/\/([^\/]+).*/, "$1"); domains[h] = 1; } catch(e) {} });
+      var dash = {
+        totalRequests: total,
+        errorRate: total > 0 ? Math.round(errors / total * 100) + "%" : "0%",
+        uniqueDomains: Object.keys(domains).length,
+        hasAuth: logs.some(function(l) { return (l.url || "").indexOf("auth") !== -1; }) ? "YES" : "NO",
+        hasGraphQL: logs.some(function(l) { return (l.url || "").indexOf("graphql") !== -1; }) ? "YES" : "NO",
+        hasCORS: logs.some(function(l) { return (l.responseHeaders || {})["access-control-allow-origin"]; }) ? "YES" : "NO"
+      };
+      console.log("%c📊 DASHBOARD", "color: #e74c3c; font-weight: bold; font-size: 14px");
+      _safeTable([dash], 1);
+      return dash;
+    } catch(e) { console.warn("trafficDashboard error:", e); return {}; }
+  };
+
   // Backward alias for older notes
   window.NetXRay = window.NextRay;
 
