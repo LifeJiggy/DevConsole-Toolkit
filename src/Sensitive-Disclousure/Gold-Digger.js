@@ -1357,17 +1357,29 @@
     window.GOLD_JSON = findings;
   } catch {}
 
-  // Cleanup function to restore prototypes
-  try {
-    window.GOLD_CLEANUP = function() {
-      try { if (window.__origFetch) { window.fetch = window.__origFetch; delete window.__origFetch; } } catch {}
-      try { if (window.__origXHROpen) { XMLHttpRequest.prototype.open = window.__origXHROpen; delete window.__origXHROpen; } } catch {}
-      try { if (window.__origXHRSend) { XMLHttpRequest.prototype.send = window.__origXHRSend; delete window.__origXHRSend; } } catch {}
-      try { if (window.__origAddEventListener) { EventTarget.prototype.addEventListener = window.__origAddEventListener; delete window.__origAddEventListener; } } catch {}
-      delete window.__GOLD_PATCHED;
-      console.log("GOLD: All patches removed.");
-    };
-  } catch {}
+  // CLEANUP: Restore all patched functions
+  window.CLEANUP = window.CLEANUP || function CLEANUP() {
+    try {
+      if (window.__origFetch) { window.fetch = window.__origFetch; delete window.__origFetch; }
+      if (window.__origXHROpen) { XMLHttpRequest.prototype.open = window.__origXHROpen; delete window.__origXHROpen; }
+      if (window.__origXHRSend) { XMLHttpRequest.prototype.send = window.__origXHRSend; delete window.__origXHRSend; }
+      delete window.__PATCHED_FETCH;
+      delete window.__PATCHED_XHR;
+      console.log("%c🧹 All patches restored.", "color: #27ae60; font-weight: bold");
+    } catch(e) { console.warn("Cleanup error:", e); }
+  };
+
+  // HELP: List all available functions
+  window.HELP = window.HELP || function HELP() {
+    console.log("%c╔══════════════════════════════════════════╗", "color: #3498db");
+    console.log("%c║  [Gold Digger] — HELP                    ║", "color: #3498db; font-weight: bold");
+    console.log("%c╚══════════════════════════════════════════╝", "color: #3498db");
+    console.log("%cCore:", "color: #e67e22; font-weight: bold");
+    console.log("  run()                          — Start analysis");
+    console.log("  CLEANUP()                      — Restore patched functions");
+    console.log("  HELP()                         — Show this help");
+    console.log("%cTip: Type CLEANUP() to restore browser to original state.", "color: #7f8c8d");
+  };
 
   // ===========================================
   // ENHANCEMENTS: Additional Security Scanning

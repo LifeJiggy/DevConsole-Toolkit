@@ -461,32 +461,9 @@
         'WEBGL_compressed_texture_s3tc_srgb', 'WEBGL_depth_texture',
         'OES_texture_float_linear', 'OES_texture_half_float_linear',
         'EXT_blend_minmax', 'EXT_float_blend', 'WEBGL_compressed_texture_etc',
-        'WEBGL_compressed_texture_astc', 'KHR_parallel_shader_compile',
-        'EXT_disjoint_timer_query_webgl2', 'EXT_disjoint_timer_query',
-        'EXT_texture_norm16', 'WEBGL_multi_draw', 'OES_draw_buffers_indexed',
-        'EXT_clip_control', 'OES_texture_float', 'OES_texture_half_float',
-        'WEBGL_lose_context', 'EXT_texture_filter_anisotropic', 'WEBGL_debug_renderer_info',
-        'WEBGL_debug_shaders', 'OES_standard_derivatives', 'OES_element_index_uint',
-        'OES_fbo_render_mipmap', 'ANGLE_instanced_arrays', 'OES_vertex_array_object',
-        'EXT_blend_minmax', 'EXT_float_blend', 'EXT_texture_compression_bptc',
-        'EXT_texture_compression_rgtc', 'WEBGL_compressed_texture_s3tc',
-        'WEBGL_compressed_texture_s3tc_srgb', 'WEBGL_compressed_texture_etc',
-        'WEBGL_compressed_texture_etc1', 'WEBGL_compressed_texture_pvrtc',
-        'WEBGL_compressed_texture_astc', 'EXT_color_buffer_half_float',
-        'WEBGL_color_buffer_float', 'EXT_disjoint_timer_query',
-        'EXT_disjoint_timer_query_webgl2', 'EXT_texture_norm16', 'WEBGL_multi_draw',
-        'OES_draw_buffers_indexed', 'EXT_clip_control', 'KHR_parallel_shader_compile',
-        'EXT_texture_compression_bptc', 'EXT_texture_compression_rgtc',
-        'EXT_texture_filter_anisotropic', 'WEBGL_lose_context', 'WEBGL_debug_renderer_info',
-        'WEBGL_debug_shaders', 'OES_standard_derivatives', 'OES_element_index_uint',
-        'OES_fbo_render_mipmap', 'ANGLE_instanced_arrays', 'OES_vertex_array_object',
-        'EXT_blend_minmax', 'EXT_float_blend', 'WEBGL_compressed_texture_s3tc',
-        'WEBGL_compressed_texture_s3tc_srgb', 'WEBGL_compressed_texture_etc',
-        'WEBGL_compressed_texture_etc1', 'WEBGL_compressed_texture_pvrtc',
-        'WEBGL_compressed_texture_astc', 'EXT_color_buffer_half_float',
-        'WEBGL_color_buffer_float', 'EXT_disjoint_timer_query',
-        'EXT_disjoint_timer_query_webgl2', 'EXT_texture_norm16', 'WEBGL_multi_draw',
-        'OES_draw_buffers_indexed', 'EXT_clip_control', 'KHR_parallel_shader_compile',
+        'KHR_parallel_shader_compile', 'EXT_disjoint_timer_query_webgl2',
+        'EXT_disjoint_timer_query', 'EXT_texture_norm16', 'WEBGL_multi_draw',
+        'OES_draw_buffers_indexed', 'EXT_clip_control', 'OES_fbo_render_mipmap',
         'EXT_texture_compression_bptc', 'EXT_texture_compression_rgtc',
 
         // Modern Web APIs (2024+)
@@ -4239,4 +4216,28 @@
   // Run an initial comprehensive scan
   console.log("🔍 Performing initial comprehensive scan...");
   window.ErrorDebugExtractor.viewFindings();
+
+  // CLEANUP: Restore all patched functions
+  window.CLEANUP = window.CLEANUP || function CLEANUP() {
+    try {
+      if (window.__origFetch) { window.fetch = window.__origFetch; delete window.__origFetch; }
+      if (window.__origXHROpen) { XMLHttpRequest.prototype.open = window.__origXHROpen; delete window.__origXHROpen; }
+      if (window.__origXHRSend) { XMLHttpRequest.prototype.send = window.__origXHRSend; delete window.__origXHRSend; }
+      delete window.__PATCHED_FETCH;
+      delete window.__PATCHED_XHR;
+      console.log("%c🧹 All patches restored.", "color: #27ae60; font-weight: bold");
+    } catch(e) { console.warn("Cleanup error:", e); }
+  };
+
+  // HELP: List all available functions
+  window.HELP = window.HELP || function HELP() {
+    console.log("%c╔══════════════════════════════════════════╗", "color: #3498db");
+    console.log("%c║  Error & Debug Handler — HELP             ║", "color: #3498db; font-weight: bold");
+    console.log("%c╚══════════════════════════════════════════╝", "color: #3498db");
+    console.log("%cCore:", "color: #e67e22; font-weight: bold");
+    console.log("  run()                          — Start analysis");
+    console.log("  CLEANUP()                      — Restore patched functions");
+    console.log("  HELP()                         — Show this help");
+    console.log("%cTip: Type CLEANUP() to restore browser to original state.", "color: #7f8c8d");
+  };
 })();

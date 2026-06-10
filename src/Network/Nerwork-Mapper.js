@@ -2970,4 +2970,44 @@
         }[c])
     );
   }
+
+  // CLEANUP: Restore all patched functions and clean up
+  API.CLEANUP = API.CLEANUP || function CLEANUP() {
+    try {
+      if (window.__origFetch) { window.fetch = window.__origFetch; delete window.__origFetch; }
+      if (window.__origXHROpen) { XMLHttpRequest.prototype.open = window.__origXHROpen; delete window.__origXHROpen; }
+      if (window.__origXHRSend) { XMLHttpRequest.prototype.send = window.__origXHRSend; delete window.__origXHRSend; }
+      if (window.__origWS) { window.WebSocket = window.__origWS; delete window.__origWS; }
+      delete window.__PATCHED_FETCH;
+      delete window.__PATCHED_XHR;
+      console.log("%c🧹 All patches restored.", "color: #27ae60; font-weight: bold");
+    } catch(e) { console.warn("Cleanup error:", e); }
+  };
+
+  // HELP: List all available functions
+  API.HELP = API.HELP || function HELP() {
+    var name = "NetworkMapper";
+    console.log("%c╔══════════════════════════════════════════╗", "color: #3498db");
+    console.log("%c║    " + name + " — HELP                     ║", "color: #3498db; font-weight: bold");
+    console.log("%c╚══════════════════════════════════════════╝", "color: #3498db");
+    console.log("%cCore:", "color: #e67e22; font-weight: bold");
+    console.log("  " + name + ".start()             — Start capture");
+    console.log("  " + name + ".stop()              — Stop capture");
+    console.log("  " + name + ".CLEANUP()           — Restore all patched functions");
+    console.log("  " + name + ".HELP()              — Show this help");
+    console.log("%cAnalysis:", "color: #e67e22; font-weight: bold");
+    console.log("  " + name + ".scoreTraffic()      — Risk scoring");
+    console.log("  " + name + ".analyzeCORS()       — CORS analysis");
+    console.log("  " + name + ".analyzeCookies()    — Cookie security");
+    console.log("  " + name + ".checkSecurityHeaders() — Header check");
+    console.log("  " + name + ".detectDataExposure() — PII detection");
+    console.log("  " + name + ".analyzeJWTs()       — JWT analysis");
+    console.log("  " + name + ".detectGraphQL()     — GraphQL detection");
+    console.log("  " + name + ".scanSensitivePaths() — Sensitive paths");
+    console.log("  " + name + ".replayRequest(i)   — Replay request #i");
+    console.log("  " + name + ".compareRequests(a,b) — Diff requests a & b");
+    console.log("  " + name + ".exportHTMLReport()  — Export HTML report");
+    console.log("  " + name + ".trafficDashboard()  — Summary dashboard");
+    console.log("%cTip: Type " + name + ".CLEANUP() to restore browser.", "color: #7f8c8d");
+  };
 })();

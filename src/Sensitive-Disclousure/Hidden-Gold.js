@@ -4069,6 +4069,29 @@
       return csv;
     } catch(e) { console.warn("exportCSV error:", e); return ""; }
   };
+  // CLEANUP: Restore all patched functions
+  window.CLEANUP = window.CLEANUP || function CLEANUP() {
+    try {
+      if (window.__origFetch) { window.fetch = window.__origFetch; delete window.__origFetch; }
+      if (window.__origXHROpen) { XMLHttpRequest.prototype.open = window.__origXHROpen; delete window.__origXHROpen; }
+      if (window.__origXHRSend) { XMLHttpRequest.prototype.send = window.__origXHRSend; delete window.__origXHRSend; }
+      delete window.__PATCHED_FETCH;
+      delete window.__PATCHED_XHR;
+      console.log("%c🧹 All patches restored.", "color: #27ae60; font-weight: bold");
+    } catch(e) { console.warn("Cleanup error:", e); }
+  };
+
+  // HELP: List all available functions
+  window.HELP = window.HELP || function HELP() {
+    console.log("%c╔══════════════════════════════════════════╗", "color: #3498db");
+    console.log("%c║  [Hidden Gold] — HELP                    ║", "color: #3498db; font-weight: bold");
+    console.log("%c╚══════════════════════════════════════════╝", "color: #3498db");
+    console.log("%cCore:", "color: #e67e22; font-weight: bold");
+    console.log("  run()                          — Start analysis");
+    console.log("  CLEANUP()                      — Restore patched functions");
+    console.log("  HELP()                         — Show this help");
+    console.log("%cTip: Type CLEANUP() to restore browser to original state.", "color: #7f8c8d");
+  };
 })();
 
 // ===========================================

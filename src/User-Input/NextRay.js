@@ -1888,4 +1888,49 @@ Validation&Exploit Helper-all‑in‑one Snippet
     "v" + __version,
     "→ NextRay.help()"
   );
+
+  // CLEANUP: Restore all patched functions and clean up
+  window.CLEANUP = window.CLEANUP || function CLEANUP() {
+    try {
+      // Restore fetch
+      if (window.__origFetch) { window.fetch = window.__origFetch; delete window.__origFetch; }
+      // Restore XHR
+      if (window.__origXHROpen) { XMLHttpRequest.prototype.open = window.__origXHROpen; delete window.__origXHROpen; }
+      if (window.__origXHRSend) { XMLHttpRequest.prototype.send = window.__origXHRSend; delete window.__origXHRSend; }
+      // Restore addEventListener
+      if (window.__origAddEventListener) { EventTarget.prototype.addEventListener = window.__origAddEventListener; delete window.__origAddEventListener; }
+      // Restore location
+      if (window.__origLocationAssign) { window.location.assign = window.__origLocationAssign; delete window.__origLocationAssign; }
+      if (window.__origLocationReplace) { window.location.replace = window.__origLocationReplace; delete window.__origLocationReplace; }
+      // Clean up globals
+      delete window.__PATCHED_FETCH;
+      delete window.__PATCHED_XHR;
+      console.log("%c🧹 All patches restored. Tool cleanup complete.", "color: #27ae60; font-weight: bold");
+    } catch(e) { console.warn("Cleanup error:", e); }
+  };
+
+  // HELP: List all available functions
+  window.HELP = window.HELP || function HELP() {
+    console.log("%c╔══════════════════════════════════════════╗", "color: #3498db");
+    console.log("%c║       DEVCONSOLE TOOLKIT — HELP          ║", "color: #3498db; font-weight: bold");
+    console.log("%c╚══════════════════════════════════════════╝", "color: #3498db");
+    console.log("%cCore Functions:", "color: #e67e22; font-weight: bold");
+    console.log("  CLEANUP()                    — Restore all patched functions");
+    console.log("  HELP()                       — Show this help message");
+    console.log("%cNextRay:", "color: #e67e22; font-weight: bold");
+    console.log("  NextRay.run({mode:'passive|active|heavy'}) — Run validation scan");
+    console.log("  NextRay.report()              — Pretty console summary");
+    console.log("  NextRay.exportJSON()          — Download JSON report");
+    console.log("  NextRay.scanVulnerabilitySummary() — Comprehensive vulnerability summary");
+    console.log("  NextRay.scanCORS()            — Detect CORS misconfigurations");
+    console.log("  NextRay.scanDebugEndpoints()  — Detect exposed debug/error endpoints");
+    console.log("  NextRay.scanInfoDisclosure()  — Detect information disclosure in forms");
+    console.log("  NextRay.scanFrameworkPatterns() — Detect framework security patterns");
+    console.log("  NextRay.scanMixedContent()    — Detect mixed content issues");
+    console.log("  NextRay.scanThirdPartyScripts() — Detect third-party script risks");
+    console.log("  NextRay.scanInsecureFormActions() — Detect insecure form actions");
+    console.log("  NextRay.scanInlineScriptPatterns() — Detect inline script patterns");
+    console.log("  NextRay.scanPasswordManagerRisks() — Detect password manager bypass risks");
+    console.log("%cTip: Type CLEANUP() to restore browser to original state.", "color: #7f8c8d");
+  };
 })();

@@ -70,7 +70,50 @@ const code = toolkit.interactiveMappingClaude;
 
 Perfect for automation, CI/CD pipelines, or distributing tools programmatically!
 
-## �Universal Console Paste!!!
+## CLI Launcher
+
+Launch tools from the command line with the built-in CLI:
+
+```bash
+# List all available tools
+node dct.js list
+
+# Get injectable script for a tool
+node dct.js inject universal-user
+
+# Open browser + show inject instructions
+node dct.js open network-mapper https://target.com
+
+# Start local web server with all tools
+node dct.js serve [port]
+```
+
+### Tool Keys
+
+| Key | Tool | Category |
+|-----|------|----------|
+| `universal-user` | Universal User Input | User-Input |
+| `nextray-user` | NextRay Validation Scanner | User-Input |
+| `parameter-extractor` | Universal Parameter Extractor | Parameter |
+| `network-mapper` | Network Mapper | Network |
+| `network-probe` | Network Probe (Lightweight) | Network |
+| `gold-digger` | Gold Digger — P1 Disclosure | Sensitive-Disclousure |
+| `hidden-gold` | Hidden Gold — JS Disclosure | Sensitive-Disclousure |
+| `interactive-analysis` | Interactive Web Analysis | Interactive-Mapping |
+| `error-handler` | Error & Debug Handler | Error-debug-handling |
+
+## Browser Console Launcher
+
+Start a local server and access all tools from a web dashboard:
+
+```bash
+node dct.js serve 8765
+# Opens http://localhost:8765 in your browser
+```
+
+Each tool card has a **Load Tool** button that injects the script into the current page.
+
+## Universal Console Paste!!!
 
 ## For one-off use: Just open the Console tab and paste the snippet directly. Instant gratification!**
 ‎

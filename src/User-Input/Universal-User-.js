@@ -5319,4 +5319,57 @@
   };
 
   // ===== ENHANCEMENTS INJECTION END =====
+
+  // CLEANUP: Restore all patched functions and clean up
+  window.CLEANUP = window.CLEANUP || function CLEANUP() {
+    try {
+      // Restore fetch
+      if (window.__origFetch) { window.fetch = window.__origFetch; delete window.__origFetch; }
+      // Restore XHR
+      if (window.__origXHROpen) { XMLHttpRequest.prototype.open = window.__origXHROpen; delete window.__origXHROpen; }
+      if (window.__origXHRSend) { XMLHttpRequest.prototype.send = window.__origXHRSend; delete window.__origXHRSend; }
+      // Restore addEventListener
+      if (window.__origAddEventListener) { EventTarget.prototype.addEventListener = window.__origAddEventListener; delete window.__origAddEventListener; }
+      // Restore location
+      if (window.__origLocationAssign) { window.location.assign = window.__origLocationAssign; delete window.__origLocationAssign; }
+      if (window.__origLocationReplace) { window.location.replace = window.__origLocationReplace; delete window.__origLocationReplace; }
+      // Clean up globals
+      delete window.__PATCHED_FETCH;
+      delete window.__PATCHED_XHR;
+      console.log("%c🧹 All patches restored. Tool cleanup complete.", "color: #27ae60; font-weight: bold");
+    } catch(e) { console.warn("Cleanup error:", e); }
+  };
+
+  // HELP: List all available functions
+  window.HELP = window.HELP || function HELP() {
+    console.log("%c╔══════════════════════════════════════════╗", "color: #3498db");
+    console.log("%c║       DEVCONSOLE TOOLKIT — HELP          ║", "color: #3498db; font-weight: bold");
+    console.log("%c╚══════════════════════════════════════════╝", "color: #3498db");
+    console.log("%cCore Functions:", "color: #e67e22; font-weight: bold");
+    console.log("  CLEANUP()                    — Restore all patched functions");
+    console.log("  HELP()                       — Show this help message");
+    console.log("%cAnalysis:", "color: #e67e22; font-weight: bold");
+    console.log("  extractInteractiveInputs()        — Extract visible interactive inputs");
+    console.log("  extractAndWrapAllInputs()         — Extract and wrap ALL inputs");
+    console.log("  mapInputListenersHandlers()       — Map all input event handlers");
+    console.log("  captureAllExistingListeners()     — Capture ALL existing event listeners");
+    console.log("  mapInteractiveInputsNetwork()     — Map input-to-network relationships");
+    console.log("  runAllCoreFunctions()             — Run all core functions in sequence");
+    console.log("  runAllCoreFunctionsRobust()       — Run all functions (anti-false positive)");
+    console.log("%cReporting:", "color: #e67e22; font-weight: bold");
+    console.log("  outputUserInputsReport()          — Generate comprehensive report");
+    console.log("  detectInputReflectionsRobust()    — Robust reflection detection");
+    console.log("  analyzeInputStatistics()          — Analyze input statistics");
+    console.log("  analyzeDangerousInputs()          — Identify dangerous inputs");
+    console.log("  generateSecurityReport()          — Generate security report");
+    console.log("  exportSecurityData()              — Export findings (json|csv)");
+    console.log("%cUtilities:", "color: #e67e22; font-weight: bold");
+    console.log("  isDangerousAttr(attr)             — Check if attribute is dangerous");
+    console.log("  startLiveInputMonitor()           — Monitor input changes in real-time");
+    console.log("  stopLiveInputMonitor()            — Stop live input monitoring");
+    console.log("  scanInputSecurity()               — Comprehensive security scan");
+    console.log("  quickSecurityScan()               — Fast security overview");
+    console.log("  highlightDangerousInputs()        — Highlight dangerous inputs in DOM");
+    console.log("%cTip: Type CLEANUP() to restore browser to original state.", "color: #7f8c8d");
+  };
 })();

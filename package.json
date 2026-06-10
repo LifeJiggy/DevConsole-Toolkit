@@ -3,8 +3,14 @@
   "version": "6.0.1",
   "description": "A powerful open-source suite of utilities for extracting, mapping, debugging, inspection, monitoring, and rapid exploration inside the browser console.",
   "main": "index.js",
+  "bin": {
+    "dct": "./dct.js"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node dct.js serve",
+    "list": "node dct.js list",
+    "help": "node dct.js help",
+    "test": "node -c dct.js && node -c src/User-Input/Universal-User-.js && node -c src/User-Input/NextRay.js && node -c src/Parameter/Universal-Parameter-Extractor-Client-Side.js && node -c src/Network/Nerwork-Mapper.js && node -c src/Network/NextRay-DevTools-V2.js && node -c src/Sensitive-Disclousure/Gold-Digger.js && node -c src/Sensitive-Disclousure/Hidden-Gold.js && node -c src/Interactive-Mapping/Interactive-Web-Analysis.js && node -c src/Error-debug-handling/Error-handling-debugger.js && echo 'All syntax checks passed'"
   },
   "keywords": [
     "browser",

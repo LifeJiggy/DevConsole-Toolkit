@@ -246,7 +246,7 @@ The `heavy` mode tests these encodings against WAFs/filters:
 
 ```
 src/User-Input/
-├── NextRay.js                    (1840+ lines)
+├── NextRay.js                    (1890+ lines)
 │   ├── Input discovery (forms, inputs, contenteditable)
 │   ├── Validation profiling (character acceptance matrix)
 │   ├── Payload generation (XSS, SQLi, SSTI, path traversal)
