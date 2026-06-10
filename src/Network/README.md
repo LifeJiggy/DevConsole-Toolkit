@@ -2,162 +2,166 @@
 
 Two browser console tools for network traffic interception, analysis, and security scanning.
 
+---
+
 ## Tools
 
 | Tool | Lines | Purpose |
 |------|-------|---------|
-| **Nerwork-Mapper.js** | ~2569 | Full network mapper — fetch/XHR/WebSocket capture, request/response bodies, headers, call stacks, rule-based analysis, findings store |
-| **NextRay-DevTools-V2.js** | ~1082 | Lightweight network X-Ray — fast capture with auto-tagging, HAR/CSV export, cURL generation, HUD overlay |
+| **Nerwork-Mapper.js** | ~2817 | Full network mapper — fetch/XHR/WebSocket capture, request/response bodies, headers, call stacks, rule-based analysis, findings store, 20 security enhancements |
+| **NextRay-DevTools-V2.js** | ~1294 | Lightweight network X-Ray — fast capture with GOLD MINE auto-tagging, HAR/CSV export, cURL generation, HUD overlay, 20 security enhancements |
+
+---
 
 ## Quick Start
 
-1. Open DevTools (F12) on any target website
-2. Go to **Console** tab
-3. Paste the tool file and press Enter
-4. Use the displayed API commands
+### Nerwork-Mapper.js
 
-```js
-// Nerwork-Mapper.js
-NetworkMapper.start()        // Start capture
-NetworkMapper.stop()         // Stop capture
-NetworkMapper.showFindings() // View findings
-NetworkMapper.scoreTraffic() // Risk scoring
-NetworkMapper.analyzeCORS()  // CORS analysis
-NetworkMapper.analyzeCookies() // Cookie security
-NetworkMapper.checkSecurityHeaders() // Header check
-NetworkMapper.detectDataExposure() // PII detection
-NetworkMapper.mapEndpoints() // API mapping
-NetworkMapper.analyzePerformance() // Slow requests
-NetworkMapper.fingerprintTech() // Tech detection
-NetworkMapper.complianceReport() // OWASP mapping
-NetworkMapper.exportLogs()   // Export JSON
+1. Open DevTools (**F12**) → **Console** tab
+2. Paste `Nerwork-Mapper.js` → press **Enter**
+3. Use the banner UI or API:
 
-// NextRay-DevTools-V2.js
-NextRay.start()              // Start capture
-NextRay.stop()               // Stop capture
-NextRay.table()              // View traffic table
-NextRay.find(/regex/)        // Filter by URL
-NextRay.curl(0)              // Generate cURL
-NextRay.exportJSON()         // Export JSON
-NextRay.exportHAR()          // Export HAR
-NextRay.scoreTraffic()       // Risk scoring
-NextRay.analyzeCORS()        // CORS analysis
-NextRay.analyzeCookies()     // Cookie security
-NextRay.checkSecurityHeaders() // Header check
-NextRay.detectDataExposure() // PII detection
-NextRay.mapEndpoints()       // API mapping
-NextRay.analyzePerformance() // Slow requests
-NextRay.fingerprintTech()    // Tech detection
-NextRay.complianceReport()   // OWASP mapping
+```javascript
+NetworkMapper.start()                    // Start capture
+NetworkMapper.stop()                     // Stop capture
+NetworkMapper.scoreTraffic()             // Risk scoring
+NetworkMapper.analyzeCORS()              // CORS analysis
+NetworkMapper.analyzeCookies()           // Cookie security
+NetworkMapper.checkSecurityHeaders()     // Header check
+NetworkMapper.detectDataExposure()       // PII detection
+NetworkMapper.analyzeJWTs()              // JWT analysis
+NetworkMapper.scanSensitivePaths()       // Sensitive paths
+NetworkMapper.detectSubdomainTakeover()  // Subdomain takeover
+NetworkMapper.mapEndpoints()             // API mapping
+NetworkMapper.trafficDashboard()         // Summary dashboard
+NetworkMapper.exportLogs()               // Export JSON
 ```
 
-## Nerwork-Mapper.js Features
+### NextRay-DevTools-V2.js
 
-### Core Capture
-- **fetch/XHR/WebSocket** interception with full request/response bodies
-- **Call stack capture** for every request
-- **User event tracking** (click, submit, change, keydown)
-- **Element context** (CSS selectors, XPaths for triggered elements)
-- **Header/body redaction** for sensitive values
-- **Configurable filters** (URL, method, status, type)
-- **Performance controls** (max entries, body size limits)
-- **Findings store** with severity-based analysis rules
+1. Open DevTools (**F12**) → **Console** tab
+2. Paste `NextRay-DevTools-V2.js` → press **Enter**
+3. Use the API:
 
-### Analysis Rules
-- Sensitive data in request/response bodies
-- Insecure cookies (missing Secure/HttpOnly/SameSite)
-- Missing security headers
-- CORS misconfigurations
-- Debug info disclosure
-- Authentication issues
-- Information leakage
-- SSRF indicators
+```javascript
+NextRay.start()                    // Start capture
+NextRay.stop()                     // Stop capture
+NextRay.table()                    // View traffic table
+NextRay.find("#Auth")              // Filter by tag
+NextRay.curl(0)                    // Generate cURL
+NextRay.scoreTraffic()             // Risk scoring
+NextRay.analyzeCORS()              // CORS analysis
+NextRay.analyzeCookies()           // Cookie security
+NextRay.checkSecurityHeaders()     // Header check
+NextRay.detectDataExposure()       // PII detection
+NextRay.analyzeJWTs()              // JWT analysis
+NextRay.scanSensitivePaths()       // Sensitive paths
+NextRay.detectSubdomainTakeover()  // Subdomain takeover
+NextRay.mapEndpoints()             // API mapping
+NextRay.trafficDashboard()         // Summary dashboard
+NextRay.exportHAR()                // Export HAR
+NextRay.overlay(true)              // Toggle HUD
+```
 
-### Enhancements (10)
-1. **scoreTraffic()** — Risk scoring for high/critical traffic
-2. **analyzeCORS()** — CORS wildcard & dangerous method detection
-3. **analyzeCookies()** — Missing Secure/HttpOnly/SameSite flags
-4. **checkSecurityHeaders()** — Missing HSTS, CSP, X-Frame-Options
-5. **detectDataExposure()** — PII/credential regex scanning in responses
-6. **mapEndpoints()** — Unique endpoint & method frequency mapping
-7. **analyzePerformance()** — Slow request detection (>3s)
-8. **fingerprintTech()** — Server/Powered-By header fingerprinting
-9. **complianceReport()** — OWASP Top 10 category mapping
-10. **trafficDiff()** — Time-window traffic comparison
+---
 
-### Hardening
-- `_safeTable()` — console.table wrapper with row limits
-- `_domReady()` — DOM ready state check
-- WeakSet circular reference guard in `redactJson`
-- Depth limits on `buildXPath` (max 10) and `checkJSON` (max 10)
-- Size guards on `correlateIndicators` (max 1000 entries)
-- Inner try/catch on forEach loops (cookies, headers, element details)
-- Listener cleanup via `teardownUserEventTracking()` in `stop()`
-- Filename sanitization in `download()`
-- CSV export with proper field escaping
-
-## NextRay-DevTools-V2.js Features
-
-### Core Capture
-- **fetch/XHR/WebSocket** interception
-- **Beacon API** capture
-- **Stack traces** for every request
-- **Auto-tagging** with GOLD MINE CHECKLIST:
-  - #Framework, #ThirdParty, #State, #Auth, #Input, #Error
-  - #Transform, #Events, #Async, #Memory
-- **Real-time HUD** overlay (toggle with `NextRay.overlay()`)
-- **cURL generation** for any request
-
-### Export
-- **JSON** — Full log as JSON array
-- **CSV** — Tabular format for spreadsheets
-- **HAR** — HTTP Archive Format for import into other tools
-- **NDJSON** — Newline-delimited JSON for streaming
-
-### Enhancements (10)
-1. **scoreTraffic()** — Risk scoring for high/critical traffic
-2. **analyzeCORS()** — CORS wildcard & dangerous method detection
-3. **analyzeCookies()** — Missing Secure/HttpOnly/SameSite flags
-4. **checkSecurityHeaders()** — Missing HSTS, CSP, X-Frame-Options
-5. **detectDataExposure()** — PII/credential regex scanning
-6. **mapEndpoints()** — Unique endpoint & method frequency mapping
-7. **analyzePerformance()** — Slow request detection (>3s)
-8. **fingerprintTech()** — Server/Powered-By header fingerprinting
-9. **complianceReport()** — OWASP Top 10 category mapping
-10. **trafficDiff()** — Time-window traffic comparison
-
-### Hardening
-- `_safeTable()` — console.table wrapper with 500-row cap
-- `MAX_LOGS = 5000` — Log array capped with splice eviction
-- `_orig` re-read on each `start()` — handles page replacing fetch/XHR
-- XHR `loadend` uses `{ once: true }` — prevents listener accumulation
-- WebSocket constructor wrapped in try/catch
-- HUD uses `textContent` instead of `innerHTML`
-- `exportHAR` map body wrapped in try/catch
-- Logs getter returns `logs.slice()` to prevent corruption
-- `clear()` resets `recent` array
-- `stop()` resets `hudCounts`
-
-## Comparison
+## Feature Comparison
 
 | Feature | Nerwork-Mapper | NextRay-V2 |
 |---------|---------------|------------|
 | fetch/XHR/WS capture | Yes | Yes |
+| Beacon capture | No | Yes |
 | Request/response bodies | Yes | Yes |
 | Call stacks | Yes | Yes |
 | User event tracking | Yes | No |
 | Rule-based analysis | Yes | Auto-tagging |
 | Findings store | Yes | No |
+| HUD overlay | No | Yes |
 | HAR export | No | Yes |
 | cURL generation | No | Yes |
-| HUD overlay | No | Yes |
 | Cookie analysis | Enhancement | Enhancement |
 | CORS analysis | Enhancement | Enhancement |
 | PII detection | Enhancement | Enhancement |
+| JWT analysis | Enhancement | Enhancement |
 | OWASP compliance | Enhancement | Enhancement |
+
+---
+
+## 20 Security Enhancements (Both Tools)
+
+| # | Function | Purpose |
+|---|----------|---------|
+| 1 | `scoreTraffic()` | Risk scoring for high/critical traffic |
+| 2 | `analyzeCORS()` | CORS wildcard & dangerous method detection |
+| 3 | `analyzeCookies()` | Missing Secure/HttpOnly/SameSite flags |
+| 4 | `checkSecurityHeaders()` | Missing HSTS, CSP, X-Frame-Options |
+| 5 | `detectDataExposure()` | PII/credential regex scanning |
+| 6 | `mapEndpoints()` | Unique endpoint & method frequency mapping |
+| 7 | `analyzePerformance()` | Slow request detection (>3s) |
+| 8 | `fingerprintTech()` | Server/Powered-By header fingerprinting |
+| 9 | `complianceReport()` | OWASP Top 10 category mapping |
+| 10 | `trafficDiff()` | Time-window traffic comparison |
+| 11 | `analyzeJWTs()` | JWT analysis (alg, issuer, expiry, alg:none) |
+| 12 | `detectGraphQL()` | GraphQL endpoint & operation discovery |
+| 13 | `detectSubdomainTakeover()` | CNAME/service pattern matching |
+| 14 | `scanSensitivePaths()` | Known sensitive path detection |
+| 15 | `detectSizeAnomalies()` | Statistical outlier detection (3σ) |
+| 16 | `analyzeMethods()` | HTTP method distribution |
+| 17 | `analyzeStatusCodes()` | Status code frequency breakdown |
+| 18 | `detectThirdParty()` | Third-party domain enumeration |
+| 19 | `trackAuthFlows()` | Auth/login/OAuth session tracking |
+| 20 | `trafficDashboard()` | One-line summary dashboard |
+
+---
+
+## Bug Hunting Workflow
+
+### Step 1: Start Capture
+```javascript
+NetworkMapper.start();  // or NextRay.start();
+```
+
+### Step 2: Risk Score Traffic
+```javascript
+NetworkMapper.scoreTraffic();
+```
+
+### Step 3: CORS + Cookie + Headers
+```javascript
+NetworkMapper.analyzeCORS();
+NetworkMapper.analyzeCookies();
+NetworkMapper.checkSecurityHeaders();
+```
+
+### Step 4: Data Exposure
+```javascript
+NetworkMapper.detectDataExposure();
+NetworkMapper.analyzeJWTs();
+```
+
+### Step 5: Sensitive Paths + Subdomain Takeover
+```javascript
+NetworkMapper.scanSensitivePaths();
+NetworkMapper.detectSubdomainTakeover();
+```
+
+### Step 6: Auth Flow Tracking
+```javascript
+NetworkMapper.trackAuthFlows();
+```
+
+### Step 7: Dashboard + Export
+```javascript
+NetworkMapper.trafficDashboard();
+NetworkMapper.exportLogs();
+```
+
+---
 
 ## Commit History
 
 | Commit | Changes |
 |--------|---------|
-| `99a9bc1` | Fix 56 bugs + harden + 20 enhancements |
+| `99a9bc1` | Fix 56 bugs + harden + first 20 enhancements |
+| `6133fcb` | Rewrite README |
+| `e9c55e6` | Add 10 more features per tool (20 total each) |

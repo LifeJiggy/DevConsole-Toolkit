@@ -1,161 +1,310 @@
-# 🦅 NextRay - DevTools Network X-Ray
+# NextRay — DevTools Network X-Ray
 
-An intelligent network interception and analysis engine for security researchers, running directly in your browser console. NextRay captures all network traffic and automatically tags it with high-value security heuristics, turning your console into a powerful reconnaissance and triage tool.
+A lightweight browser console tool for capturing network traffic (fetch/XHR/WebSocket/beacon) with auto-tagging using the GOLD MINE CHECKLIST, real-time HUD overlay, and 20 security scanning enhancements. Exports to JSON/CSV/HAR/NDJSON and generates cURL commands.
 
-**No extensions. No build steps. Pure console-native execution.**
-
-> *(Suggestion: Replace this with a GIF showing the HUD and `NextRay.table()` output.)*
+**No extensions. No build steps. Pure console-native power.**
 
 ---
 
-## 🚀 Key Features
+## Quick Start
 
--   **Comprehensive Interception**: Captures `fetch`, `XHR`, `navigator.sendBeacon`, and `WebSocket` connections with rich context.
--   **Automated Heuristic Tagging**: The **GOLD MINE CHECKLIST** automatically tags every request with security-relevant categories like `#Auth`, `#Input`, `#Error`, and `#Async` to instantly highlight areas of interest.
--   **Rich Contextual Data**: Each log entry includes the request/response metadata, timings, size, initiator script, and the full call stack.
--   **Powerful Filtering**: Instantly filter logs by URL `RegExp` or by security tag (e.g., `NextRay.find('#Auth')`).
--   **Interactive Console API**: A simple and powerful API to `start`, `stop`, `clear`, `find`, and `analyze` network traffic.
--   **cURL Command Generation**: Replay any request in other tools like Burp Suite with one command: `NextRay.curl(index)`.
--   **Multiple Export Formats**: Export complete network sessions to **JSON**, **CSV**, **NDJSON**, or **HAR** for deeper analysis.
--   **Live HUD Overlay**: A minimal, non-intrusive Heads-Up Display shows a live summary of captured requests and critical tags.
+### Method 1: Console Paste
 
----
+1. Open the target website
+2. Open DevTools (**F12**) → **Console** tab
+3. Paste the entire contents of `NextRay-DevTools-V2.js`
+4. Press **Enter** — capture starts automatically
 
-## ⚡ Quick Start
+### Method 2: Browser Snippet
 
-Get up and running in seconds.
-
-#### Method 1: Console Paste (Recommended)
-
-1.  Open the target website.
-2.  Open your browser's Developer Tools (**F12** or **Cmd+Option+I**).
-3.  Navigate to the **Console** tab.
-4.  Paste the entire contents of `NextRay-DevTools-V2.js`.
-5.  Press **Enter**. The tool will automatically start monitoring.
-
-#### Method 2: Browser Snippet
-
-For repeated use, save the script as a Snippet for one-click execution.
-
-1.  In DevTools, go to the **Sources** tab -> **Snippets** panel.
-2.  Click **New snippet**.
-3.  Paste the script and save it (e.g., `NextRay.js`).
-4.  Run it anytime with **Ctrl+Enter** (or **Cmd+Enter**).
+1. DevTools → **Sources** → **Snippets**
+2. New snippet → paste → save as `NextRay.js`
+3. Run anytime with **Ctrl+Enter**
 
 ---
 
-## 📖 Usage
+## Core Features
 
-Once loaded, all functionality is accessed through the global `NextRay` object. The tool starts automatically.
+### Network Interception
 
-### Viewing and Filtering Logs
+| Protocol | What it captures |
+|----------|-----------------|
+| **fetch** | Patches `window.fetch` — captures URL, method, headers, body, response |
+| **XHR** | Patches `XMLHttpRequest.open`/`.send` — full request/response lifecycle |
+| **WebSocket** | Hooks `WebSocket` constructor — captures URL and messages |
+| **Beacon** | Patches `navigator.sendBeacon` — captures beacon payloads |
+
+### GOLD MINE CHECKLIST (Auto-Tagging)
+
+Every captured entry is automatically tagged with relevant categories:
+
+| Tag | What it detects |
+|-----|----------------|
+| `#Framework` | React, Vue, Angular, jQuery, Next.js, etc. |
+| `#ThirdParty` | Cross-origin requests, analytics, CDNs |
+| `#State` | State management (Redux, Vuex, Pinia, Zustand) |
+| `#Auth` | Auth endpoints, tokens, session cookies |
+| `#Input` | Form submissions, file uploads |
+| `#Error` | 4xx/5xx status codes, error responses |
+| `#Transform` | Data transformation, serialization |
+| `#Events` | Event listeners, callbacks |
+| `#Async` | Async operations (promises, observables) |
+| `#Memory` | Potential memory leaks, large payloads |
+
+### Real-Time HUD Overlay
+
+- Toggle with `NextRay.overlay(true/false)`
+- Shows live counts: fetch, XHR, WebSocket, errors
+- Max z-index (sits above everything)
+- Uses `textContent` (no innerHTML XSS risk)
+
+### Export Formats
+
+| Format | Function | Description |
+|--------|----------|-------------|
+| JSON | `exportJSON()` | Full log as JSON array |
+| CSV | `exportCSV()` | Tabular format for spreadsheets |
+| HAR | `exportHAR()` | HTTP Archive Format for other tools |
+| NDJSON | `exportNDJSON()` | Newline-delimited JSON for streaming |
+| cURL | `curl(i)` | cURL command for any entry |
+
+---
+
+## Full API Reference
+
+### Core Functions
+
+| Function | Description |
+|----------|-------------|
+| `NextRay.start()` | Start capturing network traffic |
+| `NextRay.stop()` | Stop capturing |
+| `NextRay.clear()` | Clear all captured logs |
+| `NextRay.table()` | Display traffic table in console |
+| `NextRay.find(pattern)` | Filter entries by URL regex or #Tag |
+| `NextRay.analyze(i)` | Re-run GOLD MINE checklist on entry i |
+| `NextRay.tags(i)` | Get tags for entry i |
+| `NextRay.curl(i)` | Generate cURL command for entry i |
+| `NextRay.overlay(bool)` | Toggle HUD overlay |
+
+### Export
+
+| Function | Description |
+|----------|-------------|
+| `NextRay.exportJSON()` | Export full log as JSON |
+| `NextRay.exportCSV()` | Export as CSV |
+| `NextRay.exportHAR()` | Export as HAR (HTTP Archive) |
+| `NextRay.exportNDJSON()` | Export as newline-delimited JSON |
+
+### Configuration
+
+| Property | Description |
+|----------|-------------|
+| `NextRay.config` | Access/modify capture settings |
+
+### Enhancement 1–10: Security Scanning
+
+| Function | What it does |
+|----------|-------------|
+| `NextRay.scoreTraffic()` | Risk-score all traffic (HIGH/CRITICAL entries weighted) |
+| `NextRay.analyzeCORS()` | Detect wildcard CORS, cross-origin ACAO, dangerous methods |
+| `NextRay.analyzeCookies()` | Find missing Secure/HttpOnly/SameSite flags |
+| `NextRay.checkSecurityHeaders()` | Check for HSTS, CSP, X-Frame-Options, etc. |
+| `NextRay.detectDataExposure()` | Scan responses for emails, phones, credit cards, API keys |
+| `NextRay.mapEndpoints()` | Map unique API endpoints with method and frequency |
+| `NextRay.analyzePerformance()` | Find slow requests (>3s) |
+| `NextRay.fingerprintTech()` | Detect technology from Server/Powered-By headers |
+| `NextRay.complianceReport()` | Map findings to OWASP Top 10 categories |
+| `NextRay.trafficDiff(minutes)` | Compare traffic between two time windows |
+
+### Enhancement 11–20: Deep Analysis
+
+| Function | What it does |
+|----------|-------------|
+| `NextRay.analyzeJWTs()` | Parse JWTs from headers/bodies — flag alg:none, extract issuer/expiry |
+| `NextRay.detectGraphQL()` | Find GraphQL endpoints and operations in request bodies |
+| `NextRay.detectSubdomainTakeover()` | Match CNAME/service patterns (Heroku, S3, Azure, GitHub Pages) |
+| `NextRay.scanSensitivePaths()` | Detect hits to /.env, /.git/config, /swagger.json, etc. |
+| `NextRay.detectSizeAnomalies()` | Statistical outlier detection on response sizes (3σ threshold) |
+| `NextRay.analyzeMethods()` | HTTP method distribution with percentages |
+| `NextRay.analyzeStatusCodes()` | Status code frequency breakdown |
+| `NextRay.detectThirdParty()` | Enumerate cross-origin third-party domains |
+| `NextRay.trackAuthFlows()` | Track login/oauth/callback/session-setting requests |
+| `NextRay.trafficDashboard()` | One-line summary: total, error rate, domains, auth/graphql/CORS |
+
+---
+
+## Bug Hunting Workflow
+
+### Step 1: Start Capture
 
 ```javascript
-// Display a summary of all captured requests in a clean table.
-NextRay.table();
-
-// Find all requests related to authentication.
-NextRay.find('#Auth');
-
-// Find all requests to a specific API path using a RegExp.
-NextRay.find(/\/api\/v2\/users/);
-
-// Get the raw array of log objects.
-const allLogs = NextRay.logs;
-```
-
-### Analyzing and Exporting
-
-```javascript
-// Generate a cURL command for the request at index 5.
-NextRay.curl(5);
-
-// Re-run the GOLD MINE CHECKLIST analysis on the request at index 10.
-NextRay.analyze(10);
-
-// Export the session as a HAR file for import into Burp Suite or other tools.
-NextRay.exportHAR();
-
-// Other export options.
-NextRay.exportJSON();
-NextRay.exportCSV();
-NextRay.exportNDJSON();
-```
-
-### Control and Configuration
-
-```javascript
-// Stop and start the monitoring.
-NextRay.stop();
 NextRay.start();
+```
 
-// Clear all captured logs.
-NextRay.clear();
+Browse the target normally — all traffic is captured and auto-tagged.
 
-// Toggle the on-screen HUD.
-NextRay.overlay(false); // Hide
-NextRay.overlay(true);  // Show
+### Step 2: View Traffic Table
 
-// Tweak configuration (e.g., enable response body previews).
-NextRay.config.ENABLE_RESPONSE_PREVIEW = true;
+```javascript
+NextRay.table();
+```
+
+Displays all entries with status, method, URL, tags, and size.
+
+### Step 3: Filter by Tag
+
+```javascript
+NextRay.find("#Auth");        // Find auth-related requests
+NextRay.find("#Error");       // Find error responses
+NextRay.find("#ThirdParty");  // Find cross-origin requests
+NextRay.find(/api\/v1/);     // Find by URL pattern
+```
+
+### Step 4: Risk Score
+
+```javascript
+NextRay.scoreTraffic();
+```
+
+Prioritized list scored by risk (status codes, URL patterns, auth endpoints).
+
+### Step 5: CORS Analysis
+
+```javascript
+NextRay.analyzeCORS();
+```
+
+Find wildcard CORS, cross-origin ACAO with credentials, dangerous HTTP methods.
+
+### Step 6: Cookie Security
+
+```javascript
+NextRay.analyzeCookies();
+```
+
+Missing Secure, HttpOnly, SameSite flags on session cookies.
+
+### Step 7: Security Headers
+
+```javascript
+NextRay.checkSecurityHeaders();
+```
+
+Check every endpoint for HSTS, CSP, X-Frame-Options.
+
+### Step 8: Data Exposure
+
+```javascript
+NextRay.detectDataExposure();
+```
+
+Scan response bodies for PII and credential patterns.
+
+### Step 9: JWT Analysis
+
+```javascript
+NextRay.analyzeJWTs();
+```
+
+Parse JWTs — flag `alg:none`, extract issuer, subject, expiry.
+
+### Step 10: Sensitive Paths
+
+```javascript
+NextRay.scanSensitivePaths();
+```
+
+Detect requests to /.env, /.git/config, /swagger.json, etc.
+
+### Step 11: Third-Party Domains
+
+```javascript
+NextRay.detectThirdParty();
+```
+
+Enumerate all cross-origin domains with request counts.
+
+### Step 12: Auth Flow Tracking
+
+```javascript
+NextRay.trackAuthFlows();
+```
+
+Map all login, OAuth, callback, and session-setting requests.
+
+### Step 13: Dashboard
+
+```javascript
+NextRay.trafficDashboard();
+```
+
+One-line summary of entire traffic session.
+
+### Step 14: Generate cURL
+
+```javascript
+NextRay.curl(0);  // Generate cURL for first entry
+```
+
+Copy-paste ready cURL command for replay.
+
+### Step 15: Export
+
+```javascript
+NextRay.exportJSON();  // Full JSON
+NextRay.exportHAR();   // HAR for import
+NextRay.exportCSV();   // CSV for spreadsheets
 ```
 
 ---
 
-## 🏆 The GOLD MINE CHECKLIST
+## Configuration
 
-NextRay's power comes from its ability to automatically tag requests with security-relevant heuristics. Use `NextRay.find('#Tag')` to filter for these.
+```javascript
+// Access config:
+NextRay.config
+```
 
--   **`#Framework`**: The request was initiated by a common JS framework (React, Vue, Angular, etc.). Useful for identifying the tech stack.
--   **`#ThirdParty`**: The request likely originated from a third-party library like `axios` or `jQuery`. Helps distinguish app code from library code.
--   **`#State`**: The call stack includes references to state management libraries (Redux, MobX, etc.). Indicates the request may be tied to critical application state.
--   **`#Auth`**: The URL contains keywords like `auth`, `login`, `token`, or `oauth`. **These are high-priority targets for authentication bypasses.**
--   **`#Input`**: The request URL or body contains parameters like `redirect`, `path`, `file`, or `callback`. **Prime candidates for XSS, SSRF, and Open Redirect.**
--   **`#Error`**: The response was a server error (5xx status) or the URL contains a debug flag. Useful for triggering and analyzing error-based vulnerabilities.
--   **`#Transform`**: The URL suggests data export or transformation (e.g., `csv`, `pdf`, `xml`). **Potential for Formula Injection or XXE.**
--   **`#Events`**: The request was triggered by a DOM event handler (`click`, `submit`, etc.). Helps link user actions to API calls.
--   **`#Async`**: The request was fired in rapid succession with another identical request. **Flags potential race condition vulnerabilities.**
--   **`#Memory`**: The response body is very large. Could indicate a denial-of-service vector or an information leak.
-
----
-
-## 🏹 Bug Hunting Workflow
-
-1.  **Initial Recon**: Load NextRay and navigate through the target application's key features (login, profile update, search, etc.). The HUD will give you a live overview.
-
-2.  **Triage with `table()` and `find()`**:
-    -   Run `NextRay.table()` to get a broad overview of all captured traffic.
-    -   Immediately narrow your focus. Run `NextRay.find('#Auth')` to analyze all authentication-related endpoints.
-    -   Run `NextRay.find('#Input')` to find all requests with potentially injectable parameters.
-
-3.  **Deep Dive into a Request**:
-    -   Once you find an interesting request in the table (e.g., at index `15`), inspect its details by logging it: `console.log(NextRay.logs[15])`.
-    -   Examine the `stack` and `initiator` properties to understand the code path that triggered the request. This tells you *where* in the application's code the call is made.
-
-4.  **Replay and Fuzz**:
-    -   Generate a cURL command for the request: `NextRay.curl(15)`.
-    -   Copy this command and paste it into your terminal or import it into a tool like Burp Suite Repeater.
-    -   From there, you can begin fuzzing parameters, testing for authorization flaws, and manipulating headers.
-
-5.  **Look for Patterns**:
-    -   Use `NextRay.find('#Async')` to identify potential race conditions. Try replaying the associated requests in parallel using Burp Turbo Intruder.
-    -   Use `NextRay.find('#Transform')` to find export functions. Try injecting CSV formula payloads (e.g., `=HYPERLINK(...)`) into user data that might be exported.
-
-6.  **Export for Reporting**: When you find a vulnerability, use `NextRay.exportHAR()` or `NextRay.exportJSON()` to save the network logs as evidence for your report.
+Key settings:
+- `maxLogs` — Maximum log entries (default: 5000)
+- `captureFetch` — Capture fetch requests (default: true)
+- `captureXHR` — Capture XHR requests (default: true)
+- `captureWS` — Capture WebSocket (default: true)
+- `captureBeacon` — Capture sendBeacon (default: true)
+- `autoAnalyze` — Auto-run GOLD MINE on each entry (default: true)
 
 ---
 
-## 🤝 Contributing
+## Safety Features
 
-Contributions are welcome! If you have an idea for a new feature, a bug fix, or an improvement, please feel free to fork the repository and submit a pull request.
+- **`_safeTable()`** — console.table wrapper with 500-row cap
+- **`MAX_LOGS = 5000`** — Log array capped with splice eviction
+- **`_orig` re-read** — Re-reads `window.fetch/XHR/WS` on each `start()` to handle page overwrites
+- **`{ once: true }`** — XHR loadend listener auto-removes (no accumulation)
+- **WebSocket try/catch** — Constructor wrapped, failed attempts logged
+- **`textContent`** — HUD uses text nodes (no innerHTML)
+- **Logs getter** — Returns `logs.slice()` (callers can't corrupt internal state)
+- **`clear()` resets** — Clears `recent` array and `hudCounts`
 
-1.  Fork the repo.
-2.  Create your feature branch (`git checkout -b feature/AmazingFeature`).
-3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4.  Push to the branch (`git push origin feature/AmazingFeature`).
-5.  Open a Pull Request.
+---
 
-## 📧 Contact
+## File Structure
 
--   **X**: https://x.com/ArkhLifeJiggy
--   **Email**: bloomtonjovish@gmail.com && emperorstephenpee001@gmail.com
+```
+src/Network/
+├── README.md
+├── Nerwork-Mapper.js
+├── Network-Mapper-Readme.md
+├── NextRay-DevTools-V2.js
+│   ├── Configuration (config object)
+│   ├── Utilities (lower, has, pushUnique, bodyToString, stack)
+│   ├── Network capture (fetch/XHR/WebSocket/beacon hooks)
+│   ├── GOLD MINE auto-tagging (10 categories)
+│   ├── HUD overlay (textContent, z-index: 2147483647)
+│   ├── Analysis engine (analyzeEntry, tag assignment)
+│   ├── Export (JSON, CSV, HAR, NDJSON, cURL)
+│   ├── Traffic display (table, find, filter)
+│   └── 20 Enhancement functions (all NextRay.* exposed)
+├── NextRay-DevTools-V2-README.md (legacy)
+└── Qwen-README (legacy)
+```
