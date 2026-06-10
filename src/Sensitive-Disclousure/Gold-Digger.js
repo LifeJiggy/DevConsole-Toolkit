@@ -1049,7 +1049,7 @@
     const allElements = Array.from(document.querySelectorAll("*")).slice(0, _MAX_ELEMENTS);
     let domAttributesStr = "";
     let domTextStr = "";
-    for (let i = 0; i < maxEl; i++) {
+    for (let i = 0; i < allElements.length; i++) {
       const el = allElements[i];
       // Attributes (cap total size)
       if (domAttributesStr.length < 500000) {

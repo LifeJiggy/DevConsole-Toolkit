@@ -1,5 +1,5 @@
 /*
- * NextRay — DevTools Network X-Ray for Pro Hunters
+ * NetworkProbe — DevTools Network X-Ray for Pro Hunters
  * Evolved from NetXRay with the GOLD MINE CHECKLIST automation.
  *
  * Paste into DevTools Console. Captures fetch/XHR/beacon/WS +
@@ -7,24 +7,24 @@
  * to auto‑tag each entry with high‑value findings.
  *
  * API (unchanged + new):
- *   NextRay.start() / NextRay.stop() / NextRay.clear()
- *   NextRay.table()                 // table with tags
- *   NextRay.find(/regex|TAG/)       // filter by URL or by #Tag
- *   NextRay.curl(i)                 // cURL command for log i
- *   NextRay.exportJSON()/CSV()/HAR()/NDJSON()
- *   NextRay.analyze(i)              // rerun checklist on entry i
- *   NextRay.tags(i)                 // get tags for entry i
- *   NextRay.overlay(true|false)     // minimal HUD toggle
- *   NextRay.config                  // tweak knobs
+ *   NetworkProbe.start() / NetworkProbe.stop() / NetworkProbe.clear()
+ *   NetworkProbe.table()                 // table with tags
+ *   NetworkProbe.find(/regex|TAG/)       // filter by URL or by #Tag
+ *   NetworkProbe.curl(i)                 // cURL command for log i
+ *   NetworkProbe.exportJSON()/CSV()/HAR()/NDJSON()
+ *   NetworkProbe.analyze(i)              // rerun checklist on entry i
+ *   NetworkProbe.tags(i)                 // get tags for entry i
+ *   NetworkProbe.overlay(true|false)     // minimal HUD toggle
+ *   NetworkProbe.config                  // tweak knobs
  *
  * GOLD MINE CHECKLIST (auto‑tagged):
  *   #Framework, #ThirdParty, #State, #Auth, #Input, #Error,
  *   #Transform, #Events, #Async, #Memory
  */
 (function () {
-  if (window.NextRay) {
+  if (window.NetworkProbe) {
     console.warn(
-      "NextRay already loaded. Use NextRay.stop() then re-run if needed."
+      "NetworkProbe already loaded. Use NetworkProbe.stop() then re-run if needed."
     );
     return;
   }
@@ -63,7 +63,7 @@
     return e.stack
       .split(/\n+/)
       .slice(2)
-      .filter((l) => !/NextRay/.test(l))
+      .filter((l) => !/NetworkProbe/.test(l))
       .join("\n");
   };
   const lower = (s) => (s || "").toLowerCase();
@@ -159,7 +159,7 @@
     const line =
       (stk || "")
         .split(/\n/)
-        .find((l) => !/\(native\)|NextRay|<anonymous>/.test(l)) || "";
+        .find((l) => !/\(native\)|NetworkProbe|<anonymous>/.test(l)) || "";
     const m = line.match(
       /\(?([^\s\)]+\.(?:js|tsx?|vue|jsx)[^\)]*):(\d+):(\d+)\)?/
     );
@@ -546,9 +546,9 @@
     hudEl = document.createElement("div");
     hudEl.style =
       "all:initial; position:fixed; z-index:2147483647; right:12px; bottom:12px; background:#111; color:#fff; font:12px/1.2 ui-monospace,monospace; padding:10px 12px; border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,.35); opacity:.85;";
-    hudEl.textContent = "NextRay ✅";
-    hudEl.title = "NextRay HUD — click to toggle";
-    hudEl.addEventListener("click", () => NextRay.overlay(false));
+    hudEl.textContent = "NetworkProbe ✅";
+    hudEl.title = "NetworkProbe HUD — click to toggle";
+    hudEl.addEventListener("click", () => NetworkProbe.overlay(false));
     document.documentElement.appendChild(hudEl);
     renderHUD();
   }
@@ -685,7 +685,7 @@
     const har = {
       log: {
         version: "1.2",
-        creator: { name: "NextRay", version: "2.0" },
+        creator: { name: "NetworkProbe", version: "2.0" },
         pages: [
           {
             startedDateTime: new Date(
@@ -813,7 +813,7 @@
 
   // ------- lifecycle -------
   function start() {
-    if (running) return console.warn("NextRay already running");
+    if (running) return console.warn("NetworkProbe already running");
     // Re-read originals in case page overwrote them between stop/start
     _orig.fetch = window.fetch;
     _orig.XHR = window.XMLHttpRequest;
@@ -825,12 +825,12 @@
     installWebSocket();
     if (CONFIG.HUD) ensureHUD();
     console.log(
-      "%cNextRay started — capturing + auto-tagging",
+      "%cNetworkProbe started — capturing + auto-tagging",
       "color:#10b981"
     );
   }
   function stop() {
-    if (!running) return console.warn("NextRay not running");
+    if (!running) return console.warn("NetworkProbe not running");
     window.fetch = _orig.fetch;
     window.XMLHttpRequest = _orig.XHR;
     navigator.sendBeacon = _orig.sendBeacon;
@@ -838,17 +838,17 @@
     running = false;
     overlay(false);
     hudCounts = { total: 0, auth: 0, input: 0, error: 0, async: 0 };
-    console.log("%cNextRay stopped — originals restored", "color:#f59e0b");
+    console.log("%cNetworkProbe stopped — originals restored", "color:#f59e0b");
   }
   function clear() {
     logs.length = 0;
     recent.length = 0;
     hudCounts = { total: 0, auth: 0, input: 0, error: 0, async: 0 };
     renderHUD();
-    console.log("NextRay logs cleared");
+    console.log("NetworkProbe logs cleared");
   }
 
-  window.NextRay = {
+  window.NetworkProbe = {
     get logs() {
       return logs.slice();
     },
@@ -873,7 +873,7 @@
   // ===========================================
 
   // ENHANCEMENT 1: Traffic risk scoring
-  NextRay.scoreTraffic = function scoreTraffic() {
+  NetworkProbe.scoreTraffic = function scoreTraffic() {
     try {
       var scored = [];
       logs.forEach(function(l) {
@@ -898,7 +898,7 @@
   };
 
   // ENHANCEMENT 2: CORS analysis
-  NextRay.analyzeCORS = function analyzeCORS() {
+  NetworkProbe.analyzeCORS = function analyzeCORS() {
     try {
       var issues = [];
       logs.forEach(function(l) {
@@ -921,7 +921,7 @@
   };
 
   // ENHANCEMENT 3: Cookie security analysis
-  NextRay.analyzeCookies = function analyzeCookies() {
+  NetworkProbe.analyzeCookies = function analyzeCookies() {
     try {
       var issues = [];
       logs.forEach(function(l) {
@@ -943,7 +943,7 @@
   };
 
   // ENHANCEMENT 4: Security header check
-  NextRay.checkSecurityHeaders = function checkSecurityHeaders() {
+  NetworkProbe.checkSecurityHeaders = function checkSecurityHeaders() {
     try {
       var required = ["strict-transport-security", "x-content-type-options", "x-frame-options", "content-security-policy", "referrer-policy"];
       var results = [];
@@ -961,7 +961,7 @@
   };
 
   // ENHANCEMENT 5: Sensitive data exposure detector
-  NextRay.detectDataExposure = function detectDataExposure() {
+  NetworkProbe.detectDataExposure = function detectDataExposure() {
     try {
       var exposure = [];
       var patterns = [
@@ -987,7 +987,7 @@
   };
 
   // ENHANCEMENT 6: API endpoint mapper
-  NextRay.mapEndpoints = function mapEndpoints() {
+  NetworkProbe.mapEndpoints = function mapEndpoints() {
     try {
       var endpoints = {};
       logs.forEach(function(l) {
@@ -1009,7 +1009,7 @@
   };
 
   // ENHANCEMENT 7: Performance analyzer
-  NextRay.analyzePerformance = function analyzePerformance() {
+  NetworkProbe.analyzePerformance = function analyzePerformance() {
     try {
       var slow = [];
       logs.forEach(function(l) {
@@ -1026,7 +1026,7 @@
   };
 
   // ENHANCEMENT 8: Technology fingerprint
-  NextRay.fingerprintTech = function fingerprintTech() {
+  NetworkProbe.fingerprintTech = function fingerprintTech() {
     try {
       var techs = {};
       logs.forEach(function(l) {
@@ -1047,7 +1047,7 @@
   };
 
   // ENHANCEMENT 9: Compliance report
-  NextRay.complianceReport = function complianceReport() {
+  NetworkProbe.complianceReport = function complianceReport() {
     try {
       var report = [];
       var high = logs.filter(function(l) { return (Number(l.status) || 0) >= 500; });
@@ -1063,12 +1063,12 @@
   };
 
   // ENHANCEMENT 10: Traffic diff
-  NextRay.trafficDiff = function trafficDiff(minutesAgo) {
+  NetworkProbe.trafficDiff = function trafficDiff(minutesAgo) {
     try {
       var now = Date.now();
       var windowMs = (minutesAgo || 5) * 60 * 1000;
-      var recent = logs.filter(function(l) { return (now - (l.timestamp || 0)) < windowMs; });
-      var older = logs.filter(function(l) { return (now - (l.timestamp || 0)) >= windowMs && (now - (l.timestamp || 0)) < windowMs * 2; });
+      var recent = logs.filter(function(l) { return (now - (new Date(l.time || 0).getTime())) < windowMs; });
+      var older = logs.filter(function(l) { return (now - (new Date(l.time || 0).getTime())) >= windowMs && (now - (new Date(l.time || 0).getTime())) < windowMs * 2; });
       var result = { recent: recent.length, older: older.length, change: recent.length - older.length };
       console.log("%c📸 Diff (" + (minutesAgo || 5) + "min): " + result.change, "color: #3498db; font-weight: bold");
       return result;
@@ -1080,7 +1080,7 @@
   // ===========================================
 
   // ENHANCEMENT 11: JWT token analyzer
-  NextRay.analyzeJWTs = function analyzeJWTs() {
+  NetworkProbe.analyzeJWTs = function analyzeJWTs() {
     try {
       var jwts = [];
       logs.forEach(function(l) {
@@ -1115,7 +1115,7 @@
   };
 
   // ENHANCEMENT 12: GraphQL endpoint detection
-  NextRay.detectGraphQL = function detectGraphQL() {
+  NetworkProbe.detectGraphQL = function detectGraphQL() {
     try {
       var gql = [];
       logs.forEach(function(l) {
@@ -1138,7 +1138,7 @@
   };
 
   // ENHANCEMENT 13: Subdomain takeover indicators
-  NextRay.detectSubdomainTakeover = function detectSubdomainTakeover() {
+  NetworkProbe.detectSubdomainTakeover = function detectSubdomainTakeover() {
     try {
       var found = [];
       var patterns = [
@@ -1163,7 +1163,7 @@
   };
 
   // ENHANCEMENT 14: Sensitive path scanner
-  NextRay.scanSensitivePaths = function scanSensitivePaths() {
+  NetworkProbe.scanSensitivePaths = function scanSensitivePaths() {
     try {
       var found = [];
       var paths = ["/.env", "/.git/config", "/wp-config.php", "/config.json", "/secrets.json", "/.aws/credentials", "/docker-compose.yml", "/server-status", "/.DS_Store", "/debug/vars", "/actuator", "/swagger.json", "/api-docs", "/phpinfo.php", "/.svn/entries", "/backup.zip", "/dump.sql", "/phpmyadmin"];
@@ -1182,7 +1182,7 @@
   };
 
   // ENHANCEMENT 15: Response size anomaly detector
-  NextRay.detectSizeAnomalies = function detectSizeAnomalies() {
+  NetworkProbe.detectSizeAnomalies = function detectSizeAnomalies() {
     try {
       if (logs.length < 5) return [];
       var sizes = logs.map(function(l) { return { url: l.url || "", size: (l.responseBody || "").length }; });
@@ -1196,7 +1196,7 @@
   };
 
   // ENHANCEMENT 16: HTTP method distribution
-  NextRay.analyzeMethods = function analyzeMethods() {
+  NetworkProbe.analyzeMethods = function analyzeMethods() {
     try {
       var methods = {};
       logs.forEach(function(l) { try { var m = (l.method || "GET").toUpperCase(); methods[m] = (methods[m] || 0) + 1; } catch(e) {} });
@@ -1209,7 +1209,7 @@
   };
 
   // ENHANCEMENT 17: Status code distribution
-  NextRay.analyzeStatusCodes = function analyzeStatusCodes() {
+  NetworkProbe.analyzeStatusCodes = function analyzeStatusCodes() {
     try {
       var codes = {};
       logs.forEach(function(l) { try { var s = l.status || 0; codes[s] = (codes[s] || 0) + 1; } catch(e) {} });
@@ -1222,7 +1222,7 @@
   };
 
   // ENHANCEMENT 18: Third-party request detector
-  NextRay.detectThirdParty = function detectThirdParty() {
+  NetworkProbe.detectThirdParty = function detectThirdParty() {
     try {
       var tp = {};
       var own = location.origin;
@@ -1245,7 +1245,7 @@
   };
 
   // ENHANCEMENT 19: Authentication flow tracker
-  NextRay.trackAuthFlows = function trackAuthFlows() {
+  NetworkProbe.trackAuthFlows = function trackAuthFlows() {
     try {
       var flows = [];
       logs.forEach(function(l) {
@@ -1267,7 +1267,7 @@
   };
 
   // ENHANCEMENT 20: Traffic summary dashboard
-  NextRay.trafficDashboard = function trafficDashboard() {
+  NetworkProbe.trafficDashboard = function trafficDashboard() {
     try {
       var total = logs.length;
       var errors = logs.filter(function(l) { return (Number(l.status) || 0) >= 400; }).length;
@@ -1288,7 +1288,7 @@
   };
 
   // Backward alias for older notes
-  window.NetXRay = window.NextRay;
+  window.NetXRay = window.NetworkProbe;
 
   if (CONFIG.AUTO_START) start();
 })();

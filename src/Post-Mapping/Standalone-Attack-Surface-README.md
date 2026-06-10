@@ -56,7 +56,7 @@ This is a professional-grade vulnerability intelligence platform that analyzes w
 
 ### Basic Usage
 ```javascript
-// 1. Copy and paste the entire Qwen-standalone.js script into browser console
+// 1. Copy and paste the entire Standalone-Attack-Surface.js script into browser console
 // 2. The analysis will run automatically
 // 3. Review the detailed findings in the console
 ```

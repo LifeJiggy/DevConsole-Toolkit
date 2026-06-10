@@ -6,6 +6,43 @@
   const inputMap = new Map();
   const networkTriggers = [];
   let CURRENT_HANDLER_CONTEXT = null;
+  const executionTracker = {
+    history: [],
+    lastRun: {},
+
+    track(functionName) {
+      const now = Date.now();
+      const lastExecution = this.lastRun[functionName];
+
+      if (lastExecution && now - lastExecution < 1000) {
+        console.warn(
+          `⚠️ ${functionName} was just executed ${
+            now - lastExecution
+          }ms ago. Skipping to prevent spam.`
+        );
+        return false;
+      }
+
+      this.lastRun[functionName] = now;
+      this.history.push({
+        function: functionName,
+        timestamp: now,
+      });
+      if (this.history.length > 1000) {
+        this.history.shift();
+      }
+      return true;
+    },
+
+    reset() {
+      this.history = [];
+      this.lastRun = {};
+    },
+
+    showHistory() {
+      console.table(this.history);
+    },
+  };
 
   // Shared dangerous attributes list - single source of truth
   const DANGEROUS_ATTRS = [
@@ -1858,7 +1895,7 @@
       elementsToCheck.forEach((nd) => {
         Array.from(nd.attributes).forEach((attr) => {
           if (
-            dangerousAttrs.includes(attr.name.toLowerCase()) &&
+            DANGEROUS_ATTRS.includes(attr.name.toLowerCase()) &&
             attr.value &&
             attr.value.includes(searchValue)
           ) {
@@ -1973,52 +2010,6 @@
     };
   }
   window.detectInputReflectionsRobust = detectInputReflectionsRobust;
-
-  // 🔄 EXECUTION TRACKER - Prevent multiple runs and show execution history
-  const executionTracker = {
-    history: [],
-    lastRun: {},
-
-    track(functionName) {
-      const now = Date.now();
-      const lastExecution = this.lastRun[functionName];
-
-      // Prevent rapid re-execution (within 1 second)
-      if (lastExecution && now - lastExecution < 1000) {
-        console.warn(
-          `⚠️ ${functionName} was just executed ${
-            now - lastExecution
-          }ms ago. Skipping to prevent spam.`
-        );
-        return false;
-      }
-
-      this.lastRun[functionName] = now;
-      this.history.push({
-        function: functionName,
-        timestamp: now,
-        time: new Date().toLocaleTimeString(),
-      });
-
-      // Keep only last 20 executions
-      if (this.history.length > 20) {
-        this.history.shift();
-      }
-
-      return true;
-    },
-
-    showHistory() {
-      console.log("📊 Function Execution History:");
-      console.table(this.history.slice(-10)); // Show last 10
-    },
-
-    reset() {
-      this.history = [];
-      this.lastRun = {};
-      console.log("🔄 Execution tracker reset");
-    },
-  };
 
   window.showExecutionHistory = () => executionTracker.showHistory();
   window.resetExecutionTracker = () => executionTracker.reset();

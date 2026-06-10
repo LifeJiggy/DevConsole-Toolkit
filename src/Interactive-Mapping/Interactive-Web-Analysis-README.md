@@ -32,7 +32,7 @@ Get up and running in seconds.
 1.  Open the target website.
 2.  Open your browser's Developer Tools (**F12** or **Cmd+Option+I**).
 3.  Navigate to the **Console** tab.
-4.  Paste the entire contents of `claude-flow.js`.
+4.  Paste the entire contents of `Interactive-Web-Analysis.js`.
 5.  Press **Enter**. The welcome banner and menu instructions will appear.
 
 ## Method 2: Browser Snippet

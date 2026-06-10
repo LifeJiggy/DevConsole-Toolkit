@@ -33,7 +33,7 @@ Get up and running in seconds.
 1.  Open the target website.
 2.  Open your browser's Developer Tools (**F12** or **Cmd+Option+I**).
 3.  Navigate to the **Console** tab.
-4.  Paste the entire contents of `Qwen-flow.js`.
+4.  Paste the entire contents of `User-Action-Flow-Analysis.js`.
 5.  Press **Enter**. The UI panel will appear on the page.
 
 #### Method 2: Browser Snippet
