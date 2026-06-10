@@ -2165,6 +2165,127 @@
     "font-weight: bold; color: #e74c3c;",
     "color: #7f8c8d;"
   );
+
+  // ===========================================
+  // MISSING CAPABILITY: DOM Mutation Tracking
+  // ===========================================
+
+  // 1. Start DOM Mutation Observer
+  window.startMutationTracking = window.startMutationTracking || function startMutationTracking(opts) {
+    try {
+      var options = opts || { childList: true, attributes: true, characterData: true, subtree: true };
+      window.__MUTATION_LOG = window.__MUTATION_LOG || [];
+      window.__MUTATION_OBSERVER = window.__MUTATION_OBSERVER || null;
+      if (window.__MUTATION_OBSERVER) { console.warn("Mutation tracking already active"); return; }
+      var observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(m) {
+          try {
+            window.__MUTATION_LOG.push({
+              type: m.type,
+              target: m.target.tagName + "#" + (m.target.id || "") + "." + (m.target.className || "").toString().substring(0, 30),
+              timestamp: Date.now(),
+              addedNodes: m.addedNodes.length,
+              removedNodes: m.removedNodes.length,
+              attributeName: m.attributeName || null,
+              oldValue: m.oldValue ? String(m.oldValue).substring(0, 100) : null
+            });
+          } catch(e) {}
+        });
+      });
+      observer.observe(document.body, options);
+      window.__MUTATION_OBSERVER = observer;
+      console.log("%c👁 DOM mutation tracking started", "color: #3498db; font-weight: bold");
+    } catch(e) { console.warn("startMutationTracking error:", e); }
+  };
+
+  // 2. Stop DOM Mutation Observer
+  window.stopMutationTracking = window.stopMutationTracking || function stopMutationTracking() {
+    try {
+      if (window.__MUTATION_OBSERVER) {
+        window.__MUTATION_OBSERVER.disconnect();
+        window.__MUTATION_OBSERVER = null;
+        var log = window.__MUTATION_LOG || [];
+        console.log("%c👁 DOM mutation tracking stopped — " + log.length + " mutations captured", "color: #e67e22; font-weight: bold");
+        if (log.length > 0) {
+          console.table(log.slice(-20));
+        }
+        return log;
+      }
+      console.warn("No mutation tracking active");
+      return [];
+    } catch(e) { console.warn("stopMutationTracking error:", e); return []; }
+  };
+
+  // 3. Get Mutation Summary
+  window.getMutationSummary = window.getMutationSummary || function getMutationSummary() {
+    try {
+      var log = window.__MUTATION_LOG || [];
+      var summary = {
+        total: log.length,
+        byType: {},
+        topTargets: {},
+        recentMutations: log.slice(-10)
+      };
+      log.forEach(function(m) {
+        summary.byType[m.type] = (summary.byType[m.type] || 0) + 1;
+        summary.topTargets[m.target] = (summary.topTargets[m.target] || 0) + 1;
+      });
+      console.log("%c👁 Mutation summary:", "color: #3498db; font-weight: bold");
+      console.log("  Total: " + summary.total);
+      console.log("  Types: " + JSON.stringify(summary.byType));
+      return summary;
+    } catch(e) { console.warn("getMutationSummary error:", e); return {}; }
+  };
+
+  // 4. Export findings as HTML report for sharing
+  window.exportAnalysisReport = window.exportAnalysisReport || function exportAnalysisReport() {
+    try {
+      var data = window.analysisData || {};
+      var html = '<!DOCTYPE html><html><head><title>Analysis Report</title><style>body{font-family:monospace;margin:20px;background:#1a1a1a;color:#e0e0e0}table{border-collapse:collapse;width:100%}th,td{border:1px solid #333;padding:8px;text-align:left}th{background:#333}h1{color:#3498db}h2{color:#e67e22}.stat{display:inline-block;margin:10px;padding:10px;background:#222;border-radius:5px}</style></head><body>';
+      html += '<h1>Interactive Analysis Report</h1>';
+      html += '<p>Generated: ' + new Date().toISOString() + '</p>';
+      var stats = [
+        { label: "Elements Found", value: (data.elements || []).length },
+        { label: "Event Listeners", value: (data.eventListeners || []).length },
+        { label: "Network Requests", value: (data.networkRequests || []).length },
+        { label: "Hidden Elements", value: (data.hiddenElements || []).length },
+        { label: "DOM Mutations", value: (window.__MUTATION_LOG || []).length }
+      ];
+      stats.forEach(function(s) { html += '<div class="stat"><strong>' + s.label + ':</strong> ' + s.value + '</div>'; });
+      html += '<br>';
+      if (data.elements && data.elements.length > 0) {
+        html += '<h2>Interactive Elements (' + data.elements.length + ')</h2><table><tr><th>Tag</th><th>ID</th><th>Events</th></tr>';
+        data.elements.slice(0, 50).forEach(function(el) {
+          html += '<tr><td>' + (el.tag || "") + '</td><td>' + (el.id || "") + '</td><td>' + (el.events || []).join(", ") + '</td></tr>';
+        });
+        html += '</table>';
+      }
+      html += '</body></html>';
+      var blob = new Blob([html], { type: "text/html" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "analysis-report-" + Date.now() + ".html";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      console.log("%c📋 Analysis report exported", "color: #27ae60; font-weight: bold");
+    } catch(e) { console.warn("exportAnalysisReport error:", e); }
+  };
+
+  // 5. CI/CD Programmatic API
+  window.analyzeURL = window.analyzeURL || function analyzeURL(url, opts) {
+    return new Promise(function(resolve) {
+      try {
+        fetch(url, opts || {}).then(function(resp) {
+          return resp.text().then(function(body) {
+            resolve({ url: url, status: resp.status, size: body.length, timestamp: new Date().toISOString() });
+          });
+        }).catch(function(e) { resolve({ url: url, error: String(e) }); });
+      } catch(e) { resolve({ url: url, error: String(e) }); }
+    });
+  };
 })();
 
 // ===========================================

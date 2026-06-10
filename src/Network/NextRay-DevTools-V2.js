@@ -516,19 +516,47 @@
         ws.addEventListener("close", (e) =>
           Object.assign(meta, { statusText: `closed(${e.code})` })
         );
-        if (CONFIG.LOG_WEBSOCKET_MESSAGES) {
-          ws.addEventListener("message", (e) => {
+        ws.addEventListener("message", (e) => {
+          try {
+            var payload = short(String(e.data), 500);
             logs.push({
               kind: "ws-message",
+              type: "ws",
+              method: "WS_RECV",
               url: String(url),
-              data: short(String(e.data), 500),
+              data: payload,
+              responseBody: payload,
+              status: meta.status || 0,
               time: iso(),
               stack: meta.stack,
               initiator: meta.initiator,
               tags: ["#Events"],
             });
-          });
-        }
+            if (logs.length > MAX_LOGS) logs.splice(0, logs.length - MAX_LOGS);
+            hudBump({ tags: ["#Events"] });
+          } catch(e) {}
+        });
+        var origSend = ws.send;
+        ws.send = function(data) {
+          try {
+            var payload = short(String(data), 500);
+            logs.push({
+              kind: "ws-message",
+              type: "ws",
+              method: "WS_SEND",
+              url: String(url),
+              data: payload,
+              requestBody: payload,
+              status: meta.status || 0,
+              time: iso(),
+              stack: meta.stack,
+              initiator: meta.initiator,
+              tags: ["#Events"],
+            });
+            if (logs.length > MAX_LOGS) logs.splice(0, logs.length - MAX_LOGS);
+          } catch(e) {}
+          return origSend.apply(this, arguments);
+        };
         return ws;
       } catch(e) {
         collectCommon({ kind: "ws", url: String(url), error: String(e) });
@@ -1289,6 +1317,164 @@
 
   // Backward alias for older notes
   window.NetXRay = window.NetworkProbe;
+
+  // ===========================================
+  // ENHANCEMENTS #21-26: Advanced Traffic & Export Features
+  // ===========================================
+
+  // CAPABILITY: Traffic Replay — resend captured requests
+  NetworkProbe.replayRequest = NetworkProbe.replayRequest || function replayRequest(index, opts) {
+    try {
+      var entry = logs[index];
+      if (!entry) { console.warn("No entry at index " + index); return null; }
+      var url = entry.url || "";
+      var method = (entry.method || "GET").toUpperCase();
+      var headers = entry.headers || {};
+      var body = entry.reqBody || null;
+      var options = opts || {};
+      var fetchOpts = { method: method, headers: Object.assign({}, headers), credentials: "include" };
+      if (method !== "GET" && method !== "HEAD") fetchOpts.body = options.body || body;
+      if (options.headers) Object.assign(fetchOpts.headers, options.headers);
+      console.log("%c🔄 Replaying: " + method + " " + url.substring(0, 80), "color: #3498db; font-weight: bold");
+      return fetch(url, fetchOpts).then(function(resp) {
+        console.log("%c   Response: " + resp.status + " " + resp.statusText, resp.ok ? "color: #27ae60" : "color: #e74c3c");
+        return resp;
+      }).catch(function(e) {
+        console.warn("Replay failed:", e);
+        return null;
+      });
+    } catch(e) { console.warn("replayRequest error:", e); return Promise.resolve(null); }
+  };
+
+  // CAPABILITY: Request Comparison — diff two captured requests
+  NetworkProbe.compareRequests = NetworkProbe.compareRequests || function compareRequests(idx1, idx2) {
+    try {
+      var e1 = logs[idx1];
+      var e2 = logs[idx2];
+      if (!e1 || !e2) { console.warn("Invalid indices"); return null; }
+      var diffs = [];
+      if (e1.url !== e2.url) diffs.push({ field: "url", left: e1.url, right: e2.url });
+      if ((e1.method || "GET") !== (e2.method || "GET")) diffs.push({ field: "method", left: e1.method, right: e2.method });
+      if (e1.status !== e2.status) diffs.push({ field: "status", left: e1.status, right: e2.status });
+      var h1 = JSON.stringify(e1.headers || {});
+      var h2 = JSON.stringify(e2.headers || {});
+      if (h1 !== h2) diffs.push({ field: "requestHeaders", left: h1.substring(0, 200), right: h2.substring(0, 200) });
+      var b1 = (e1.reqBody || "").substring(0, 500);
+      var b2 = (e2.reqBody || "").substring(0, 500);
+      if (b1 !== b2) diffs.push({ field: "requestBody", left: b1, right: b2 });
+      var r1 = (e1.respPreview || "").substring(0, 500);
+      var r2 = (e2.respPreview || "").substring(0, 500);
+      if (r1 !== r2) diffs.push({ field: "responsePreview", left: r1.substring(0, 100), right: r2.substring(0, 100) });
+      console.log("%c🔍 Request diff: " + diffs.length + " differences", diffs.length > 0 ? "color: #e67e22; font-weight: bold" : "color: #27ae60");
+      if (diffs.length > 0) _safeTable(diffs, 20);
+      return diffs;
+    } catch(e) { console.warn("compareRequests error:", e); return []; }
+  };
+
+  // CAPABILITY: WebSocket Message Analysis
+  NetworkProbe.analyzeWebSocketMessages = NetworkProbe.analyzeWebSocketMessages || function analyzeWebSocketMessages() {
+    try {
+      var wsEntries = logs.filter(function(l) { return l.type === "ws" || l.kind === "ws-message"; });
+      var messages = [];
+      wsEntries.forEach(function(l) {
+        try {
+          var body = l.data || l.responseBody || l.requestBody || "";
+          if (typeof body === "string" && body.length > 0) {
+            messages.push({ url: (l.url || "").substring(0, 80), direction: l.method === "WS_SEND" ? "out" : l.method === "WS_RECV" ? "in" : l.method || "ws", preview: body.substring(0, 100), size: body.length });
+          }
+        } catch(e) {}
+      });
+      console.log("%c🔌 WebSocket messages: " + messages.length, messages.length > 0 ? "color: #3498db; font-weight: bold" : "color: #7f8c8d");
+      _safeTable(messages.slice(0, 30), 30);
+      return messages;
+    } catch(e) { console.warn("analyzeWebSocketMessages error:", e); return []; }
+  };
+
+  // CAPABILITY: Collaborative Export — HTML report for sharing
+  NetworkProbe.exportHTMLReport = NetworkProbe.exportHTMLReport || function exportHTMLReport() {
+    try {
+      var log = logs;
+      var findings = [];
+      logs.forEach(function(l) {
+        (l.findings || []).forEach(function(f) {
+          findings.push({ message: f, url: l.url, tags: l.tags });
+        });
+      });
+      var html = '<!DOCTYPE html><html><head><title>Security Report</title><style>body{font-family:monospace;margin:20px;background:#1a1a1a;color:#e0e0e0}table{border-collapse:collapse;width:100%}th,td{border:1px solid #333;padding:8px;text-align:left}th{background:#333}tr:nth-child(even){background:#222}.high{color:#e74c3c}.medium{color:#e67e22}.low{color:#27ae60}h1{color:#3498db}h2{color:#e67e22}</style></head><body>';
+      html += '<h1>Security Assessment Report</h1>';
+      html += '<p>Generated: ' + new Date().toISOString() + '</p>';
+      html += '<p>Total requests: ' + log.length + '</p>';
+      html += '<h2>Traffic Summary</h2><table><tr><th>Metric</th><th>Value</th></tr>';
+      html += '<tr><td>Total Requests</td><td>' + log.length + '</td></tr>';
+      var errors = log.filter(function(e) { return (e.status || 0) >= 400; }).length;
+      html += '<tr><td>Error Rate</td><td>' + (log.length > 0 ? Math.round(errors / log.length * 100) : 0) + '%</td></tr>';
+      html += '</table>';
+      if (findings.length > 0) {
+        html += '<h2>Findings (' + findings.length + ')</h2><table><tr><th>Type</th><th>Message</th><th>URL</th></tr>';
+        findings.forEach(function(f) {
+          var tags = (f.tags || []).join(" ");
+          html += '<tr><td>' + tags + '</td><td>' + (f.message || "").substring(0, 100) + '</td><td>' + (f.url || "").substring(0, 60) + '</td></tr>';
+        });
+        html += '</table>';
+      }
+      html += '</body></html>';
+      var blob = new Blob([html], { type: "text/html" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "security-report-" + Date.now() + ".html";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      console.log("%c📋 HTML report exported", "color: #27ae60; font-weight: bold");
+    } catch(e) { console.warn("exportHTMLReport error:", e); }
+  };
+
+  // CAPABILITY: CI/CD Programmatic API
+  NetworkProbe.scan = NetworkProbe.scan || function scan(url, opts) {
+    return new Promise(function(resolve) {
+      try {
+        var options = opts || {};
+        var timeout = options.timeout || 10000;
+        var results = { url: url, timestamp: new Date().toISOString(), requests: [], findings: [], errors: [] };
+        fetch(url, { method: options.method || "GET", headers: options.headers || {}, credentials: "include" })
+          .then(function(resp) {
+            results.status = resp.status;
+            results.statusText = resp.statusText;
+            var headers = {};
+            resp.headers.forEach(function(v, k) { headers[k] = v; });
+            results.responseHeaders = headers;
+            return resp.text();
+          })
+          .then(function(body) {
+            results.responseBody = body.substring(0, options.maxBodySize || 10000);
+            results.timestamp_end = new Date().toISOString();
+            console.log("%c🤖 CI/CD scan complete: " + url, "color: #27ae60; font-weight: bold");
+            resolve(results);
+          })
+          .catch(function(e) {
+            results.errors.push(String(e));
+            results.timestamp_end = new Date().toISOString();
+            console.warn("CI/CD scan error:", e);
+            resolve(results);
+          });
+      } catch(e) { resolve({ error: String(e) }); }
+    });
+  };
+
+  NetworkProbe.getReport = NetworkProbe.getReport || function getReport() {
+    try {
+      return {
+        version: "2.0",
+        timestamp: new Date().toISOString(),
+        totalRequests: logs.length,
+        errors: logs.filter(function(e) { return (e.status || 0) >= 400; }).length,
+        findings: logs.reduce(function(s, l) { return s + (l.findings || []).length; }, 0),
+        entries: logs.slice(0, 100).map(function(e) { return { url: e.url, method: e.method, status: e.status, duration: e.durationMs }; })
+      };
+    } catch(e) { return { error: String(e) }; }
+  };
 
   if (CONFIG.AUTO_START) start();
 })();

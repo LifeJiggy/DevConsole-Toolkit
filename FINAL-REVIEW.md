@@ -87,17 +87,17 @@
 
 ---
 
-## Missing Capabilities (vs Burp, OWASP ZAP)
+## Missing Capabilities (vs Burp, OWASP ZAP) — ALL COMPLETED
 
-| Gap | Impact |
-|-----|--------|
-| No automated payload generation | Manual testing for XSS/SSRF/SQLi |
-| No traffic replay | Can't resend modified requests |
-| No request comparison | No diff between two requests |
-| No WebSocket message analysis | Only captures connection, not messages |
-| No DOM mutation tracking | Can't see how page changes after requests |
-| No collaborative features | No shared findings export |
-| No CI/CD integration | Console-only, no programmatic API |
+| Gap | Status | Where Added |
+|-----|--------|-------------|
+| Automated payload generation | ✅ DONE | Universal-User-.js — 10 generators (XSS, SSRF, SQLi, CMDi, Path Traversal, SSTI, Open Redirect, XXE, CSRF, Full) |
+| Traffic replay | ✅ DONE | Nerwork-Mapper.js + NetworkProbe — `replayRequest(index)` |
+| Request comparison | ✅ DONE | Nerwork-Mapper.js + NetworkProbe — `compareRequests(idx1, idx2)` |
+| WebSocket message analysis | ✅ DONE | Nerwork-Mapper.js + NetworkProbe — `analyzeWebSocketMessages()` |
+| DOM mutation tracking | ✅ DONE | Interactive-Web-Analysis.js — `startMutationTracking()`, `stopMutationTracking()`, `getMutationSummary()` |
+| Collaborative features | ✅ DONE | Nerwork-Mapper.js + NetworkProbe + Interactive-Web-Analysis.js — `exportHTMLReport()` |
+| CI/CD integration | ✅ DONE | Nerwork-Mapper.js + NetworkProbe — `scan(url)`, `getReport()`; Interactive-Web-Analysis.js — `analyzeURL(url)` |
 
 ---
 

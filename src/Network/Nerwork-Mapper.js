@@ -2680,6 +2680,162 @@
     } catch(e) { console.warn("trafficDashboard error:", e); return {}; }
   };
 
+  // ===========================================
+  // ENHANCEMENTS #21-26: Advanced Traffic & Export Features
+  // ===========================================
+
+  // CAPABILITY: Traffic Replay — resend captured requests
+  API.replayRequest = API.replayRequest || function replayRequest(index, opts) {
+    try {
+      var entry = state.log[index] || logs[index];
+      if (!entry) { console.warn("No entry at index " + index); return null; }
+      var url = entry.url || "";
+      var method = (entry.method || "GET").toUpperCase();
+      var headers = entry.requestHeaders || {};
+      var body = entry.requestBody || null;
+      var options = opts || {};
+      var fetchOpts = { method: method, headers: Object.assign({}, headers), credentials: "include" };
+      if (method !== "GET" && method !== "HEAD") fetchOpts.body = options.body || body;
+      if (options.headers) Object.assign(fetchOpts.headers, options.headers);
+      console.log("%c🔄 Replaying: " + method + " " + url.substring(0, 80), "color: #3498db; font-weight: bold");
+      return fetch(url, fetchOpts).then(function(resp) {
+        console.log("%c   Response: " + resp.status + " " + resp.statusText, resp.ok ? "color: #27ae60" : "color: #e74c3c");
+        return resp;
+      }).catch(function(e) {
+        console.warn("Replay failed:", e);
+        return null;
+      });
+    } catch(e) { console.warn("replayRequest error:", e); return Promise.resolve(null); }
+  };
+
+  // CAPABILITY: Request Comparison — diff two captured requests
+  API.compareRequests = API.compareRequests || function compareRequests(idx1, idx2) {
+    try {
+      var e1 = state.log[idx1] || logs[idx1];
+      var e2 = state.log[idx2] || logs[idx2];
+      if (!e1 || !e2) { console.warn("Invalid indices"); return null; }
+      var diffs = [];
+      if (e1.url !== e2.url) diffs.push({ field: "url", left: e1.url, right: e2.url });
+      if ((e1.method || "GET") !== (e2.method || "GET")) diffs.push({ field: "method", left: e1.method, right: e2.method });
+      if (e1.status !== e2.status) diffs.push({ field: "status", left: e1.status, right: e2.status });
+      var h1 = JSON.stringify(e1.requestHeaders || {});
+      var h2 = JSON.stringify(e2.requestHeaders || {});
+      if (h1 !== h2) diffs.push({ field: "requestHeaders", left: h1.substring(0, 200), right: h2.substring(0, 200) });
+      var b1 = (e1.requestBody || "").substring(0, 500);
+      var b2 = (e2.requestBody || "").substring(0, 500);
+      if (b1 !== b2) diffs.push({ field: "requestBody", left: b1, right: b2 });
+      var r1 = (e1.responseBody || "").substring(0, 500);
+      var r2 = (e2.responseBody || "").substring(0, 500);
+      if (r1 !== r2) diffs.push({ field: "responseBody", left: r1.substring(0, 100), right: r2.substring(0, 100) });
+      console.log("%c🔍 Request diff: " + diffs.length + " differences", diffs.length > 0 ? "color: #e67e22; font-weight: bold" : "color: #27ae60");
+      if (diffs.length > 0) _safeTable(diffs, 20);
+      return diffs;
+    } catch(e) { console.warn("compareRequests error:", e); return []; }
+  };
+
+  // CAPABILITY: WebSocket Message Analysis
+  API.analyzeWebSocketMessages = API.analyzeWebSocketMessages || function analyzeWebSocketMessages() {
+    try {
+      var wsEntries = state.log.filter(function(e) { return e.type === "ws" || e.type === "websocket-send" || e.type === "websocket-receive" || e.type === "websocket-open" || e.type === "websocket-error" || e.type === "websocket-close" || e.url.indexOf("ws") === 0 || e.url.indexOf("wss") === 0; });
+      var messages = [];
+      wsEntries.forEach(function(entry) {
+        try {
+          var meta = entry.data || entry.dataSnippet || entry.requestBody || entry.responseBody || "";
+          if (typeof meta === "string" && meta.length > 0) {
+            messages.push({ url: (entry.url || "").substring(0, 80), direction: entry.type === "websocket-send" ? "out" : entry.type === "websocket-receive" ? "in" : entry.type, preview: meta.substring(0, 100), size: meta.length });
+          } else if (entry.type === "websocket-open" || entry.type === "websocket-close") {
+            messages.push({ url: (entry.url || "").substring(0, 80), direction: entry.type === "websocket-open" ? "open" : "close", preview: entry.code ? "code=" + entry.code : "", size: 0 });
+          }
+        } catch(e) {}
+      });
+      console.log("%c🔌 WebSocket messages: " + messages.length, messages.length > 0 ? "color: #3498db; font-weight: bold" : "color: #7f8c8d");
+      _safeTable(messages.slice(0, 30), 30);
+      return messages;
+    } catch(e) { console.warn("analyzeWebSocketMessages error:", e); return []; }
+  };
+
+  // CAPABILITY: Collaborative Export — HTML report for sharing
+  API.exportHTMLReport = API.exportHTMLReport || function exportHTMLReport() {
+    try {
+      var log = state.log || logs;
+      var findings = state.findings || [];
+      var html = '<!DOCTYPE html><html><head><title>Security Report</title><style>body{font-family:monospace;margin:20px;background:#1a1a1a;color:#e0e0e0}table{border-collapse:collapse;width:100%}th,td{border:1px solid #333;padding:8px;text-align:left}th{background:#333}tr:nth-child(even){background:#222}.high{color:#e74c3c}.medium{color:#e67e22}.low{color:#27ae60}h1{color:#3498db}h2{color:#e67e22}</style></head><body>';
+      html += '<h1>Security Assessment Report</h1>';
+      html += '<p>Generated: ' + new Date().toISOString() + '</p>';
+      html += '<p>Total requests: ' + log.length + '</p>';
+      html += '<h2>Traffic Summary</h2><table><tr><th>Metric</th><th>Value</th></tr>';
+      html += '<tr><td>Total Requests</td><td>' + log.length + '</td></tr>';
+      var errors = log.filter(function(e) { return (e.status || 0) >= 400; }).length;
+      html += '<tr><td>Error Rate</td><td>' + (log.length > 0 ? Math.round(errors / log.length * 100) : 0) + '%</td></tr>';
+      html += '</table>';
+      if (findings.length > 0) {
+        html += '<h2>Security Findings (' + findings.length + ')</h2><table><tr><th>Severity</th><th>Type</th><th>Message</th><th>URL</th></tr>';
+        findings.forEach(function(f) {
+          var cls = (f.severity === "P1" || f.severity === "critical") ? "high" : (f.severity === "P2" || f.severity === "high") ? "medium" : "low";
+          html += '<tr class="' + cls + '"><td>' + (f.severity || "INFO") + '</td><td>' + (f.type || "") + '</td><td>' + (f.message || "").substring(0, 100) + '</td><td>' + (f.url || "").substring(0, 60) + '</td></tr>';
+        });
+        html += '</table>';
+      }
+      html += '</body></html>';
+      var blob = new Blob([html], { type: "text/html" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "security-report-" + Date.now() + ".html";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      console.log("%c📋 HTML report exported", "color: #27ae60; font-weight: bold");
+    } catch(e) { console.warn("exportHTMLReport error:", e); }
+  };
+
+  // CAPABILITY: CI/CD Programmatic API
+  API.scan = API.scan || function scan(url, opts) {
+    return new Promise(function(resolve) {
+      try {
+        var options = opts || {};
+        var timeout = options.timeout || 10000;
+        var results = { url: url, timestamp: new Date().toISOString(), requests: [], findings: [], errors: [] };
+        fetch(url, { method: options.method || "GET", headers: options.headers || {}, credentials: "include" })
+          .then(function(resp) {
+            results.status = resp.status;
+            results.statusText = resp.statusText;
+            var headers = {};
+            resp.headers.forEach(function(v, k) { headers[k] = v; });
+            results.responseHeaders = headers;
+            return resp.text();
+          })
+          .then(function(body) {
+            results.responseBody = body.substring(0, options.maxBodySize || 10000);
+            results.timestamp_end = new Date().toISOString();
+            console.log("%c🤖 CI/CD scan complete: " + url, "color: #27ae60; font-weight: bold");
+            resolve(results);
+          })
+          .catch(function(e) {
+            results.errors.push(String(e));
+            results.timestamp_end = new Date().toISOString();
+            console.warn("CI/CD scan error:", e);
+            resolve(results);
+          });
+      } catch(e) { resolve({ error: String(e) }); }
+    });
+  };
+
+  API.getReport = API.getReport || function getReport() {
+    try {
+      var log = state.log || logs;
+      return {
+        version: VERSION || "2.0",
+        timestamp: new Date().toISOString(),
+        totalRequests: log.length,
+        errors: log.filter(function(e) { return (e.status || 0) >= 400; }).length,
+        findings: (state.findings || []).length,
+        entries: log.slice(0, 100).map(function(e) { return { url: e.url, method: e.method, status: e.status, duration: e.duration }; })
+      };
+    } catch(e) { return { error: String(e) }; }
+  };
+
   // Expose API
   window.NetworkMapper = API;
 
