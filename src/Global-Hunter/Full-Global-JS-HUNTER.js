@@ -1001,24 +1001,503 @@ class CompleteJSVulnHunter {
 
             'Open Redirect': {
                 patterns: [
-                    // Redirect with user-controlled URL
                     'res\\.redirect\\s*\\([^)]*(?:req\\.(?:query|body|params)\\.|input|query|params|body)',
                     'res\\.send\\s*\\(\\s*["\'](?:<meta|<script)[^"\']*http-equiv\\s*=\\s*["\']refresh["\'][^"\']*url\\s*=\\s*["\'](?:\\+|%2B|%252B)?(?:req|input|query|params|body)',
-                    // window.location with user input
                     'window\\.location\\s*=\\s*[^;]*(?:req\\.(?:query|body|params)|input|query|params|body)',
                     'window\\.location\\.href\\s*=\\s*[^;]*(?:req\\.(?:query|body|params)|input|query|params|body)',
                     'window\\.location\\.replace\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
-                    // Template literal redirect
                     'res\\.redirect\\s*\\(\\s*`[^`]*\\$\\{[^}]*(?:req|input|query|params|body)',
-                    // Express redirect with query param
                     'res\\.redirect\\s*\\(\\s*["\']\\/[?"\'][^"\']*(?:req\\.(?:query|body|params)|input|query|params|body)',
-                    // Meta refresh redirect
                     '<meta[^>]*http-equiv\\s*=\\s*["\']refresh["\'][^>]*content\\s*=\\s*["\']\\d+;\\s*url\\s*=',
-                    // JavaScript redirect
                     'window\\.open\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)'
                 ],
                 severity: 'HIGH',
                 description: 'Open redirect - user-controlled URL used in redirect allows phishing and OAuth token theft'
+            },
+
+            // ═══════════════════════════════════════════════════════════
+            // 🆕 BATCH 1: DIRECT ATO / RCE (5 classes)
+            // ═══════════════════════════════════════════════════════════
+
+            'OAuth/OIDC Vulnerabilities': {
+                patterns: [
+                    // redirect_uri manipulation
+                    'redirect_uri\\s*[:=]\\s*[^;]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    '(?:redirect_uri|redirect_url|callback|return_to)\\s*[:=]\\s*[^;]*(?:\\+|\\$\\{|req\\.(?:query|body|params))',
+                    // Missing state parameter
+                    '(?:oauth|authorization|auth)\\s*\\/\\s*(?:authorize|token)[^}]*\\{[^}]*(?!.*state)',
+                    'response_type\\s*=\\s*code[^}]*\\{[^}]*(?!.*state)',
+                    // Open redirect in OAuth callback
+                    '(?:callback|redirect)\\s*[:=]\\s*["\'][^"\']*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // Missing PKCE (code_verifier/code_challenge)
+                    'response_type\\s*=\\s*code[^}]*\\{[^}]*(?!.*code_challenge)(?!.*pkce)',
+                    // Token exchange without client authentication
+                    'token\\s*\\/\\s*grant[^}]*client_id[^}]*\\{[^}]*(?!.*client_secret)(?!.*private_key)',
+                    // JWT in fragment (leaks in referrer)
+                    '(?:access_token|id_token)\\s*[:=]\\s*["\']eyJ[A-Za-z0-9_-]+',
+                    // Loose comparison on state parameter
+                    'state\\s*==\\s*[^=]',
+                    // OAuth token in URL
+                    '(?:access_token|code)\\s*=\\s*["\'][A-Za-z0-9_-]{20,}',
+                    // Missing issuer validation
+                    '(?:verify|validate)\\s*\\([^)]*(?:jwt|token|id_token)[^)]*\\)(?!.*issuer)(?!.*audience)'
+                ],
+                severity: 'CRITICAL',
+                description: 'OAuth/OIDC flaw - redirect_uri manipulation, missing state/PKCE, token leakage'
+            },
+
+            'NoSQL Injection': {
+                patterns: [
+                    // MongoDB operator injection via user input
+                    '(?:where|filter|query|search)\\s*[:=]\\s*(?:JSON\\.parse|req\\.(?:query|body|params))[^;]*\\$',
+                    '(?:find|findOne|update|delete)\\s*\\(\\s*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // MongoDB operators in user input
+                    '\\$where\\s*:\\s*[^}]*(?:req|query|params|body|input)',
+                    '\\$regex\\s*:\\s*[^}]*(?:req|query|params|body|input)',
+                    '\\$gt\\s*:\\s*["\']\\s*["\']',
+                    '\\$ne\\s*:\\s*["\']\\s*["\']',
+                    '\\$exists\\s*:\\s*true',
+                    // MongoDB auth bypass patterns
+                    '(?:password|passwd)\\s*:\\s*\\{\\s*\\$ne\\s*:',
+                    '(?:username|email|user)\\s*:\\s*\\{\\s*\\$regex\\s*:',
+                    // Direct object injection
+                    'findOne\\s*\\(\\s*(?:req\\.(?:query|body|params)|JSON\\.parse)',
+                    'find\\s*\\(\\s*(?:req\\.(?:query|body|params)|JSON\\.parse)',
+                    // MongoDB query injection via $where
+                    '\\$where\\s*:\\s*["\'][^"\']*(?:req|query|params|body|input)',
+                    // NoSQL injection via array parameters
+                    '(?:req|input|query|params|body)\\[\\s*["\']\\$(?:gt|ne|gte|lte|in|nin|exists|regex|where|and|or|not)["\']'
+                ],
+                severity: 'CRITICAL',
+                description: 'NoSQL injection - MongoDB operator injection bypasses authentication or extracts data'
+            },
+
+            'Mass Assignment': {
+                patterns: [
+                    // Object spread from user input into model
+                    '(?:User|Account|Profile|Admin|Role)\\s*\\.\\s*(?:create|update|findByIdAndUpdate|findOneAndUpdate)\\s*\\(\\s*[^)]*\\.\\.\\.\\s*(?:req\\.(?:body|query|params)|input)',
+                    // Direct property assignment from request
+                    '(?:user|account|profile|admin|role)\\s*\\[\\s*(?:req|input|query|params|body)\\s*\\]',
+                    'Object\\.assign\\s*\\(\\s*(?:user|account|profile|admin|role)\\s*,\\s*(?:req\\.(?:body|query|params)|input)',
+                    // Unfiltered body in update
+                    '(?:update|save|patch)\\s*\\(\\s*(?:req\\.(?:body|query|params)|input)(?!.*(?:whitelist|filter|pick|omit|sanitize))',
+                    // Privilege escalation via mass assignment
+                    '(?:isAdmin|role|permissions|admin|superadmin)\\s*:\\s*(?:req\\.(?:body|query|params)|input)',
+                    // Model creation with raw request body
+                    'new\\s+(?:User|Account|Profile|Admin)\\s*\\(\\s*(?:req\\.(?:body|query|params)|input)',
+                    'Model\\s*\\.\\s*create\\s*\\(\\s*(?:req\\.(?:body|query|params)|input)',
+                    // Sequelize/Mongoose update with raw body
+                    '(?:User|Account|Profile)\\.\\s*(?:update|updateOne|updateMany|bulkWrite)\\s*\\(\\s*(?:req\\.(?:body|query|params)|input)'
+                ],
+                severity: 'CRITICAL',
+                description: 'Mass assignment - user-controlled input directly sets model properties (isAdmin, role, etc.)'
+            },
+
+            'Type Coercion Auth Bypass': {
+                patterns: [
+                    // Loose equality in auth checks (type coercion bypass)
+                    'if\\s*\\(\\s*(?:userId|id|accountId|orderId|user)\\s*==\\s*(?:req\\.(?:user|session|params|query|body)\\.|decoded\\.)',
+                    'if\\s*\\(\\s*(?:req\\.(?:user|session)\\.|decoded\\.)\\s*==\\s*(?:req\\.(?:params|query|body)\\.|userId|id)',
+                    // Loose equality in role/permission check
+                    'if\\s*\\(\\s*(?:role|isAdmin|admin|permission)\\s*==\\s*["\'](?:admin|true|1)["\']',
+                    'if\\s*\\(\\s*(?:user|account|decoded)\\.role\\s*==\\s*["\']',
+                    // Loose comparison on token
+                    'if\\s*\\(\\s*token\\s*==\\s*(?:null|undefined|["\']undefined["\'])',
+                    // Loose comparison on auth header
+                    'if\\s*\\(\\s*(?:req\\.)?headers\\.authorization\\s*==\\s*(?:null|undefined)',
+                    // Loose comparison on boolean flags
+                    'if\\s*\\(\\s*(?:verified|active|enabled|approved)\\s*==\\s*["\']?true["\']?',
+                    'if\\s*\\(\\s*(?:verified|active|enabled|approved)\\s*==\\s*1',
+                    // parseInt bypass in ID comparison
+                    'parseInt\\s*\\(\\s*(?:req\\.(?:params|query|body)\\.|input)\\)\\s*==\\s*(?:req\\.(?:user|session)\\.|decoded\\.)'
+                ],
+                severity: 'CRITICAL',
+                description: 'Type coercion bypass - == instead of === allows auth bypass via type juggling'
+            },
+
+            'Sandbox Escape (Node.js vm)': {
+                patterns: [
+                    // vm.runInNewContext with user input
+                    'vm\\.runInNewContext\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body|\\$\\{)',
+                    'vm\\.runInContext\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body|\\$\\{)',
+                    'vm\\.runInThisContext\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body|\\$\\{)',
+                    // Function constructor escape from vm
+                    'this\\.constructor\\.constructor\\s*\\(',
+                    '\\.constructor\\.constructor\\s*\\(\\s*["\'](?:process|require|global|child_process)',
+                    // Prototype chain escape
+                    '\\.__proto__\\.constructor\\.constructor\\s*\\(',
+                    '\\.constructor\\s*\\.prototype\\s*\\.constructor\\s*\\(',
+                    // Node.js vm with dangerous context
+                    'vm\\.createContext\\s*\\(\\s*\\{\\s*(?:global|process|require|module)',
+                    // eval inside restricted context
+                    'eval\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // New Function to escape sandbox
+                    'new\\s+Function\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // vm.Script with user input
+                    'new\\s+vm\\.Script\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // require from within vm
+                    'require\\s*\\(\\s*["\'](?:child_process|fs|os|net|http)["\']\\s*\\)(?!.*\\/\\*.*\\*\\/)',
+                    // child_process in vm context
+                    'child_process\\s*\\.\\s*(?:exec|spawn|execSync)\\s*\\([^)]*(?:req|input|query|params|body)'
+                ],
+                severity: 'CRITICAL',
+                description: 'Node.js vm sandbox escape - user input breaks out of vm context to achieve RCE'
+            },
+
+            // ═══════════════════════════════════════════════════════════
+            // 🆕 BATCH 2: DATA EXFILTRATION (5 classes)
+            // ═══════════════════════════════════════════════════════════
+
+            'GraphQL Security': {
+                patterns: [
+                    // Introspection query enabled
+                    'introspectionQuery\\s*[:=]',
+                    '__schema\\s*\\{',
+                    '__type\\s*\\(\\s*name\\s*:',
+                    'graphql\\s*\\(\\s*\\{\\s*__schema',
+                    // No query depth limiting
+                    'graphql\\s*\\(\\s*\\{[^}]*(?!.*depthLimit)(?!.*depth)(?!.*maxDepth)',
+                    'express-graphql\\s*\\(\\s*\\{[^}]*\\}(?!.*depthLimit)',
+                    'apollo-server[^}]*\\{[^}]*\\}(?!.*depthLimit)(?!.*introspection)',
+                    // GraphQL batching attack
+                    'graphql\\s*\\/\\s*(?:batch|multi)',
+                    '\\[\\s*\\{\\s*query\\s*:',
+                    // Field suggestion leaks schema info
+                    'suggestions\\s*:\\s*true',
+                    'debug\\s*:\\s*(?:true|1)(?!.*production)',
+                    // GraphQL with user input in query
+                    'query\\s*\\(\\s*[^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // Missing authorization on GraphQL
+                    'graphqlHTTP\\s*\\(\\s*\\{[^}]*\\}(?!.*authorization)(?!.*auth)(?!.*context)',
+                    // GraphQL subscription without auth
+                    'Subscription\\s*\\(\\s*\\{[^}]*\\}(?!.*auth)(?!.*subscribe)(?!.*filter)'
+                ],
+                severity: 'HIGH',
+                description: 'GraphQL security - introspection leak, missing depth limit, batching attack, no auth'
+            },
+
+            'XML External Entity (XXE)': {
+                patterns: [
+                    // DOMParser with XML (dangerous)
+                    'new\\s+DOMParser\\s*\\(\\s*\\)\\.parseFromString\\s*\\([^)]*text\\/xml',
+                    'new\\s+DOMParser\\s*\\(\\s*\\)\\.parseFromString\\s*\\([^)]*(?:req|input|query|params|body)',
+                    // XMLHttpRequest receiving XML
+                    'XMLHttpRequest[^;]*responseXML',
+                    'xhr\\.responseXML\\s*\\|=\\s*[^;]*(?:req|input|query|params|body)',
+                    // XML parsing with external entities enabled
+                    'xml2js\\.parseString\\s*\\([^)]*(?:req|input|query|params|body)(?!.*explicitArray)',
+                    'libxml\\.parseXml\\s*\\([^)]*(?:req|input|query|params|body)',
+                    // SOAP/XML endpoint with user input
+                    'soap\\s*\\([^)]*(?:req|input|query|params|body)',
+                    'xmlparser\\s*\\([^)]*(?:req|input|query|params|body)',
+                    // SVG with embedded XML entities
+                    '<!ENTITY\\s+\\w+\\s+SYSTEM',
+                    '<!DOCTYPE[^>]*\\[\\s*<!ENTITY',
+                    // XML upload without validation
+                    'upload[^}]*\\.xml',
+                    'file\\.mimetype\\s*===\\s*["\'](?:text\\/xml|application\\/xml)["\']'
+                ],
+                severity: 'HIGH',
+                description: 'XXE - XML external entity injection reads files, causes SSRF, or DoS'
+            },
+
+            'Insecure Direct File Download': {
+                patterns: [
+                    // res.sendFile with user input
+                    'sendFile\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'send\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)[^)]*(?:path|file|download)',
+                    // res.download with user input
+                    'download\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // createReadStream with user input
+                    'createReadStream\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // fs.readFile with user input (no path traversal check)
+                    'readFile\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)(?!.*(?:path\\.resolve|path\\.join|\\.\\.)',
+                    // Express static file serving with user-controlled path
+                    'express\\.static\\s*\\([^)]*(?:req|input|query|params|body)',
+                    // File download endpoint without path validation
+                    'Content-Disposition\\s*:\\s*attachment[^}]*filename\\s*=\\s*[^;]*(?:req|input|query|params|body)',
+                    // Stream file to response with user path
+                    'pipe\\s*\\(\\s*res\\s*\\)(?!.*(?:whitelist|allowlist|validate|sanitiz))'
+                ],
+                severity: 'HIGH',
+                description: 'Insecure file download - user-controlled path allows arbitrary file read'
+            },
+
+            'PostMessage XSS': {
+                patterns: [
+                    // Message handler without origin check
+                    'addEventListener\\s*\\(\\s*["\']message["\']\\s*,\\s*(?:function|\\(e|\\(event)\\s*\\{[^}]*(?:eval|Function|innerHTML|document\\.write|\\.html\\()',
+                    'onmessage\\s*=\\s*(?:function|\\(e|\\(event)\\s*\\{[^}]*(?:eval|Function|innerHTML|document\\.write)',
+                    // postMessage with wildcard origin
+                    'postMessage\\s*\\([^)]*,\\s*["\']\\*["\']\\s*\\)',
+                    // Event data used in dangerous sinks without validation
+                    '(?:event|e|msg|message)\\.data[^;]*(?:innerHTML|outerHTML|eval|Function|document\\.write|location)',
+                    // postMessage listener with eval
+                    'addEventListener\\s*\\(\\s*["\']message["\']\\s*,\\s*[^)]*\\)\\s*\\{[^}]*eval\\s*\\(',
+                    // JSON.parse of event data into dangerous sink
+                    '(?:event|e|msg|message)\\.data[^;]*JSON\\.parse[^;]*(?:innerHTML|eval|document\\.write)',
+                    // window.parent postMessage without origin
+                    'window\\.parent\\.postMessage\\s*\\([^)]*,\\s*["\']\\*["\']\\s*\\)',
+                    'parent\\.postMessage\\s*\\([^)]*,\\s*["\']\\*["\']\\s*\\)'
+                ],
+                severity: 'HIGH',
+                description: 'PostMessage XSS - message handler without origin check allows cross-origin script execution'
+            },
+
+            'Timing Side-Channel': {
+                patterns: [
+                    // Non-constant-time string comparison for secrets
+                    'for\\s*\\(\\s*(?:let|var|const)\\s+\\w+\\s*=\\s*0\\s*;\\s*\\w+\\s*<\\s*(?:token|secret|key|password|hash|otp|pin)\\.length',
+                    'while\\s*\\(\\s*(?:token|secret|key|password|hash|otp|pin)\\[',
+                    // String comparison of secrets with early return
+                    '(?:token|secret|key|password|hash|otp|pin)\\[\\s*\\w+\\s*\\]\\s*!==?\\s*[^}]*return\\s+(?:false|null|undefined|new\\s+Error)',
+                    // Character-by-character comparison
+                    'charAt\\s*\\(\\s*\\w+\\s*\\)\\s*!==?\\s*[^}]*(?:return|throw)',
+                    // Hash comparison without constant-time
+                    'crypto\\.timingSafeEqual\\s*\\(\\s*[^)]*(?!.*\\.length)',
+                    // Login timing (response time leaks valid username)
+                    '(?:username|email|user)\\s*(?:===|==|\\.match|\\.test|\\.compare)[^}]*\\{[^}]*(?:await|async|\\.then)[^}]*(?:password|hash)',
+                    // OTP/token comparison
+                    '(?:otp|token|code|pin)\\s*(?:===|==|!==?)[^}]*res\\.(?:send|json|status)',
+                    // bcrypt.compare outside try-catch (leaks timing)
+                    'bcrypt\\.compare\\s*\\([^)]*\\)\\s*\\.then\\s*\\([^}]*res\\.\\s*(?:send|json|status)'
+                ],
+                severity: 'MEDIUM',
+                description: 'Timing side-channel - non-constant-time comparison leaks secrets via response time'
+            },
+
+            // ═══════════════════════════════════════════════════════════
+            // 🆕 BATCH 3: BUSINESS LOGIC / DoS (5 classes)
+            // ═══════════════════════════════════════════════════════════
+
+            'Business Logic Flaws': {
+                patterns: [
+                    // Negative quantity/price manipulation
+                    '(?:quantity|qty|amount|price|count|stock|balance)\\s*[=+\\-*/%]+\\s*[^;]*(?!.*(?:Math\\.abs|Math\\.max|>=\\s*0|>\\s*0|parseInt|Number\\.isInteger|parseFloat))',
+                    // Price/total calculation without validation
+                    '(?:total|price|amount|cost|subtotal)\\s*=\\s*[^;]*(?:req\\.(?:query|body|params)|input|query|params|body)(?!.*(?:Math\\.abs|>=|clamp|limit|min\\())',
+                    // Coupon/discount without usage limit check
+                    '(?:coupon|discount|promo|voucher|redeem)[^}]*(?:count|usage|limit|remaining)(?!.*(?:update|decrement|atom))',
+                    // Integer overflow in balance
+                    '(?:balance|credit|points|score|wallet)\\s*(?:\\+=|\\-=)\\s*[^;]*(?!.*(?:Number\\.isSafeInteger|<=\\s*Number\\.MAX_SAFE_INTEGER))',
+                    // Race on inventory/stock
+                    '(?:stock|inventory|quantity|count)\\s*(?:\\-=)\\s*[^;]*(?!.*(?:atomic|transaction|lock|mutex|compare))',
+                    // Free items via negative price
+                    '(?:price|amount|total|cost)\\s*(?:<\\s*0|<=\\s*0|===?\\s*-\\d)',
+                    // Cart manipulation
+                    'cart\\.\\w+\\s*(?:=|push|splice)\\s*[^;]*(?:req\\.(?:body|query|params)|input|query|params|body)(?!.*(?:validate|sanitize|filter|whitelist))'
+                ],
+                severity: 'HIGH',
+                description: 'Business logic flaw - price/quantity manipulation, negative values, race on inventory'
+            },
+
+            'ReDoS (Regex Denial of Service)': {
+                patterns: [
+                    // Catastrophic backtracking patterns
+                    '(?:\\([^)]*\\+\\)\\+|(?:\\+|\\*)\\)\\*)',
+                    '\\(\\[\\^\\]\\]\\*\\)\\+',
+                    '(?:a\\+)+\\$',
+                    '(?:x+)+\\s*[=:]',
+                    // User-supplied regex without timeout
+                    'new\\s+RegExp\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)(?!.*timeout)',
+                    // Regex from user input
+                    'RegExp\\s*\\(\\s*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // Dangerous regex in validation
+                    '(?:validate|check|verify|test|match|replace)\\s*\\([^)]*new\\s+RegExp[^)]*(?:req|input|query|params|body)',
+                    // Nested quantifiers in static regex (server hanging)
+                    '(?:\\.\\*\\.\\*){3,}',
+                    '\\(\\.\\+\\)\\+',
+                    '\\(\\[a-zA-Z\\]\\+\\)\\+\\$',
+                    // Regex without backtracking protection
+                    '\\.replace\\s*\\(\\s*new\\s+RegExp\\s*\\([^)]*(?:req|input|query|params|body)(?!.*(?:timeout|matchAll|y\\s*flag))'
+                ],
+                severity: 'MEDIUM',
+                description: 'ReDoS - catastrophic backtracking in regex causes server hang on crafted input'
+            },
+
+            'HTTP Header Injection': {
+                patterns: [
+                    // User input in response headers
+                    'res\\.setHeader\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'res\\.set\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'res\\.header\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // Location header with user input
+                    'res\\.setHeader\\s*\\(\\s*["\']Location["\']\\s*,\\s*[^)]*(?:req|input|query|params|body)',
+                    'res\\.redirect\\s*\\(\\s*3\\d\\d\\s*,\\s*[^)]*(?:req|input|query|params|body)',
+                    // Set-Cookie with user input
+                    'res\\.setHeader\\s*\\(\\s*["\']Set-Cookie["\']\\s*,\\s*[^)]*(?:req|input|query|params|body)',
+                    'res\\.cookie\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // CRLF in header value
+                    '(?:req|input|query|params|body)[^;]*\\r\\n',
+                    '\\\\r\\\\n[^;]*(?:req|input|query|params|body)',
+                    // Content-Type with user input
+                    'res\\.setHeader\\s*\\(\\s*["\']Content-Type["\']\\s*,\\s*[^)]*(?:req|input|query|params|body)',
+                    // X-Powered-By / Server header injection
+                    'res\\.setHeader\\s*\\(\\s*["\'](?:X-Powered-By|Server)["\']\\s*,\\s*[^)]*(?:req|input|query|params|body)'
+                ],
+                severity: 'HIGH',
+                description: 'HTTP header injection - CRLF in headers enables XSS, cache poisoning, or response splitting'
+            },
+
+            'CORS Origin Reflection': {
+                patterns: [
+                    // Server reflects Origin in ACAO header
+                    'Access-Control-Allow-Origin\\s*:\\s*(?:req\\.(?:headers\\.origin|query\\.origin)|origin)',
+                    'res\\.setHeader\\s*\\(\\s*["\']Access-Control-Allow-Origin["\']\\s*,\\s*[^)]*(?:req|origin|input)',
+                    // Wildcard with credentials (most dangerous)
+                    'Access-Control-Allow-Origin\\s*:\\s*\\*[\\s\\S]*Access-Control-Allow-Credentials\\s*:\\s*true',
+                    'Access-Control-Allow-Credentials\\s*:\\s*true[\\s\\S]*Access-Control-Allow-Origin\\s*:\\s*\\*',
+                    // No origin validation
+                    'app\\.use\\s*\\(\\s*cors\\s*\\(\\s*\\)\\s*\\)',
+                    // Origin reflected without whitelist check
+                    '(?:origin|req\\.headers\\.origin)\\s*&&\\s*res\\.setHeader',
+                    'if\\s*\\(\\s*origin\\s*\\)\\s*\\{[^}]*setHeader[^}]*["\']Access-Control-Allow-Origin["\']',
+                    // CORS with any subdomain allowed
+                    'origin\\s*:\\s*\\/\\^[\\^)]*\\$/',
+                    'origin\\s*:\\s*\\(?:req|origin)\\.replace'
+                ],
+                severity: 'MEDIUM',
+                description: 'CORS origin reflection - server reflects any Origin, allowing credential theft from any site'
+            },
+
+            'Password Reset Flaws': {
+                patterns: [
+                    // Host header injection in reset link
+                    '(?:host|Host)\\s*:\\s*[^;]*(?:req\\.headers\\.host|req\\.get\\s*\\(\\s*["\']host["\'])',
+                    'resetUrl\\s*[:=]\\s*[^;]*req\\.headers\\.host',
+                    'resetLink\\s*[:=]\\s*[^;]*req\\.headers\\.host',
+                    // Predictable reset token
+                    'resetToken\\s*[:=]\\s*(?:Math\\.random|Date\\.now|new\\s+Date)',
+                    'token\\s*[:=]\\s*(?:Math\\.random|Date\\.now)(?!.*crypto)',
+                    // Token not invalidated after use
+                    'resetToken\\s*[:=]\\s*null(?!.*(?:\\.save|update|delete))',
+                    // Missing rate limit on reset
+                    'resetPassword\\s*\\(\\s*\\)(?!.*(?:rate|limit|throttle|attempt))',
+                    // Token in URL (leaks in referrer/logs)
+                    '(?:reset|forgot)\\s*(?:Token|Code|Link)\\s*[:=]\\s*["\'][^"\']*(?:\\?|&)(?:token|code|reset)=',
+                    // User enumeration via reset
+                    '(?:user|account)\\.findOne\\s*\\(\\s*\\{[^}]*email\\s*:\\s*req[^}]*\\}\\s*\\)\\.then\\s*\\(\\s*(?:user|account)\\s*=>\\s*\\{[^}]*!user[^}]*res\\.(?:send|json|status)',
+                    // Weak reset token entropy
+                    'resetToken\\s*[:=]\\s*(?:Math\\.floor\\s*\\(\\s*Math\\.random|crypto\\.randomBytes\\s*\\(\\s*[1-4]\\s*\\))'
+                ],
+                severity: 'CRITICAL',
+                description: 'Password reset flaw - host header injection, predictable token, user enumeration'
+            },
+
+            // ═══════════════════════════════════════════════════════════
+            // 🆕 BATCH 4: SUPPLY CHAIN / INFRASTRUCTURE (5 classes)
+            // ═══════════════════════════════════════════════════════════
+
+            'Server-Side Include (SSI) Injection': {
+                patterns: [
+                    // SSI directives in user input
+                    '<!--#\\s*(?:exec|include|echo|config|fsize|flastmod|date)\\s+',
+                    '<!--#exec\\s+cmd\\s*=',
+                    '<!--#exec\\s+cgi\\s*=',
+                    '<!--#include\\s+(?:virtual|file)\\s*=',
+                    '<!--#echo\\s+var\\s*=',
+                    // SSI in response with user input
+                    'res\\.send\\s*\\([^)]*(?:<!--#|<%|<\\?php)[^)]*(?:req|input|query|params|body)',
+                    'res\\.write\\s*\\([^)]*(?:<!--#)(?:req|input|query|params|body)',
+                    // Template engine with SSI-like features
+                    'template\\s*\\(\\s*["\'][^"\']*(?:<!--#|SSI)',
+                    // User input rendered as HTML with SSI
+                    '(?:innerHTML|outerHTML|document\\.write)\\s*[^;]*(?:req|input|query|params|body)(?!.*(?:encode|escape|sanitiz))',
+                    // Server config enabling SSI
+                    'ssi\\s*:\\s*(?:true|1|enabled)',
+                    'Options\\s+\\+?Includes'
+                ],
+                severity: 'CRITICAL',
+                description: 'SSI injection - user input in server-side includes enables RCE'
+            },
+
+            'Memory Safety (Buffer Overflow)': {
+                patterns: [
+                    // Buffer operations without bounds check
+                    'buffer\\.write\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)(?!.*(?:length|offset|byteLength))',
+                    'buffer\\.copy\\s*\\([^)]*(?:req|input|query|params|body)(?!.*(?:length|targetStart|sourceStart))',
+                    // Alloc without size validation
+                    'Buffer\\.alloc\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'Buffer\\.allocUnsafe\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // Buffer.from with user-controlled encoding
+                    'Buffer\\.from\\s*\\([^)]*(?:req|input|query|params|body)\\s*,\\s*["\'](?:hex|base64|binary|latin1)["\']',
+                    // Native addon buffer operations
+                    'node-addon-api[^}]*Buffer[^}]*(?:req|input|query|params|body)',
+                    'napi_create_buffer[^}]*(?:req|input|query|params|body)',
+                    // Unchecked length from user
+                    '(?:length|size|bytes|offset|index)\\s*[:=]\\s*(?:parseInt|Number)\\s*\\(\\s*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // Buffer truncation issues
+                    'buffer\\.slice\\s*\\([^)]*(?:req|input|query|params|body)',
+                    'buffer\\.subarray\\s*\\([^)]*(?:req|input|query|params|body)'
+                ],
+                severity: 'HIGH',
+                description: 'Memory safety - buffer operations without bounds checking may cause overflow or DoS'
+            },
+
+            'Log Injection': {
+                patterns: [
+                    // User input in log without sanitization
+                    '(?:console|logger|log)\\.(?:log|info|warn|error|debug)\\s*\\([^)]*(?:req\\.(?:query|body|params|headers)|input|query|params|body)(?!.*(?:encode|escape|sanitiz|replace))',
+                    // Log template injection
+                    '(?:console|logger|log)\\.(?:log|info|warn|error|debug)\\s*\\(\\s*`[^`]*\\$\\{[^}]*(?:req|input|query|params|body)',
+                    // Log with user-controlled level
+                    '(?:console|logger|log)\\[\\s*(?:req|input|query|params|body)\\s*\\]',
+                    // Winston/pino/morgan with user input
+                    '(?:winston|pino|bunyan|morgan)\\.[^;]*(?:req\\.(?:query|body|params|headers)|input|query|params|body)',
+                    // User input in audit log
+                    'audit\\.log\\s*\\([^)]*(?:req|input|query|params|body)(?!.*(?:sanitiz|escape|validat))',
+                    // Log forge via newline injection
+                    '(?:req|input|query|params|body)[^;]*(?:\\\\n|\\\\r|%0a|%0d|\\n|\\r)',
+                    // Logger with user-controlled meta
+                    'logger\\.(?:info|warn|error)\\s*\\([^)]*(?:message|meta|data)\\s*:\\s*(?:req|input|query|params|body)'
+                ],
+                severity: 'MEDIUM',
+                description: 'Log injection - user input in logs without sanitization enables log forge, XSS, or injection'
+            },
+
+            'Client-Side Redirect Manipulation': {
+                patterns: [
+                    // URL parameter controls redirect destination
+                    '(?:window\\.location|location\\.href|location\\.replace)\\s*[=]\\s*[^;]*(?:decodeURIComponent|decodeURI)\\s*\\(\\s*[^)]*(?:req|input|query|params|hash|search)',
+                    // Redirect from URL params without validation
+                    'window\\.location\\s*=\\s*[^;]*(?:URLSearchParams|location\\.search|location\\.hash)',
+                    'window\\.location\\.href\\s*=\\s*[^;]*(?:URLSearchParams|location\\.search|location\\.hash)',
+                    // Next/router redirect from query
+                    '(?:router\\.push|router\\.replace|navigate)\\s*\\([^)]*(?:query|search|hash|params|URLSearchParams)',
+                    // React Router redirect from URL
+                    '<Redirect\\s+to\\s*=\\s*\\{[^}]*(?:location\\.search|location\\.hash|URLSearchParams)',
+                    // Hidden redirect in meta tag
+                    '(?:document\\.createElement|innerHTML)\\s*[^;]*(?:meta)[^;]*(?:refresh|location)(?!.*(?:escape|sanitiz|validat))',
+                    // form action from URL param
+                    'form\\.action\\s*=\\s*[^;]*(?:req|input|query|params|URLSearchParams)',
+                    // window.open with URL param
+                    'window\\.open\\s*\\([^)]*(?:req|input|query|params|URLSearchParams)(?!.*(?:whitelist|allowlist|validat))'
+                ],
+                severity: 'MEDIUM',
+                description: 'Client-side redirect manipulation - URL params control redirect destination without validation'
+            },
+
+            'Subresource Integrity (SRI) Bypass': {
+                patterns: [
+                    // Dynamic script creation without integrity
+                    'createElement\\s*\\(\\s*["\']script["\']\\s*\\)[^;]*\\.src\\s*=(?!.*integrity)',
+                    // External script loaded without SRI
+                    'document\\.createElement\\s*\\(\\s*["\']script["\']\\s*\\)[^;]*crossOrigin',
+                    // Dynamic link/css without integrity
+                    'createElement\\s*\\(\\s*["\']link["\']\\s*\\)[^;]*\\.href\\s*=(?!.*integrity)',
+                    // Script injection without SRI verification
+                    'new\\s+Script\\s*\\([^)]*(?:req|input|query|params|body)(?!.*integrity)',
+                    // CDN script without integrity check
+                    '<script[^>]*src\\s*=\\s*["\']https?://[^"\']*cdn[^"\']*["\'](?![^>]*integrity)',
+                    // Dynamic import without integrity
+                    'import\\s*\\([^)]*(?:req|input|query|params|body)(?!.*integrity)',
+                    // postMessage script load without verification
+                    'addEventListener\\s*\\(\\s*["\']message["\']\\s*[^)]*\\)[^}]*createElement\\s*\\(\\s*["\']script["\']\\s*\\)(?!.*integrity)',
+                    // fetch + eval without integrity
+                    'fetch\\s*\\([^)]*\\)[^}]*\\.then[^}]*eval\\s*\\('
+                ],
+                severity: 'MEDIUM',
+                description: 'SRI bypass - dynamic script loading without integrity attribute enables supply chain attacks'
             }
         };
 
@@ -4718,7 +5197,7 @@ setTimeout(() => {
     console.log('');
     console.log('  ╔═══════════════════════════════════════════════════════════════╗');
     console.log('  ║   FULL-GLOBAL-JS-HUNTER v3.0  —  SECURITY AUDIT SUITE      ║');
-    console.log('  ║   Hardened Edition • 20 Audit Modules • 28 Vuln Classes     ║');
+    console.log('  ║   Hardened Edition • 20 Audit Modules • 53 Vuln Classes     ║');
     console.log('  ╚═══════════════════════════════════════════════════════════════╝');
     console.log('');
     console.log('  ┌─ PATTERN SCAN (28 vulnerability classes) ──────────────────┐');
