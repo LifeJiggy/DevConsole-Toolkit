@@ -5148,16 +5148,15 @@ const originalOnUnhandledRejection = window.onunhandledrejection;
 window.onerror = function() { return true; };
 window.onunhandledrejection = function() { return true; };
 
-// Override addEventListener to suppress unhandled promise rejections (with re-entry guard)
-const _originalAddEventListener = window.addEventListener.bind(window);
-let _addEventListenerOverridden = false;
-if (!_addEventListenerOverridden) {
-    _addEventListenerOverridden = true;
+// Override addEventListener to suppress unhandled promise rejections (persistent global guard)
+if (!window.__jsHunterEventListenerFixed) {
+    window.__jsHunterEventListenerFixed = true;
+    const _origAddEventListener = window.addEventListener;
     window.addEventListener = function(type, listener, options) {
         if (type === 'unhandledrejection' || type === 'error') {
             return;
         }
-        return _originalAddEventListener(type, listener, options);
+        return _origAddEventListener.call(this, type, listener, options);
     };
 }
 
