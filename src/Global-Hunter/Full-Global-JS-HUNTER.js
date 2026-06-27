@@ -37,99 +37,92 @@ class CompleteJSVulnHunter {
             // CLIENT-SIDE CRITICAL
             'DOM-Based XSS': {
                 patterns: [
-                    // Standard DOM XSS
-                    '.innerHTML\\s*=',
-                    '.outerHTML\\s*=',
-                    'insertAdjacentHTML\\s*\\(',
-                    'document\\.write\\s*\\(',
-                    'document\\.writeln\\s*\\(',
-                    'location\\.hash',
-                    'location\\.search',
-                    'location\\.href',
-                    'window\\.name',
-                    'eval\\s*\\(',
-                    'setTimeout\\s*\\(',
-                    'setInterval\\s*\\(',
-                    'Function\\s*\\(',
-                    'element\\.src\\s*=',
-                    'element\\.href\\s*=',
-                    'element\\.data\\s*=',
-                    'element\\.setAttribute\\s*\\(',
-                     'document\\.location',
-                    'window\\.location',
+                    // Sinks that indicate DOM XSS (not just source access)
+                    'innerHTML\\s*=\\s*[^;]*(?:location|search|hash|cookie|document\\.referrer|window\\.name|postMessage)',
+                    'outerHTML\\s*=\\s*[^;]*(?:location|search|hash|cookie|document\\.referrer|window\\.name)',
+                    'insertAdjacentHTML\\s*\\([^,]+,\\s*[^)]*(?:location|search|hash|cookie)',
+                    'document\\.write\\s*\\([^)]*(?:location|search|hash|cookie|document\\.referrer)',
+                    'document\\.writeln\\s*\\([^)]*(?:location|search|hash|cookie)',
+                    '\\.html\\s*\\([^)]*(?:location|search|hash|cookie|document\\.referrer)',  // jQuery
+                    '\\.append\\s*\\([^)]*(?:location|search|hash|cookie)',
+                    '\\.prepend\\s*\\([^)]*(?:location|search|hash|cookie)',
+                    // Script creation with dynamic source
+                    'createElement\\s*\\(\\s*["\']script["\']\\s*\\)[^;]*\\.src\\s*=\\s*[^;]*(?:location|search|hash)',
+                    'createElement\\s*\\(\\s*["\']script["\']\\s*\\)[^;]*textContent\\s*=',
+                    // URL assignment with user input
+                    '\\.href\\s*=\\s*[^;]*(?:location|search|hash|document\\.referrer)',
+                    '\\.src\\s*=\\s*[^;]*(?:location|search|hash|document\\.referrer)',
+                    '\\.action\\s*=\\s*[^;]*(?:location|search|hash)',
+                    // javascript: URI with user-controlled input
+                    '(?:href|src|action)\\s*=\\s*["\']javascript:',
                     'location\\.href\\s*=\\s*["\']javascript:',
-                    'src\\s*=\\s*["\']javascript:',
-                    'href\\s*=\\s*["\']javascript:',
-                    'element\\.setAttribute\\s*\\(\\s*["\']on\\w+["\']',
-                    // Framework-specific XSS
-                    'dangerouslySetInnerHTML', // React
-                    'v-html', // Vue
-                    '\\[innerHTML\\]', // Angular
-                    '\\[outerHTML\\]', // Angular
-                    '{@html', // Svelte
-                    'htmlSafe', // Ember
-                    'bypassSecurityTrustHtml', // Angular
-                    // jQuery XSS
-                    '\\$\\(.*\\)\\.html\\s*\\(',
-                    '\\$\\(.*\\)\\.append\\s*\\(',
-                    '\\$\\(.*\\)\\.prepend\\s*\\(',
-                    '\\$\\(.*\\)\\.before\\s*\\(',
-                    '\\$\\(.*\\)\\.after\\s*\\(',
-                    // Framework router XSS
-                    'router\\.push\\s*\\(',
-                    'navigate\\s*\\(',
-                    'history\\.push\\s*\\(',
-                    // Framework state XSS
-                    'setState\\s*\\(',
-                    'dispatch\\s*\\(',
-                    'commit\\s*\\('
+                    // eval/Function with user-controlled input
+                    '\\beval\\s*\\([^)]*(?:location|search|hash|cookie|document\\.referrer|window\\.name)',
+                    '\\bFunction\\s*\\([^)]*(?:location|search|hash|cookie)',
+                    // Framework-specific XSS (require user input context)
+                    'dangerouslySetInnerHTML\\s*=\\s*\\{[^}]*__(?:html|dangerouslySetInnerHTML)[^}]*\\}',
+                    'dangerouslySetInnerHTML\\s*=\\s*\\{[^}]*userInput',
+                    'dangerouslySetInnerHTML\\s*=\\s*\\{[^}]*location',
+                    'v-html\\s*=\\s*["\'][^"\']*\\$\\{',
+                    'v-html\\s*=\\s*["\'][^"\']*location',
+                    '\\[innerHTML\\]\\s*=\\s*[^;]*(?:location|search|userInput)',
+                    '\\[outerHTML\\]\\s*=\\s*[^;]*(?:location|search)',
+                    '{@html\\s+[^}]*location',
+                    'bypassSecurityTrustHtml\\s*\\(',
+                    'htmlSafe\\s*\\([^)]*(?:location|search|userInput)',
+                    // Template literal injection
+                    '\\.html\\s*\\(`[^`]*\\$\\{[^}]*location',
+                    '\\.html\\s*\\(`[^`]*\\$\\{[^}]*search'
                 ],
                 severity: 'CRITICAL',
-                description: 'Direct DOM manipulation with unsanitized input - Framework XSS vulnerabilities'
+                description: 'DOM manipulation with unsanitized user-controlled input (source→sink)'
             },
 
 
             
             'Prototype Pollution': {
                 patterns: [
-                    'for\\s*\\(\\s*let\\s+key\\s+in\\s+[^)]+\\)',
-                    'for\\s*\\(\\s*var\\s+key\\s+in\\s+[^)]+\\)',
-                    'Object\\.assign\\s*\\([^,]+\\s*,\\s*[^,]+\\)',
-                    '\\.merge\\s*\\(',
-                    '\\.extend\\s*\\(',
-                    'Object\\.defineProperty\\s*\\(',
-                    'Object\\.defineProperties\\s*\\(',
-                    '__proto__',
-                    'constructor\\s*\\.',
-                    'hasOwnProperty\\s*\\(',
-                    'Object\\.create\\s*\\(',
-                    'Object\\.setPrototypeOf\\s*\\(',
-                    'Object\\.getPrototypeOf\\s*\\('
+                    // Actual prototype pollution sinks
+                    '\\[\\s*["\']__proto__["\']\\s*\\]\\s*=',
+                    '\\[\\s*["\']constructor["\']\\s*\\]\\s*\\[\\s*["\']prototype["\']\\s*\\]\\s*=',
+                    '\\.\\s*__proto__\\s*=',
+                    '\\.constructor\\.prototype\\s*=',
+                    // Dangerous merge functions with user input
+                    '\\.merge\\s*\\([^)]*(?:req|query|params|body|input)',
+                    '\\.extend\\s*\\([^)]*(?:req|query|params|body|input)',
+                    'deepMerge\\s*\\([^)]*(?:req|query|params|body|input)',
+                    'deepExtend\\s*\\([^)]*(?:req|query|params|body|input)',
+                    // Object.assign with user-controlled source
+                    'Object\\.assign\\s*\\([^,]+,\\s*(?:req\\.(?:body|query|params)|query|params|input|data)',
+                    // for-in without hasOwnProperty guard
+                    'for\\s*\\(\\s*(?:let|var|const)\\s+\\w+\\s+in\\s+\\w+\\s*\\)\\s*\\{[^}]*\\[\\s*\\w+\\s*\\]',
+                    // Unsafe property access with user input
+                    '\\[\\s*(?:req|query|params|body)\\.\\w+\\s*\\]\\s*='
                 ],
                 severity: 'HIGH',
-                description: 'Object property assignment without prototype checks'
+                description: 'Prototype pollution via __proto__ assignment or unsafe merge with user input'
             },
 
 
 
             'Code Execution': {
                 patterns: [
-                    '\\beval\\s*\\(',                                      // Direct eval usage
-                    'new\\s+\\bFunction\\s*\\(',                           // Dynamic function constructor
-                    '\\bFunction\\s*\\(',                                  // Generic Function usage
-                    '\\bsetTimeout\\s*\\(\\s*["\']',                       // String-based timeout execution
-                    '\\bsetInterval\\s*\\(\\s*["\']',                      // String-based interval execution
-                    'window\\[["\']eval["\']\\]\\s*\\(',                // Indirect eval via bracket notation
-                    'window\\[["\']Function["\']\\]\\s*\\(',            // Indirect Function constructor
-                    '\\bdocument\\.write\\s*\\(',                          // Dynamic HTML injection
-                    '\\bdocument\\.createElement\\s*\\(\\s*["\']script["\']', // Script injection via DOM
-                    'script\\.innerHTML\\s*=\\s*["\']',                 // Inline script assignment
-                    'script\\.text\\s*=\\s*["\']',                      // Alternate inline script assignment
-                    'location\\.href\\s*=\\s*["\']javascript:',         // JavaScript URI execution
-                    'src\\s*=\\s*["\']javascript:',                     // JavaScript URI in src attribute
-                    '\\bpostMessage\\s*\\(\\s*["\'].*["\']\\s*,\\s*["\']\\*["\']', // Unrestricted postMessage
-                    '\\bimportScripts\\s*\\(',                             // Dynamic script loading in workers
-                    'self\\[["\']onmessage["\']\\]\\s*=\\s*new\\s+\\bFunction' // Worker message handler injection
+                    'eval\\s*\\([^)]*(?:req|query|params|body|location|input|search|hash|cookie|\\$\\{)',
+                    'new\\s+Function\\s*\\([^)]*(?:req|query|params|body|location|input|\\$\\{)',
+                    '\\bFunction\\s*\\(["\'][^"\']*(?:req|query|params|body|location|\\$\\{)',
+                    '\\bsetTimeout\\s*\\(\\s*["\'][^"\']*(?:req|query|params|body|location|input|\\$\\{)',
+                    '\\bsetInterval\\s*\\(\\s*["\'][^"\']*(?:req|query|params|body|location|input|\\$\\{)',
+                    'window\\[\\s*["\']eval["\']\\s*\\]\\s*\\(',
+                    'window\\[\\s*["\']Function["\']\\s*\\]\\s*\\(',
+                    'document\\.write\\s*\\([^)]*(?:req|query|params|body|location|input)',
+                    '\\.innerHTML\\s*=\\s*[^;]*(?:eval|Function|setTimeout|setInterval)',
+                    'script\\.innerHTML\\s*=\\s*["\']',
+                    'script\\.text\\s*=\\s*["\'][^"\']*(?:req|query|params|location)',
+                    'location\\.href\\s*=\\s*["\']javascript:',
+                    '(?:src|href)\\s*=\\s*["\']javascript:',
+                    '\\bpostMessage\\s*\\([^)]*\\*\\s*\\)',
+                    '\\bimportScripts\\s*\\([^)]*(?:req|query|params|location)',
+                    'self\\[\\s*["\']onmessage["\']\\s*\\]\\s*=\\s*new\\s+Function'
                 ],
                 severity: 'CRITICAL',
                 description: 'Dynamic code execution with user-controlled input'
@@ -138,23 +131,20 @@ class CompleteJSVulnHunter {
 
             'Event Handler Injection': {
                 patterns: [
-                    'on\\w+\\s*=',
-                    'setAttribute\\s*\\([^,]+\\s*,\\s*["\'][^"\']*on',
-                    'addEventListener\\s*\\([^,]+\\s*,\\s*["\']',
-                    'element\\.on\\w+\\s*=',
-                    'document\\.on\\w+\\s*=',
-                    'window\\.on\\w+\\s*=',
-                    'attachEvent\\s*\\(',
-                    'dispatchEvent\\s*\\(',
-                    'createEvent\\s*\\(',
-                    'fireEvent\\s*\\(',
-                    'setTimeout\\s*\\(\\s*["\'].*on\\w+',
-                    'setInterval\\s*\\(\\s*["\'].*on\\w+',
-                    'eval\\s*\\(\\s*["\'].*on\\w+',
-                    'Function\\s*\\(\\s*["\'].*on\\w+'
+                    // Dynamic event handler assignment with user input
+                    'setAttribute\\s*\\(\\s*["\']on\\w+["\']\\s*,\\s*[^)]*(?:location|search|hash|input|query)',
+                    '\\.on\\w+\\s*=\\s*[^;]*(?:location|search|hash|input)',
+                    'document\\.on\\w+\\s*=\\s*[^;]*(?:location|search|hash)',
+                    'window\\.on\\w+\\s*=\\s*[^;]*(?:location|search|hash)',
+                    // setTimeout/setInterval with string containing event handlers
+                    'setTimeout\\s*\\(\\s*["\'][^"\']*on\\w+',
+                    'setInterval\\s*\\(\\s*["\'][^"\']*on\\w+',
+                    // eval with event handler code
+                    'eval\\s*\\(\\s*["\'][^"\']*on\\w+',
+                    'Function\\s*\\(\\s*["\'][^"\']*on\\w+'
                 ],
                 severity: 'HIGH',
-                description: 'Dynamic event handler assignment'
+                description: 'Dynamic event handler injection with user-controlled code'
             },
 
 
@@ -178,1118 +168,506 @@ class CompleteJSVulnHunter {
 
             'Insecure Random': {
                 patterns: [
-                    'Math\\.random\\s*\\(\\)',
-                    'Math\\.random\\s*\\(\\)\\s*\\*',
-                    'Math\\.floor\\s*\\(\\s*Math\\.random\\s*\\(\\)',
-                    'Math\\.ceil\\s*\\(\\s*Math\\.random\\s*\\(\\)',
-                    'Math\\.round\\s*\\(\\s*Math\\.random\\s*\\(\\)',
-                    'parseInt\\s*\\(\\s*Math\\.random\\s*\\(\\)',
-                    'new\\s+Array\\s*\\(\\s*Math\\.random\\s*\\(\\)',
-                    'Array\\.from\\s*\\(\\s*\\{\\s*length\\s*:\\s*Math\\.random\\s*\\(\\)',
-                    'crypto\\s*\\.\\s*getRandomValues\\s*\\(\\s*\\[?\\s*Math\\.random\\s*\\(\\)',
-                    'Math\\.random\\s*\\(\\)\\s*\\.\\s*toString\\s*\\('
+                    // Math.random() used for security-sensitive purposes
+                    'Math\\.random\\s*\\(\\)\\s*\\.\\s*toString\\s*\\(\\s*36\\s*\\)',  // Token generation
+                    'Math\\.random\\s*\\(\\)\\s*\\.\\s*toString\\s*\\(\\s*16\\s*\\)',  // Hex token
+                    'Math\\.random\\s*\\(\\)\\s*\\*\\s*[0-9a-fA-F]+\\s*\\.\\s*toString',
+                    // Used with crypto-like variable names
+                    'Math\\.random\\s*\\(\\)[^;]*(?:token|key|secret|password|hash|nonce|salt)',
+                    '(?:token|key|secret|password|hash|nonce|salt)[^;]*Math\\.random',
+                    'Array\\.from\\s*\\(\\s*\\{[^}]*Math\\.random',
+                    // Token/ID generation with Math.random
+                    '(?:generateToken|generateId|generateKey|createToken)\\s*\\([^)]*Math\\.random',
+                    'Math\\.floor\\s*\\(\\s*Math\\.random\\s*\\(\\)\\s*\\*\\s*\\d+\\s*\\)\\s*\\.\\s*toString'
                 ],
-                severity: 'LOW',
-                description: 'Cryptographically insecure random number generation'
+                severity: 'MEDIUM',
+                description: 'Cryptographically insecure random used for security-sensitive values'
             },
             
 
             // SERVER-SIDE & NODE.JS SPECIFIC
             'SSRF': {
                 patterns: [
-                    'fetch\\s*\\([^)]*["\'][^"\']*(api|internal|localhost)',
-                    'XMLHttpRequest\\s*\\([^)]*["\'][^"\']*(api|internal|localhost)',
-                    '\\.ajax\\s*\\([^)]*["\'][^"\']*(api|internal|localhost)',
-                    'http[s]?://(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0|169\\.254\\.169\\.254)',
-                    'new\\s+URL\\s*\\(\\s*["\'][^"\']*(localhost|internal|169\\.254)',
-                    'axios\\s*\\.\\s*(get|post|put|delete)\\s*\\(\\s*["\'][^"\']*(localhost|internal|169\\.254)',
-                    'request\\s*\\(\\s*["\'][^"\']*(localhost|internal|169\\.254)',
-                    'got\\s*\\(\\s*["\'][^"\']*(localhost|internal|169\\.254)',
-                    'curl\\s+["\']http://(localhost|internal|169\\.254)',
-                    'http\\.get\\s*\\(\\s*["\'][^"\']*(localhost|internal|169\\.254)',
-                    'http\\.request\\s*\\(\\s*["\'][^"\']*(localhost|internal|169\\.254)',
-                    // Node.js specific
-                    'http\\s*\\.\\s*get\\s*\\(\\s*["\'][^"\']*(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)',
-                    'https\\s*\\.\\s*get\\s*\\(\\s*["\'][^"\']*(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)',
-                    'http\\s*\\.\\s*request\\s*\\(\\s*["\'][^"\']*(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)',
-                    'https\\s*\\.\\s*request\\s*\\(\\s*["\'][^"\']*(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)',
-                    'node-fetch\\s*\\(\\s*["\'][^"\']*(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)',
-                    'superagent\\s*\\.\\s*(get|post)\\s*\\(\\s*["\'][^"\']*(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)',
-                    'unirest\\s*\\(\\s*["\'][^"\']*(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)',
-                    // Internal network patterns
-                    '10\\.\\d+\\.\\d+\\.\\d+',
-                    '172\\.(1[6-9]|2[0-9]|3[0-1])\\.\\d+\\.\\d+',
-                    '192\\.168\\.\\d+\\.\\d+',
-                    // Metadata service
-                    '169\\.254\\.169\\.254',
-                    'metadata\\.google\\.internal',
-                    'instance-metadata'
+                    // User input flowing to HTTP request (real SSRF)
+                    '(?:fetch|axios|got|request|http\\.get|http\\.request)\\s*\\([^)]*(?:req\\.(?:query|body|params)|location\\.(?:search|hash|href)|input|url\\s*\\+)',
+                    'new\\s+URL\\s*\\([^)]*(?:req\\.(?:query|body|params)|location\\.(?:search|hash|href)|input)',
+                    // Hardcoded internal/metadata endpoints
+                    'http[s]?://169\\.254\\.169\\.254',
+                    'http[s]?://metadata\\.google\\.internal',
+                    'http[s]?://localhost:\\d+',
+                    'http[s]?://127\\.0\\.0\\.1:\\d+',
+                    // SSRF via redirect bypass
+                    '(?:followRedirect|redirect\\s*:\\s*["\']follow["\'])[^}]*(?:url|uri|target)',
+                    // Server-side fetch with user-controlled URL
+                    'axios\\s*\\([^)]*(?:req\\.(?:query|body|params|headers)\\.)',
+                    'node-fetch\\s*\\([^)]*(?:req\\.(?:query|body|params)\\.)',
+                    // Dynamic URL construction for HTTP requests
+                    '(?:fetch|axios|request|got)\\s*\\(\\s*`[^`]*\\$\\{[^}]*(?:req|query|params|body|input)',
+                    '(?:fetch|axios|request|got)\\s*\\(\\s*["\'][^"\']*\\+\\s*(?:req\\.|query|params|body|input)'
                 ],
                 severity: 'HIGH',
-                description: 'Server-side request forgery - potential internal network access'
+                description: 'Server-side request forgery - user-controlled URL used in HTTP request'
             },
 
 
             'IDOR': {
                 patterns: [
-                    '(/api/|/user/|/admin/|/account/|/profile/|/order/|/invoice/)[^\\s"\']*[\\d\\w]{4,}[^\\s"\']*',
-                    '[?&](userId|accountId|orderId|id|uid|pid|invoiceId)=\\d+',
-                    '[?&](userId|accountId|orderId|id|uid|pid|invoiceId)=["\']?\\w+["\']?',
-                    'userId\\s*[+\\-\\*/%]?\\s*\\w+',
-                    'req\\.params\\.id',
-                    'req\\.query\\.id',
-                    'req\\.body\\.id',
-                    'getParameter\\s*\\(\\s*["\'](id|userId|accountId)["\']\\s*\\)',
-                    'getQueryParam\\s*\\(\\s*["\'](id|userId|accountId)["\']\\s*\\)',
-                    'document\\.location\\.search',
-                    'window\\.location\\.search',
-                    'URLSearchParams\\s*\\(.*\\)\\.get\\s*\\(\\s*["\'](id|userId|accountId)["\']\\s*\\)',
-                    // Node.js/Express specific
-                    'req\\.params\\.(userId|accountId|orderId|id)',
-                    'req\\.query\\.(userId|accountId|orderId|id)',
-                    'req\\.body\\.(userId|accountId|orderId|id)',
-                    'ctx\\.params\\.(userId|accountId|orderId|id)', // Koa.js
-                    'ctx\\.query\\.(userId|accountId|orderId|id)',
-                    'ctx\\.request\\.body\\.(userId|accountId|orderId|id)',
-                    // Database queries without user validation
-                    'SELECT\\s+.*\\s+WHERE\\s+.*id\\s*=\\s*\\$\\d+',
-                    'UPDATE\\s+.*\\s+SET\\s+.*\\s+WHERE\\s+.*id\\s*=\\s*\\$\\d+',
-                    'DELETE\\s+.*\\s+WHERE\\s+.*id\\s*=\\s*\\$\\d+',
-                    // API endpoints
-                    '/users/\\$\\{.*\\}',
-                    '/orders/\\$\\{.*\\}',
-                    '/accounts/\\$\\{.*\\}',
-                    // Client-side IDOR indicators
-                    'fetch\\s*\\(\\s*["\']/api/user/\\$\\{',
-                    'axios\\s*\\.\\s*get\\s*\\(\\s*["\']/user/\\$\\{'
+                    // API endpoints using user-controlled IDs
+                    'fetch\\s*\\(\\s*["\'][^"\']*(?:\\/users?|\\/accounts?|\\/orders?|\\/admin|\\/profile|\\/invoices?)\\/$\\{',
+                    'axios\\s*\\.\\s*(?:get|put|delete|patch)\\s*\\(\\s*["\'][^"\']*(?:\\/users?|\\/accounts?|\\/orders?|\\/admin|\\/profile|\\/invoices?)\\/$\\{',
+                    // Direct parameter access without owner check
+                    'req\\.params\\.(?:userId|accountId|orderId|id)\\b(?!.*(?:owner|user).*===)',
+                    'req\\.query\\.(?:userId|accountId|orderId|id)\\b(?!.*(?:owner|user).*===)',
+                    // Database queries with user-controlled ID
+                    '(?:db|Model)\\.\\w+\\.find(?:One)?\\s*\\(\\s*\\{\\s*(?:_?id|userId|accountId)\\s*:\\s*req\\.(?:params|query|body)\\.',
+                    // URL parameter manipulation indicators
+                    '[?&](?:userId|accountId|orderId|invoiceId|uid)=\\$\\{',
+                    // Sequential/predictable ID patterns
+                    '\\/(?:users?|accounts?|orders?)\\/[0-9]+(?:\\/|$)',
+                    'req\\.params\\.id\\b(?!.*(?:session|auth|owner).*match)',
+                    // API routes with numeric IDs
+                    '\\/api\\/(?:v\\d+\\/)?(?:users?|accounts?|orders?)\\/[0-9]+'
                 ],
                 severity: 'CRITICAL',
-                description: 'Insecure Direct Object Reference - missing authorization checks'
+                description: 'Insecure Direct Object Reference - user-controlled resource access without authorization'
             },
 
 
 
             'Client-Side Injection': {
                 patterns: [
-                    // Standard injection patterns
-                    '(`.*\\$\\{.*\\}.*`)',                            // Template literals with interpolation
-                    '(".*\\+.*\\+.*)',                                // Double-quoted string concatenation
-                    "('.*\\+.*\\+.*)",                                // Single-quoted string concatenation
-                    'eval\\s*\\(\\s*.*\\+.*\\)',                      // eval with concatenated input
-                    'Function\\s*\\(\\s*["\'].*\\+.*["\']\\)',        // Function constructor with dynamic code
-                    'setTimeout\\s*\\(\\s*["\'].*\\+.*["\']',         // setTimeout with string-based code
-                    'setInterval\\s*\\(\\s*["\'].*\\+.*["\']',        // setInterval with string-based code
-                    'document\\.write\\s*\\(\\s*["\'].*\\+.*["\']',   // document.write with dynamic content
-                    'innerHTML\\s*=\\s*["\'].*\\+.*["\']',            // innerHTML assignment with concatenation
-                    'outerHTML\\s*=\\s*["\'].*\\+.*["\']',            // outerHTML assignment with concatenation
-                    'src\\s*=\\s*["\'].*\\+.*["\']',                  // Dynamic src attribute
-                    'href\\s*=\\s*["\'].*\\+.*["\']',                 // Dynamic href attribute
-                    'location\\.href\\s*=\\s*["\'].*\\+.*["\']',      // Redirect with dynamic input
-                    'new\\s+RegExp\\s*\\(\\s*["\'].*\\+.*["\']',      // RegExp constructor with dynamic pattern
-                    'template\\s*\\(\\s*["\'].*\\+.*["\']',            // Custom template functions
-                    // Framework-specific injection
-                    'dangerouslySetInnerHTML\\s*=\\s*\\{[^}]*\\+.*\\}', // React injection
-                    'v-html\\s*=\\s*["\'][^"\']*\\+.*["\']',          // Vue injection
-                    '\\[innerHTML\\]\\s*=\\s*["\'][^"\']*\\+.*["\']', // Angular injection
-                    '{@html\\s+[^}]*\\+.*}',                          // Svelte injection
-                    'htmlSafe\\s*\\([^)]*\\+.*\\)',                   // Ember injection
+                    // Template injection with user input
+                    'eval\\s*\\([^)]*(?:req|query|params|body|location|search|hash|input)',
+                    'Function\\s*\\([^)]*(?:req|query|params|body|location|input)',
+                    'setTimeout\\s*\\(\\s*["\'][^"\']*(?:req|query|params|body|location|\\$\\{)',
+                    'setInterval\\s*\\(\\s*["\'][^"\']*(?:req|query|params|body|location|\\$\\{)',
+                    'document\\.write\\s*\\([^)]*(?:req|query|params|body|location|input)',
+                    'innerHTML\\s*=\\s*[^;]*(?:req|query|params|body|location|search|input|\\$\\{)',
+                    'outerHTML\\s*=\\s*[^;]*(?:req|query|params|body|location|input)',
+                    'location\\.href\\s*=\\s*[^;]*(?:req|query|params|body|input|\\$\\{)',
+                    // Framework injection with user input
+                    'dangerouslySetInnerHTML\\s*=\\s*\\{[^}]*(?:req|query|params|input|location)',
+                    'v-html\\s*=\\s*["\'][^"\']*(?:req|query|params|input|\\$\\{)',
+                    '\\[innerHTML\\]\\s*=\\s*[^;]*(?:req|query|params|input|location)',
+                    // Template literal injection into sinks
+                    '\\.innerHTML\\s*=\\s*`[^`]*\\$\\{[^}]*(?:req|query|params|body|input)',
+                    '\\.outerHTML\\s*=\\s*`[^`]*\\$\\{[^}]*(?:req|query|params|body|input)',
+                    '\\.html\\s*\\(`[^`]*\\$\\{[^}]*(?:req|query|params|body|input)',
+                    // RegExp injection
+                    'new\\s+RegExp\\s*\\([^)]*(?:req|query|params|body|input)',
                     // Framework template injection
-                    '\\{\\{[^}]*\\+.*\\}\\}',                         // Angular/Vue template injection
-                    '\\$\\{[^}]*\\+.*\\}',                            // Template literal injection
-                    // Framework router injection
-                    'router\\.push\\s*\\([^)]*\\+.*\\)',
-                    'navigate\\s*\\([^)]*\\+.*\\)',
-                    'history\\.push\\s*\\([^)]*\\+.*\\)',
-                    // Framework state injection
-                    'setState\\s*\\([^)]*\\+.*\\)',
-                    'dispatch\\s*\\([^)]*\\+.*\\)',
-                    'commit\\s*\\([^)]*\\+.*\\)'
+                    '\\{\\{[^}]*(?:req|query|params|body|input)\\}\\}',
+                    'router\\.push\\s*\\([^)]*(?:req|query|params|body|input|\\$\\{)',
+                    'navigate\\s*\\([^)]*(?:req|query|params|body|input)',
+                    'history\\.push\\s*\\([^)]*(?:req|query|params|body|input)',
+                    // State management injection
+                    'setState\\s*\\([^)]*(?:req|query|params|body|input|location)',
+                    'dispatch\\s*\\([^)]*(?:req|query|params|body|input)',
+                    'commit\\s*\\([^)]*(?:req|query|params|body|input)'
                 ],
                 severity: 'HIGH',
-                description: 'Client-side template injection - Framework injection vulnerabilities'
+                description: 'Client-side injection with user-controlled input in dangerous sinks'
             },
 
 
             'JWT Manipulation': {
                 patterns: [
-                    // JWT Libraries
-                    'jwt\\.',                                              // Generic JWT library usage
-                    'jsonwebtoken\\.',                                      // Node.js jsonwebtoken
-                    'jws\\.',                                               // JSON Web Signature
-                    'jwe\\.',                                               // JSON Web Encryption
-                    'njwt\\.',                                              // Node JWT
-                    'express-jwt\\.',                                       // Express JWT middleware
-
-                    // Token Storage and Access
-                    'localStorage\\.getItem\\s*\\([^)]*token',             // Token access from localStorage
-                    'sessionStorage\\.getItem\\s*\\([^)]*token',           // Token access from sessionStorage
-                    'localStorage\\.setItem\\s*\\([^)]*token',             // Token storage in localStorage
-                    'sessionStorage\\.setItem\\s*\\([^)]*token',           // Token storage in sessionStorage
-                    'document\\.cookie\\s*\\.\\s*match\\s*\\(.*token',     // Token extraction from cookies
-                    'document\\.cookie\\s*=\\s*.*token',                   // Token storage in cookies
-
-                    // JWT Decoding and Parsing
-                    'atob\\s*\\(\\s*.*\\.split\\s*\\(\\s*["\']\\.["\']\\s*\\)\\[1\\]', // Manual JWT payload decoding
-                    'JSON\\.parse\\s*\\(\\s*atob\\s*\\(',                  // Decoding JWT payload into object
-                    'token\\s*\\.split\\s*\\(\\s*["\']\\.["\']\\s*\\)',    // Manual JWT parsing
-                    'Buffer\\.from\\s*\\([^,]+\\s*,\\s*["\']base64["\']\\)', // Node.js base64 decoding
-                    'base64url\\s*\\(',                                     // Base64URL decoding
-
-                    // Token Manipulation
-                    'token\\s*\\.replace\\s*\\(',                          // Token manipulation
-                    'token\\s*=\\s*token\\s*\\.replace',                   // Token string replacement
-                    'token\\s*=\\s*["\']eyJ[a-zA-Z0-9-_]+["\']',           // Hardcoded JWT token
-                    'token\\s*=\\s*["\'][^"\']*\\.[^"\']*\\.[^"\']*["\']', // JWT format tokens
-
-                    // Authorization Headers
-                    'Authorization\\s*=\\s*["\']Bearer\\s+.*["\']',        // Manual bearer token assignment
-                    'headers\\s*:\\s*\\{[^}]*Authorization\\s*:\\s*["\']Bearer', // Headers with bearer token
-                    'setRequestHeader\\s*\\(\\s*["\']Authorization["\']', // XHR authorization header
-
-                    // JWT Verification
-                    'jwt\\.verify\\s*\\(',                                 // JWT verification
-                    'jsonwebtoken\\.verify\\s*\\(',                       // Node.js JWT verification
-                    'verify\\s*\\([^,]+\\s*,\\s*[^,]+\\)',                // Generic token verification
-
-                    // JWT Signing
-                    'jwt\\.sign\\s*\\(',                                   // JWT signing
-                    'jsonwebtoken\\.sign\\s*\\(',                         // Node.js JWT signing
-                    'sign\\s*\\([^,]+\\s*,\\s*[^,]+\\)',                  // Generic token signing
-
-                    // Token Expiration and Claims
-                    'exp\\s*:\\s*Date\\.now',                             // Token expiration manipulation
-                    'iat\\s*:\\s*Date\\.now',                             // Issued at manipulation
-                    'exp\\s*:\\s*\\d+',                                   // Hardcoded expiration
-                    'payload\\.exp\\s*=\\s*\\d+',                         // Payload expiration modification
-
-                    // Algorithm Manipulation
-                    'algorithm\\s*:\\s*["\']none["\']',                   // None algorithm (vulnerable)
-                    'alg\\s*:\\s*["\']none["\']',                         // Algorithm none
-                    'algorithm\\s*:\\s*["\']HS256["\']',                 // Weak algorithm
-                    'alg\\s*:\\s*["\']HS256["\']',                       // HMAC algorithm (potential key confusion)
-
-                    // Key Confusion Attacks
-                    'secret\\s*=\\s*publicKey',                           // Key confusion
-                    'key\\s*=\\s*publicKey',                             // Using public key as secret
-
-                    // Token Refresh
-                    'refreshToken\\s*=\\s*["\']',                        // Refresh token handling
-                    'refresh_token\\s*=\\s*["\']',                       // Refresh token storage
-
-                    // Client-side JWT handling
-                    'decodeURIComponent\\s*\\([^)]*token',               // URL decoding tokens
-                    'encodeURIComponent\\s*\\([^)]*token',               // URL encoding tokens
-
-                    // API calls with JWT
-                    'fetch\\s*\\(.*headers\\s*:\\s*\\{[^}]*Authorization', // Fetch with auth header
-                    'axios\\s*\\.\\s*defaults\\s*\\.\\s*headers\\s*\\.\\s*common\\s*\\.\\s*Authorization', // Axios default auth
-                    'axios\\s*\\(.*headers\\s*:\\s*\\{[^}]*Authorization', // Axios with auth header
-
-                    // Token validation bypass
-                    'if\\s*\\(!token\\)',                                 // Missing token validation
-                    'if\\s*\\(token\\s*===\\s*["\']undefined["\']\\)',   // Undefined token check
-                    'if\\s*\\(token\\s*===\\s*null\\)',                  // Null token check
-
-                    // JWT in URLs
-                    'url\\s*=\\s*["\'][^"\']*token=[^"\']*\\.[^"\']*\\.[^"\']*', // JWT in URL parameters
-                    'query\\s*=\\s*["\'][^"\']*token=[^"\']*\\.[^"\']*\\.[^"\']*', // JWT in query strings
-
-                    // Local storage keys
-                    'localStorage\\.getItem\\s*\\(\\s*["\']jwt["\']\\)',
-                    'localStorage\\.getItem\\s*\\(\\s*["\']access_token["\']\\)',
-                    'sessionStorage\\.getItem\\s*\\(\\s*["\']jwt["\']\\)',
-                    'sessionStorage\\.getItem\\s*\\(\\s*["\']access_token["\']\\)'
+                    // Algorithm manipulation (critical)
+                    '(?:algorithm|alg)\\s*:\\s*["\']none["\']',
+                    '(?:algorithm|alg)\\s*:\\s*["\']HS256["\']',
+                    // Key confusion
+                    '(?:secret|key)\\s*=\\s*publicKey',
+                    '(?:secret|key)\\s*=\\s*(?:req\\.(?:query|body|params)\\.)',
+                    // Hardcoded JWT tokens
+                    'eyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+',
+                    'token\\s*[:=]\\s*["\']eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+["\']',
+                    // Token in URL (leaks in logs/referrer)
+                    '(?:url|href|redirect)\\s*[:=]\\s*["\'][^"\']*token=[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+',
+                    // Missing token verification
+                    'jwt\\.verify\\s*\\([^,]+\\s*,\\s*(?:["\'][^"\']+["\']|\\w+)\\s*\\)\\s*\\{[^}]*return\\s+(?!decoded|err)',
+                    // Token stored in localStorage (XSS-accessible)
+                    'localStorage\\.setItem\\s*\\([^)]*(?:jwt|token|access_token|auth)',
+                    // Token manipulation
+                    'token\\s*=\\s*token\\.split\\s*\\(\\s*["\']\\.["\']\\s*\\)\\[1\\]',
+                    'atob\\s*\\(\\s*token\\.split\\s*\\(\\s*["\']\\.["\']\\s*\\)\\[1\\]',
+                    // JWT signing with weak secret
+                    'jwt\\.sign\\s*\\([^,]+\\s*,\\s*["\'][^"\']{1,32}["\']\\s*\\)',
+                    'jsonwebtoken\\.sign\\s*\\([^,]+\\s*,\\s*["\'][^"\']{1,32}["\']\\s*\\)'
                 ],
-                severity: 'MEDIUM',
-                description: 'JWT token manipulation and security vulnerabilities'
+                severity: 'HIGH',
+                description: 'JWT security flaw - algorithm manipulation, key confusion, token in localStorage'
             },
 
             'CORS Misconfiguration': {
                 patterns: [
-                    // Server-side CORS headers (though typically not in JS)
-                    'Access-Control-Allow-Origin.*\\*',                         // Wildcard origin
+                    // Server-side CORS misconfigs
                     'Access-Control-Allow-Origin\\s*:\\s*\\*',
-                    'withCredentials\\s*=\\s*true',                             // Credentialed requests
-                    'Access-Control-Allow-Credentials\\s*:\\s*true',            // Allowing credentials
-                    'Access-Control-Allow-Origin\\s*:\\s*["\']http://[^"\']+',  // Insecure origin (HTTP)
-                    'Access-Control-Allow-Origin\\s*:\\s*["\']https?://localhost', // Localhost origin
-                    'Access-Control-Allow-Origin\\s*:\\s*["\']https?://127\\.0\\.0\\.1', // Loopback origin
-                    'Access-Control-Allow-Headers\\s*:\\s*["\'].*Authorization.*["\']', // Sensitive headers allowed
-                    'Access-Control-Expose-Headers\\s*:\\s*["\'].*Authorization.*["\']', // Sensitive headers exposed
-
-                    // Client-side CORS issues
-                    'fetch\\s*\\(.*credentials\\s*:\\s*["\']include["\']',      // Credentialed fetch
-                    'xhr\\.withCredentials\\s*=\\s*true',                       // Credentialed XHR
-                    'axios\\s*\\.\\s*defaults\\s*\\.\\s*withCredentials\\s*=\\s*true',
-                    'fetch\\s*\\(.*mode\\s*:\\s*["\']no-cors["\']',             // No-cors mode usage
-
-                    // Server-side CORS configuration (Node.js/Express)
-                    'app\\.use\\s*\\(\\s*cors\\s*\\(\\)\\)',                    // Default CORS
-                    'app\\.use\\s*\\(\\s*cors\\s*\\(\\s*\\{[^}]*origin\\s*:\\s*\\*', // Wildcard in config
-                    'cors\\s*\\(\\s*\\{[^}]*origin\\s*:\\s*\\*',                // CORS with wildcard
-                    'cors\\s*\\(\\s*\\{[^}]*credentials\\s*:\\s*true',          // CORS with credentials
-
-                    // API calls that might indicate CORS issues
-                    'fetch\\s*\\(\\s*["\'][^"\']*localhost',
-                    'fetch\\s*\\(\\s*["\'][^"\']*127\\.0\\.0\\.1',
-                    'axios\\s*\\.\\s*get\\s*\\(\\s*["\'][^"\']*localhost',
-                    'axios\\s*\\.\\s*post\\s*\\(\\s*["\'][^"\']*localhost',
-
-                    // Cross-origin requests
-                    'XMLHttpRequest\\s*\\(\\s*\\)',
-                    'fetch\\s*\\(\\s*["\'][^"\']*://',
-                    'new\\s+URL\\s*\\(\\s*["\'][^"\']*://',
-
-                    // Headers manipulation
-                    'setRequestHeader\\s*\\(\\s*["\']Authorization["\']',
-                    'setRequestHeader\\s*\\(\\s*["\']Cookie["\']',
-                    'headers\\s*:\\s*\\{[^}]*Authorization',
-                    'headers\\s*:\\s*\\{[^}]*Cookie',
-
-                    // Origin validation bypass
-                    'req\\.headers\\.origin',
-                    'req\\.headers\\.host',
-                    'if\\s*\\(origin\\s*===\\s*["\']http://',
-                    'if\\s*\\(host\\s*===\\s*["\']localhost',
-
-                    // Preflight requests
-                    'OPTIONS\\s+.*HTTP/1',
-                    'app\\.options\\s*\\(',
-                    'router\\.options\\s*\\(',
-
-                    // CORS middleware
-                    'cors\\s*\\(',
-                    'helmet\\s*\\(',
-                    'express\\.cors\\s*\\(',
-
-                    // Client-side origin checks
-                    'window\\.location\\.origin',
-                    'document\\.location\\.origin',
-                    'location\\.origin',
-
-                    // Same-origin policy bypass attempts
-                    'postMessage\\s*\\(\\s*["\'].*["\']\\s*,\\s*["\']\\*["\']',
-                    'postMessage\\s*\\(.*\\*\\)',
-                    'window\\.parent\\.postMessage',
-                    'window\\.opener\\.postMessage'
+                    'Access-Control-Allow-Origin\\s*:\\s*["\']http://[^"\']+["\']',
+                    'Access-Control-Allow-Credentials\\s*:\\s*true[^}]*Access-Control-Allow-Origin\\s*:\\s*\\*',
+                    // Express default CORS (no config = allow all)
+                    'app\\.use\\s*\\(\\s*cors\\s*\\(\\s*\\)\\s*\\)',
+                    'app\\.use\\s*\\(\\s*cors\\s*\\(\\s*\\{\\s*\\}\\s*\\)\\)',
+                    // CORS with wildcard + credentials
+                    'cors\\s*\\(\\s*\\{[^}]*origin\\s*:\\s*["\']\\*["\'][^}]*credentials\\s*:\\s*true',
+                    'cors\\s*\\(\\s*\\{[^}]*credentials\\s*:\\s*true[^}]*origin\\s*:\\s*["\']\\*["\']',
+                    // postMessage with wildcard origin
+                    'postMessage\\s*\\([^)]*\\*\\s*\\)',
+                    // Origin validation bypass (HTTP comparison)
+                    'if\\s*\\(\\s*(?:origin|req\\.headers\\.origin)\\s*===?\\s*["\']http://',
+                    // CORS with null origin
+                    'Access-Control-Allow-Origin\\s*:\\s*["\']null["\']'
                 ],
                 severity: 'MEDIUM',
-                description: 'CORS security misconfiguration - potential cross-origin vulnerabilities'
+                description: 'CORS misconfiguration - wildcard origin, credentials with wildcard, or no origin validation'
             },
 
 
             'Clickjacking': {
                 patterns: [
-                    'iframe',
-                    'frame',
-                    'frameset',
-                    'object',
-                    'embed',
-                    'top\\.location',
-                    'self\\.location',
-                    'window\\.location',
-                    'window\\.top',
-                    'window\\.parent',
-                    'document\\.domain',
-                    'style\\s*=\\s*["\'].*opacity\\s*:\\s*0',
-                    'style\\s*=\\s*["\'].*visibility\\s*:\\s*hidden',
-                    'style\\s*=\\s*["\'].*z-index\\s*:\\s*-?\\d+',
-                    'style\\s*=\\s*["\'].*pointer-events\\s*:\\s*none',
-                    'sandbox\\s*=\\s*["\']allow-forms allow-scripts["\']',
-                    'X-Frame-Options\\s*:\\s*(ALLOW-FROM|SAMEORIGIN|DENY)',
-                    'Content-Security-Policy\\s*:\\s*frame-ancestors'
+                    // Missing X-Frame-Options indicators
+                    'X-Frame-Options\\s*:\\s*ALLOW-FROM',
+                    'Content-Security-Policy\\s*:\\s*frame-ancestors\\s+\\*',
+                    // iframe with clickjacking-enabling attributes
+                    'iframe[^>]*style\\s*=\\s*["\'][^"\']*opacity\\s*:\\s*0[^"\']*["\']',
+                    'iframe[^>]*style\\s*=\\s*["\'][^"\']*visibility\\s*:\\s*hidden[^"\']*["\']',
+                    'iframe[^>]*style\\s*=\\s*["\'][^"\']*z-index\\s*:\\s*-\\d+[^"\']*["\']',
+                    // Framing detection bypass
+                    'if\\s*\\(\\s*(?:window|self)\\s*!==\\s*(?:window\\.top|top)\\s*\\)',
+                    'if\\s*\\(\\s*(?:window|self)\\s*===\\s*(?:window\\.top|top)\\s*\\)',
+                    // Missing frame-busting
+                    'top\\.location\\s*=\\s*self\\.location',
+                    'parent\\.location\\s*=\\s*location'
                 ],
                 severity: 'MEDIUM',
-                description: 'Potential clickjacking vulnerabilities'
+                description: 'Potential clickjacking - missing or weak frame protection'
             },
 
 
             'Command Injection': {
                 patterns: [
-                    'exec\\s*\\(.*\\+.*\\)',
-                    'spawn\\s*\\(.*\\+.*\\)',
-                    'system\\s*\\(.*\\+.*\\)',
-                    'Runtime\\.getRuntime\\(\\)\\.exec',
-                    'child_process\\.exec\\s*\\(',
-                    'child_process\\.spawn\\s*\\(',
-                    'os\\.system\\s*\\(',
-                    'ProcessBuilder\\s*\\(.*\\+.*\\)',
-                    // Node.js specific
-                    'child_process\\.execSync\\s*\\(',
-                    'child_process\\.spawnSync\\s*\\(',
-                    'child_process\\.fork\\s*\\(',
-                    'execa\\s*\\(',
-                    'shelljs\\.exec\\s*\\(',
-                    'cross-spawn\\s*\\(',
-                    // Dangerous patterns
-                    'eval\\s*\\(\\s*["\'].*\\+\\s*\\w+',
-                    'Function\\s*\\(\\s*["\'].*\\+\\s*\\w+',
-                    // System commands
-                    'rm\\s+-rf',
-                    'del\\s+/f',
-                    'format\\s+c:',
-                    'shutdown',
-                    'reboot'
+                    // Command execution with user input
+                    'child_process\\.exec\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body|\\$\\{)',
+                    'child_process\\.execSync\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body|\\$\\{)',
+                    'child_process\\.spawn\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'child_process\\.spawnSync\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'child_process\\.fork\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'execa\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'shelljs\\.exec\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'cross-spawn\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // Dynamic command construction
+                    'exec\\s*\\(\\s*["\'][^"\']*(?:\\+|\\$\\{)[^"]*(?:req|input|query|params|body)',
+                    'execSync\\s*\\(\\s*["\'][^"\']*(?:\\+|\\$\\{)[^"]*(?:req|input|query|params|body)',
+                    // os.system with user input
+                    'os\\.system\\s*\\([^)]*(?:req|input|query|params|body)',
+                    // Template literal command injection
+                    '`\\s*(?:rm|del|format|shutdown|reboot|cat|ls|wget|curl|ping|nc)\\s+[^`]*\\$\\{[^}]*(?:req|input|query|params)',
+                    // eval with system commands
+                    'eval\\s*\\(\\s*["\'](?:rm|del|format|shutdown|reboot|cat|ls|wget|curl|ping)\\s+',
+                    // Dangerous command strings
+                    'child_process\\.exec\\s*\\(\\s*["\']rm\\s+-rf',
+                    'child_process\\.exec\\s*\\(\\s*["\']del\\s+'
                 ],
                 severity: 'CRITICAL',
-                description: 'Command injection vulnerability - arbitrary command execution'
+                description: 'Command injection - user input flows into system command execution'
             },
             
             
             
             'Path Traversal': {
                 patterns: [
-                    'fs\\.readFile\\s*\\(.*\\+.*\\)',
-                    'fs\\.readFileSync\\s*\\(.*\\+.*\\)',
-                    'open\\s*\\(.*\\+.*\\)',
-                    'require\\s*\\(.*\\+.*\\)',
-                    'File\\s*\\(.*\\+.*\\)',
-                    'new\\s+FileReader\\s*\\(',
-                    'getResource\\s*\\(.*\\+.*\\)',
-                    'getFile\\s*\\(.*\\+.*\\)',
-                    // Node.js specific
-                    'fs\\.writeFile\\s*\\(.*\\+.*\\)',
-                    'fs\\.writeFileSync\\s*\\(.*\\+.*\\)',
-                    'fs\\.appendFile\\s*\\(.*\\+.*\\)',
-                    'fs\\.createReadStream\\s*\\(.*\\+.*\\)',
-                    'fs\\.createWriteStream\\s*\\(.*\\+.*\\)',
-                    'path\\.join\\s*\\(.*\\+.*\\)',
-                    'path\\.resolve\\s*\\(.*\\+.*\\)',
-                    '__dirname\\s*\\+\\s*.*',
-                    '__filename\\s*\\+\\s*.*',
-                    'process\\.cwd\\(\\)\\s*\\+\\s*.*',
-                    // Directory traversal patterns
-                    '\\.\\./',
-                    '\\.\\./\\.',
-                    '%2e%2e%2f',
-                    '%2e%2e/',
-                    // Client-side file access
-                    'new\\s+File\\s*\\(\\s*\\[',
-                    'input\\[type="file"\\]',
-                    'FileReader\\s*\\(\\s*\\)'
+                    // File operations with user-controlled paths
+                    'fs\\.readFile\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body|\\+\\s*(?:req|input|query))',
+                    'fs\\.readFileSync\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body|\\+\\s*(?:req|input|query))',
+                    'fs\\.writeFile\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body|\\+\\s*(?:req|input|query))',
+                    'fs\\.writeFileSync\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body|\\+\\s*(?:req|input|query))',
+                    'fs\\.appendFile\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body|\\+\\s*(?:req|input|query))',
+                    'fs\\.createReadStream\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body|\\+\\s*(?:req|input|query))',
+                    'fs\\.createWriteStream\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body|\\+\\s*(?:req|input|query))',
+                    // Directory traversal sequences in code
+                    'path\\.join\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'path\\.resolve\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    '__dirname\\s*\\+\\s*[^;]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'process\\.cwd\\(\\)\\s*\\+\\s*[^;]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // Template literal path traversal
+                    '`[^`]*(?:fs\\.|readFile|writeFile|createReadStream)[^`]*\\$\\{[^}]*(?:req|input|query|params)',
+                    // open() with user input
+                    'open\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // sendFile with user input
+                    'sendFile\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)'
                 ],
                 severity: 'HIGH',
-                description: 'Path traversal vulnerability - unauthorized file access'
+                description: 'Path traversal - user input flows into file system operations'
             },
 
 
             'Deserialization': {
                 patterns: [
-                    'JSON\\.parse\\s*\\(.*\\)',
-                    'eval\\s*\\(.*\\)',
-                    'deserialize\\s*\\(',
-                    'pickle\\.loads\\s*\\(',
-                    'unmarshal\\s*\\(',
-                    'ObjectInputStream\\s*\\(',
-                    'readObject\\s*\\(',
-                    // Node.js specific
-                    'vm\\.runInContext\\s*\\(',
-                    'vm\\.runInNewContext\\s*\\(',
-                    'vm\\.runInThisContext\\s*\\(',
-                    'Function\\s*\\(\\s*["\'].*["\']\\)',
-                    'new\\s+Function\\s*\\(\\s*["\'].*["\']\\)',
-                    // YAML/Other formats
-                    'yaml\\.load\\s*\\(',
-                    'yaml\\.safeLoad\\s*\\(',
-                    'js-yaml\\.load\\s*\\(',
-                    'js-yaml\\.safeLoad\\s*\\(',
-                    // XML
-                    'DOMParser\\s*\\(\\s*\\)\\.parseFromString',
-                    'XMLHttpRequest\\s*\\(\\s*\\)\\.responseXML',
-                    // Client-side dangerous parsing
-                    'innerHTML\\s*=\\s*JSON\\.parse',
-                    'outerHTML\\s*=\\s*JSON\\.parse'
+                    // Unsafe deserialization with user input
+                    'vm\\.runInContext\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'vm\\.runInNewContext\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'vm\\.runInThisContext\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // YAML deserialization (known vulnerability)
+                    'yaml\\.load\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'yaml\\.safeLoad\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'js-yaml\\.load\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // Unsafe YAML load without safeLoad
+                    'yaml\\.load\\s*\\(\\s*(?:req\\.|input|query|params|body)',
+                    // Prototype pollution via deserialization
+                    'JSON\\.parse\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)\\s*(?:,|\\))\\s*\\.(?:hasOwnProperty|constructor|__proto__)',
+                    // Node.js vm with user input (RCE)
+                    'new\\s+Function\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // innerHTML with JSON.parse (DOM clobbering vector)
+                    'innerHTML\\s*=\\s*JSON\\.parse\\s*\\([^)]*(?:req|input|query|params|body)',
+                    // Dangerous deserialization libraries
+                    'node-serialize\\s*\\(\\s*[^)]*(?:req|input|query|params|body)',
+                    // PHP-style unserialize in JS polyfills
+                    'unserialize\\s*\\([^)]*(?:req|input|query|params|body)'
                 ],
                 severity: 'HIGH',
-                description: 'Unsafe deserialization of user-controlled input - potential RCE'
+                description: 'Unsafe deserialization - user input in dangerous parsers (vm, yaml, JSON.parse into sinks)'
             },
 
 
             'Broken Access Control': {
                 patterns: [
-                    // Basic authentication checks
-                    'if\\s*\\(!user\\)',
-                    'if\\s*\\(!isAuthenticated\\)',
-                    'if\\s*\\(!isLoggedIn\\)',
-                    'if\\s*\\(!currentUser\\)',
-                    'if\\s*\\(!authUser\\)',
-                    'if\\s*\\(!authenticated\\)',
-
-                    // Session checks
-                    'req\\.user\\s*==\\s*null',
-                    'req\\.session\\s*==\\s*null',
-                    'session\\s*==\\s*null',
-                    'if\\s*\\(!req\\.session\\)',
-                    'if\\s*\\(!session\\.user\\)',
-
-                    // Role-based access control
-                    'user\\.role\\s*!=\\s*["\']admin["\']',
-                    'user\\.role\\s*!==\\s*["\']admin["\']',
-                    'role\\s*!=\\s*["\']admin["\']',
-                    'if\\s*\\(user\\.role\\s*===\\s*["\']user["\']\\)',
-                    'if\\s*\\(role\\s*===\\s*["\']guest["\']\\)',
-
-                    // Authorization headers
-                    'if\\s*\\(!req\\.headers\\.authorization\\)',
-                    'if\\s*\\(!req\\.headers\\.Authorization\\)',
-                    'if\\s*\\(!authorization\\)',
-                    'if\\s*\\(!auth\\)',
-
-                    // Cookies
-                    'if\\s*\\(!req\\.cookies\\.auth\\)',
-                    'if\\s*\\(!req\\.cookies\\.token\\)',
-                    'if\\s*\\(!req\\.cookies\\.session\\)',
-
-                    // Node.js/Express specific
-                    'if\\s*\\(!req\\.isAuthenticated\\(\\)\\)',
-                    'if\\s*\\(!req\\.user\\)',
-                    'if\\s*\\(req\\.user\\.role\\s*!==\\s*["\']admin["\']\\)',
-                    'if\\s*\\(!req\\.session\\.userId\\)',
-                    'if\\s*\\(!req\\.session\\.user\\)',
-
-                    // Authentication middleware
-                    'passport\\.authenticate',
-                    'passport\\.use',
-                    'passport\\.serializeUser',
-                    'passport\\.deserializeUser',
-
-                    // JWT patterns
-                    'jwt\\.verify\\s*\\([^,]+\\s*,\\s*[^,]+\\)',
-                    'jsonwebtoken\\.verify',
-                    'if\\s*\\(!token\\)',
-                    'if\\s*\\(decoded\\.role\\s*!==\\s*["\']admin["\']\\)',
-                    'if\\s*\\(!decoded\\.userId\\)',
-
-                    // Middleware patterns
-                    'app\\.use\\s*\\(\\s*auth',
-                    'router\\.use\\s*\\(\\s*auth',
-                    'app\\.use\\s*\\(\\s*passport',
-                    'app\\.use\\s*\\(\\s*jwt',
-                    'app\\.get\\s*\\(\\s*["\'].*admin.*["\']\\s*,\\s*[^,]*\\)',
-                    'app\\.post\\s*\\(\\s*["\'].*admin.*["\']\\s*,\\s*[^,]*\\)',
-                    'app\\.put\\s*\\(\\s*["\'].*admin.*["\']\\s*,\\s*[^,]*\\)',
-                    'app\\.delete\\s*\\(\\s*["\'].*admin.*["\']\\s*,\\s*[^,]*\\)',
-
-                    // Client-side indicators
-                    'localStorage\\.getItem\\s*\\(\\s*["\']token["\']\\)',
-                    'sessionStorage\\.getItem\\s*\\(\\s*["\']user["\']\\)',
-                    'localStorage\\.getItem\\s*\\(\\s*["\']auth["\']\\)',
-                    'if\\s*\\(!localStorage\\.getItem\\s*\\(\\s*["\']auth["\']\\)\\)',
-                    'if\\s*\\(!sessionStorage\\.getItem\\s*\\(\\s*["\']user["\']\\)\\)',
-
-                    // Database access without checks
-                    'db\\.users\\.findOne\\s*\\(\\s*\\{[^}]*id\\s*:\\s*req\\.params\\.id',
-                    'User\\.findById\\s*\\(\\s*req\\.params\\.id\\)',
-                    'db\\.users\\.find\\s*\\(\\s*\\{[^}]*id\\s*:\\s*req\\.query\\.id',
-                    'User\\.find\\s*\\(\\s*\\{[^}]*userId\\s*:\\s*req\\.body\\.userId',
-
-                    // API access control
-                    'if\\s*\\(!req\\.user\\.id\\)',
-                    'if\\s*\\(userId\\s*!==\\s*req\\.user\\.id\\)',
-                    'if\\s*\\(userId\\s*!=\\s*req\\.user\\.id\\)',
-
-                    // Permission checks
-                    'if\\s*\\(!hasPermission\\)',
-                    'if\\s*\\(!checkPermission\\)',
-                    'if\\s*\\(!isAuthorized\\)',
-                    'if\\s*\\(!canAccess\\)',
-
-                    // Ownership checks
-                    'if\\s*\\(post\\.userId\\s*!==\\s*user\\.id\\)',
-                    'if\\s*\\(comment\\.userId\\s*!=\\s*user\\.id\\)',
-                    'if\\s*\\(item\\.ownerId\\s*!==\\s*user\\.id\\)',
-
-                    // Admin routes without checks
-                    '/admin',
-                    '/dashboard',
-                    '/settings',
-                    '/manage',
-
-                    // File access control
-                    'fs\\.readFile\\s*\\([^,]+\\)',
-                    'fs\\.writeFile\\s*\\([^,]+\\)',
-                    'fs\\.unlink\\s*\\([^,]+\\)',
-                    'if\\s*\\(!isOwner\\)',
-                    'if\\s*\\(!hasAccess\\)'
+                    // Weak equality in auth checks (type coercion bypass)
+                    'if\\s*\\(\\s*req\\.user\\.role\\s*==\\s*["\']admin["\']\\s*\\)',
+                    'if\\s*\\(\\s*user\\.role\\s*==\\s*["\']admin["\']\\s*\\)',
+                    'if\\s*\\(\\s*decoded\\.role\\s*==\\s*["\']admin["\']\\s*\\)',
+                    'userId\\s*==\\s*req\\.user',
+                    'userId\\s*!=\\s*req\\.user',
+                    // Missing auth on admin routes (no middleware)
+                    'app\\.(get|post|put|delete|patch)\\s*\\(\\s*["\']\\/admin[^"\']*["\']\\s*,\\s*(?:async\\s*)?\\(',
+                    'router\\.(get|post|put|delete|patch)\\s*\\(\\s*["\']\\/admin[^"\']*["\']\\s*,\\s*(?:async\\s*)?\\(',
+                    // Database queries using user-controlled ID without auth
+                    'db\\.\\w+\\.find(?:One)?\\s*\\(\\s*\\{[^}]*id\\s*:\\s*req\\.params\\.id[^}]*\\}\\s*\\)\\s*\\.(?:then|catch)',
+                    'User\\.find(?:ById)?\\s*\\(\\s*req\\.params\\.id\\s*\\)',
+                    // API calls with user-controlled IDs
+                    'fetch\\s*\\(\\s*["\'][^"\']*\\/api\\/[a-z]+\\/$\\{[^}]*\\}',
+                    'axios\\s*\\.\\s*(?:get|put|delete|patch)\\s*\\(\\s*["\'][^"\']*\\/api\\/[a-z]+\\/$\\{[^}]*\\}',
+                    // Authorization header bypass
+                    'if\\s*\\(\\s*!\\s*req\\.headers\\.authorization\\s*\\)\\s*return\\s*\\d+',
+                    // Role check without owner verification
+                    'if\\s*\\(\\s*(?:user|decoded)\\.role\\s*!==?\\s*["\']admin["\']\\s*\\)\\s*(?:return|throw)'
                 ],
                 severity: 'CRITICAL',
-                description: 'Missing or weak access control checks - authentication/authorization bypass'
+                description: 'Missing or weak access control - IDOR, auth bypass, privilege escalation'
             },
             
 
             'Sensitive Data Exposure': {
                 patterns: [
-                    // API Keys and Tokens
-                    'apiKey\\s*=\\s*["\']',
-                    'secret\\s*=\\s*["\']',
-                    'password\\s*=\\s*["\']',
-                    'token\\s*=\\s*["\']',
-                    'accessToken\\s*=\\s*["\']',
-                    'refreshToken\\s*=\\s*["\']',
-                    'bearerToken\\s*=\\s*["\']',
-                    'authToken\\s*=\\s*["\']',
-
-                    // Cloud Service Keys
-                    'AWS_ACCESS_KEY_ID\\s*=\\s*["\']',
-                    'AWS_SECRET_ACCESS_KEY\\s*=\\s*["\']',
-                    'AWS_ACCESS_KEY\\s*=\\s*["\']',
-                    'AWS_SECRET_KEY\\s*=\\s*["\']',
-                    'AZURE_STORAGE_KEY\\s*=\\s*["\']',
-                    'GOOGLE_CLOUD_KEY\\s*=\\s*["\']',
-                    'GCP_API_KEY\\s*=\\s*["\']',
-                    'AZURE_CLIENT_SECRET\\s*=\\s*["\']',
-
-                    // Payment Service Keys
-                    'STRIPE_SECRET_KEY\\s*=\\s*["\']',
-                    'STRIPE_PUBLISHABLE_KEY\\s*=\\s*["\']',
-                    'PAYPAL_CLIENT_SECRET\\s*=\\s*["\']',
-                    'PAYPAL_CLIENT_ID\\s*=\\s*["\']',
-                    'BRAINTREE_PRIVATE_KEY\\s*=\\s*["\']',
-                    'SQUARE_ACCESS_TOKEN\\s*=\\s*["\']',
-
-                    // Development Platforms
-                    'GITHUB_TOKEN\\s*=\\s*["\']',
-                    'GITLAB_TOKEN\\s*=\\s*["\']',
-                    'BITBUCKET_KEY\\s*=\\s*["\']',
-                    'SLACK_TOKEN\\s*=\\s*["\']',
-                    'DISCORD_TOKEN\\s*=\\s*["\']',
-                    'TELEGRAM_BOT_TOKEN\\s*=\\s*["\']',
-
-                    // Database Credentials
-                    'DATABASE_URL\\s*=\\s*["\']',
-                    'DB_PASSWORD\\s*=\\s*["\']',
-                    'DB_USER\\s*=\\s*["\']',
-                    'DB_HOST\\s*=\\s*["\']',
-                    'MONGO_URI\\s*=\\s*["\']',
-                    'REDIS_URL\\s*=\\s*["\']',
-                    'POSTGRES_URL\\s*=\\s*["\']',
-
-                    // Encryption Keys
-                    'JWT_SECRET\\s*=\\s*["\']',
-                    'SESSION_SECRET\\s*=\\s*["\']',
-                    'ENCRYPTION_KEY\\s*=\\s*["\']',
-                    'MASTER_KEY\\s*=\\s*["\']',
-                    'PRIVATE_KEY\\s*=\\s*["\']',
-                    'PUBLIC_KEY\\s*=\\s*["\']',
-                    'SECRET_KEY\\s*=\\s*["\']',
-                    'ENCRYPTION_SECRET\\s*=\\s*["\']',
-
-                    // OAuth and Social
-                    'OAUTH_SECRET\\s*=\\s*["\']',
-                    'OAUTH_CLIENT_SECRET\\s*=\\s*["\']',
-                    'FACEBOOK_APP_SECRET\\s*=\\s*["\']',
-                    'TWITTER_CONSUMER_SECRET\\s*=\\s*["\']',
-                    'GOOGLE_CLIENT_SECRET\\s*=\\s*["\']',
-
-                    // Email and Communication
-                    'SMTP_PASSWORD\\s*=\\s*["\']',
-                    'EMAIL_PASSWORD\\s*=\\s*["\']',
-                    'SENDGRID_API_KEY\\s*=\\s*["\']',
-                    'MAILGUN_API_KEY\\s*=\\s*["\']',
-
-                    // Environment Variables (Node.js)
-                    'process\\.env\\.API_KEY',
-                    'process\\.env\\.SECRET',
-                    'process\\.env\\.PASSWORD',
-                    'process\\.env\\.TOKEN',
-                    'process\\.env\\.DATABASE_URL',
-                    'process\\.env\\.JWT_SECRET',
-                    'process\\.env\\.AWS_ACCESS_KEY',
-                    'process\\.env\\.STRIPE_SECRET',
-                    'process\\.env\\.GITHUB_TOKEN',
-
-                    // Client-side Storage of Sensitive Data
-                    'localStorage\\.setItem\\s*\\(\\s*["\']password["\']',
-                    'sessionStorage\\.setItem\\s*\\(\\s*["\']token["\']',
-                    'localStorage\\.setItem\\s*\\(\\s*["\']secret["\']',
-                    'localStorage\\.setItem\\s*\\(\\s*["\']apiKey["\']',
-                    'sessionStorage\\.setItem\\s*\\(\\s*["\']authToken["\']',
-
-                    // Cookies with sensitive data
-                    'document\\.cookie\\s*=\\s*.*password',
-                    'document\\.cookie\\s*=\\s*.*token',
-                    'document\\.cookie\\s*=\\s*.*secret',
-
-                    // Hardcoded credentials in objects
-                    'credentials\\s*:\\s*\\{[^}]*password',
-                    'auth\\s*:\\s*\\{[^}]*token',
-                    'config\\s*:\\s*\\{[^}]*secret',
-                    'settings\\s*:\\s*\\{[^}]*apiKey',
-                    'env\\s*:\\s*\\{[^}]*AWS_ACCESS_KEY',
-
-                    // URL parameters with sensitive data
-                    'url\\s*=\\s*["\'][^"\']*password=',
-                    'url\\s*=\\s*["\'][^"\']*token=',
-                    'url\\s*=\\s*["\'][^"\']*secret=',
-                    'url\\s*=\\s*["\'][^"\']*key=',
-
-                    // Base64 encoded secrets (potential)
-                    'base64\\s*=\\s*["\']',
-                    'btoa\\s*\\(',
-                    'atob\\s*\\(',
-
-                    // Configuration files
-                    'config\\.json',
-                    '.env',
-                    'secrets\\.json',
-                    'credentials\\.json',
-
-                    // Logging sensitive data
-                    'console\\.log\\s*\\([^)]*password',
-                    'console\\.log\\s*\\([^)]*token',
-                    'console\\.log\\s*\\([^)]*secret',
-                    'console\\.log\\s*\\([^)]*apiKey',
-
-                    // Database connection strings
-                    'mysql://.*:.*@',
-                    'postgresql://.*:.*@',
-                    'mongodb://.*:.*@',
-                    'redis://.*:.*@',
-
-                    // Firebase config
-                    'firebaseConfig\\s*=\\s*\\{[^}]*apiKey',
-                    'firebaseConfig\\s*=\\s*\\{[^}]*projectId',
-
-                    // App secrets
-                    'APP_SECRET\\s*=\\s*["\']',
-                    'CLIENT_SECRET\\s*=\\s*["\']',
-                    'SERVER_SECRET\\s*=\\s*["\']'
+                    // Hardcoded credentials (actual values, not env var references)
+                    '(?:apiKey|api_key|API_KEY|APIKEY)\\s*[:=]\\s*["\'][^"\']{8,}["\']',
+                    '(?:secret|SECRET|SecretKey)\\s*[:=]\\s*["\'][^"\']{8,}["\']',
+                    '(?:password|passwd|pwd|PASSWORD)\\s*[:=]\\s*["\'][^"\']{4,}["\']',
+                    '(?:accessToken|access_token|ACCESS_TOKEN)\\s*[:=]\\s*["\'][A-Za-z0-9_\\-\\.]{20,}["\']',
+                    '(?:refreshToken|refresh_token)\\s*[:=]\\s*["\'][A-Za-z0-9_\\-\\.]{20,}["\']',
+                    // Cloud service hardcoded keys
+                    'AKIA[0-9A-Z]{16}',                                      // AWS Access Key
+                    '(?:AWS_SECRET_ACCESS_KEY|aws_secret_access_key)\\s*[:=]\\s*["\'][A-Za-z0-9/+=]{40}["\']',
+                    'sk_live_[0-9a-zA-Z]{24,}',                              // Stripe live key
+                    'pk_live_[0-9a-zA-Z]{24,}',                              // Stripe publishable
+                    'sk_test_[0-9a-zA-Z]{24,}',                              // Stripe test key
+                    'ghp_[A-Za-z0-9]{36}',                                   // GitHub PAT
+                    'glpat-[A-Za-z0-9\\-_]{20,}',                            // GitLab PAT
+                    'xox[bpsa]-[0-9a-zA-Z\\-]{10,}',                         // Slack token
+                    '[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{1,2}\\.[0-9]{1,2}:[0-9]+:[A-Za-z0-9]+',  // IP:port:secret
+                    // Database connection strings with credentials
+                    '(?:mysql|postgresql|mongodb|redis|amqp):\\/\\/[^\\s]*:[^\\s]*@[^\\s]+',
+                    // Firebase config with API key
+                    'firebaseConfig[^}]*apiKey\\s*:\\s*["\'][^"\']+["\']',
+                    // Hardcoded JWT tokens
+                    'eyJ[A-Za-z0-9_-]+\\.eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+',
+                    // Base64 encoded secrets (long strings)
+                    '(?:secret|key|token|password|credential)\\s*[:=]\\s*["\'][A-Za-z0-9+/]{40,}={0,2}["\']',
+                    // Console.log with sensitive data
+                    'console\\.log\\s*\\([^)]*(?:password|secret|token|key|credential)',
+                    // Private keys
+                    '-----BEGIN (?:RSA |EC )?PRIVATE KEY-----'
                 ],
                 severity: 'CRITICAL',
-                description: 'Hardcoded sensitive credentials or secrets - potential data exposure'
+                description: 'Hardcoded credentials, secrets, or sensitive data exposed in code'
             },
             
             'SQL Injection': {
                 patterns: [
-                    'SELECT\\s+.*\\s+FROM\\s+.*\\+',
-                    'INSERT\\s+INTO\\s+.*\\+',
-                    'UPDATE\\s+.*\\s+SET\\s+.*\\+',
-                    'DELETE\\s+FROM\\s+.*\\+',
-                    'query\\s*\\(.*\\+.*\\)',
-                    'execute\\s*\\(.*\\+.*\\)',
-                    'prepareStatement\\s*\\(.*\\+.*\\)',
-                    'connection\\.createStatement\\s*\\(\\)',
-                    'statement\\.execute\\s*\\(.*\\+.*\\)',
-                    // Node.js specific
-                    'mysql\\.query\\s*\\(\\s*["\'].*\\+',
-                    'pg\\.query\\s*\\(\\s*["\'].*\\+',
-                    'sqlite3\\.run\\s*\\(\\s*["\'].*\\+',
-                    'sequelize\\.query\\s*\\(\\s*["\'].*\\+',
-                    'mongoose\\.model.*\\.find\\s*\\(\\s*\\{[^}]*\\$\\w+',
-                    'knex\\s*\\(\\s*["\'].*\\+',
-                    // ORM patterns
-                    'User\\.find\\s*\\(\\s*\\{[^}]*\\w+\\s*:\\s*req',
-                    'Post\\.findOne\\s*\\(\\s*\\{[^}]*id\\s*:\\s*req',
-                    // Raw SQL with concatenation
-                    'sql\\s*=\\s*["\'].*\\+\\s*\\w+\\s*\\+\\s*["\']',
-                    'queryString\\s*=\\s*["\'].*\\+\\s*\\w+\\s*\\+\\s*["\']',
-                    // Database connection strings
-                    'mysql://.*:.*@',
-                    'postgresql://.*:.*@',
-                    'mongodb://.*:.*@'
+                    // Raw SQL with string concatenation of user input
+                    '(?:SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE)\\s+.*(?:\\+|\\$\\{|\\$\d+|\\?).*\\b(?:FROM|INTO|SET|WHERE)\\b',
+                    'query\\s*\\(\\s*["\'][^"\']*(?:SELECT|INSERT|UPDATE|DELETE)[^"\']*(?:\\+|\\$\\{|req\\.|query|params|body)',
+                    'execute\\s*\\(\\s*["\'][^"\']*(?:SELECT|INSERT|UPDATE|DELETE)[^"\']*(?:\\+|\\$\\{|req\\.|query|params|body)',
+                    // Template literal SQL injection
+                    '`\\s*(?:SELECT|INSERT|UPDATE|DELETE)\\s+[^`]*\\$\\{[^}]*(?:req|query|params|body|input)',
+                    // ORM injection via raw query
+                    'sequelize\\.query\\s*\\(\\s*["\'][^"\']*(?:\\+|\\$\\{)',
+                    'knex\\s*\\(\\s*["\'][^"\']*(?:\\+|\\$\\{)',
+                    // MySQL/pg with concatenation
+                    '(?:mysql|pg|sqlite3)\\.query\\s*\\(\\s*["\'][^"\']*(?:\\+|\\$\\{)',
+                    // MongoDB injection
+                    '\\$where\\s*:\\s*["\'][^"\']*(?:req|query|params|body)',
+                    '\\$regex\\s*:\\s*[^}]*(?:req|query|params|body)',
+                    // Raw SQL builder
+                    'raw\\s*\\(\\s*["\'][^"\']*(?:SELECT|INSERT|UPDATE|DELETE)[^"\']*(?:\\+|\\$\\{)'
                 ],
                 severity: 'CRITICAL',
-                description: 'SQL injection vulnerability - unsafe database queries'
+                description: 'SQL/NoSQL injection via unsanitized user input in database queries'
             },
 
             'Node.js Security Issues': {
                 patterns: [
-                    // Express.js patterns
-                    'app\\.use\\s*\\(\\s*cors\\s*\\(\\)\\)',
-                    'app\\.use\\s*\\(\\s*helmet\\s*\\(\\)\\)',
-                    'app\\.use\\s*\\(\\s*express\\.json\\s*\\(\\)\\)',
-                    'app\\.listen\\s*\\(\\s*process\\.env\\.PORT',
-                    'app\\.get\\s*\\(\\s*["\'].*["\']\\s*,\\s*async',
-                    'app\\.post\\s*\\(\\s*["\'].*["\']\\s*,\\s*async',
-                    'router\\.get\\s*\\(\\s*["\'].*["\']\\s*,\\s*async',
-                    'router\\.post\\s*\\(\\s*["\'].*["\']\\s*,\\s*async',
-                    // Middleware without validation
-                    'multer\\s*\\(\\)',
-                    'bodyParser\\s*\\(\\)',
-                    // Process environment
-                    'process\\.env',
-                    'process\\.argv',
-                    'process\\.exit\\s*\\(',
-                    // File system operations
-                    'fs\\.unlink\\s*\\(',
-                    'fs\\.rmdir\\s*\\(',
-                    'fs\\.chmod\\s*\\(',
-                    // Crypto usage
-                    'crypto\\.createHash\\s*\\(',
-                    'crypto\\.randomBytes\\s*\\(',
-                    // HTTP server
-                    'http\\.createServer\\s*\\(',
-                    'https\\.createServer\\s*\\(',
-                    // Dangerous modules
-                    'require\\s*\\(\\s*["\']child_process["\']\\)',
-                    'require\\s*\\(\\s*["\']fs["\']\\)',
-                    'require\\s*\\(\\s*["\']crypto["\']\\)',
-                    'require\\s*\\(\\s*["\']http["\']\\)',
-                    'require\\s*\\(\\s*["\']https["\']\\)',
-                    // Database security
-                    'mongoose\\.connect\\s*\\([^)]*password',
-                    'mysql\\.createConnection\\s*\\([^)]*password',
-                    'pg\\.connect\\s*\\([^)]*password',
-                    'sequelize\\.authenticate\\s*\\(',
-                    // Authentication
-                    'passport\\.use\\s*\\(',
-                    'passport\\.serializeUser\\s*\\(',
-                    'passport\\.deserializeUser\\s*\\(',
-                    'jwt\\.sign\\s*\\([^,]+\\s*,\\s*["\']\\w+["\']\\)',
-                    'jsonwebtoken\\.sign\\s*\\([^,]+\\s*,\\s*["\']\\w+["\']\\)'
+                    // CORS without origin restriction
+                    'app\\.use\\s*\\(\\s*cors\\s*\\(\\s*\\)\\s*\\)',
+                    // Unsafe file upload without validation
+                    'multer\\s*\\(\\s*\\{[^}]*\\}\\s*\\)(?!.*(?:fileFilter|limits|storage))',
+                    // process.exit in request handlers
+                    'process\\.exit\\s*\\(\\s*(?:0|1)\\s*\\)(?!.*(?:uncaughtException|unhandledRejection))',
+                    // Hardcoded session/JWT secrets
+                    'jwt\\.sign\\s*\\([^,]+\\s*,\\s*["\'][^"\']{1,32}["\']',
+                    'jsonwebtoken\\.sign\\s*\\([^,]+\\s*,\\s*["\'][^"\']{1,32}["\']',
+                    'session\\s*\\(\\s*\\{[^}]*secret\\s*:\\s*["\'][^"\']{1,32}["\']',
+                    // DB connection with hardcoded password
+                    'mongoose\\.connect\\s*\\([^)]*(?:password|pwd)\\s*[:=]',
+                    'mysql\\.createConnection\\s*\\([^)]*(?:password|pwd)\\s*[:=]',
+                    'pg\\.connect\\s*\\([^)]*(?:password|pwd)\\s*[:=]',
+                    // Prototype pollution via merge
+                    '\\.merge\\s*\\(\\s*(?:req\\.(?:body|query|params)|input|query|params|body)',
+                    // Unsafe eval in server
+                    'eval\\s*\\(\\s*(?:req\\.(?:body|query|params)|input|query|params|body)',
+                    'new\\s+Function\\s*\\([^)]*(?:req\\.(?:body|query|params)|input|query|params|body)',
+                    // Missing rate limiting on auth endpoints
+                    'app\\.post\\s*\\(\\s*["\'](?:\\/login|\\/signin|\\/auth)["\']',
+                    // Debug/development endpoints in production
+                    'app\\.get\\s*\\(\\s*["\'](?:\\/debug|\\/admin\\/debug|\\/_debug)["\']'
                 ],
                 severity: 'MEDIUM',
-                description: 'Node.js security issues - unsafe server configurations and operations'
+                description: 'Node.js security issue - hardcoded secrets, unsafe upload, eval in server'
             },
 
             'React Security Issues': {
                 patterns: [
-                    // JSX Injection (Critical)
-                    'dangerouslySetInnerHTML\\s*=\\s*\\{[^}]*\\$\\{',
+                    // dangerouslySetInnerHTML with user input
+                    'dangerouslySetInnerHTML\\s*=\\s*\\{[^}]*__(?:html|dangerouslySetInnerHTML)[^}]*\\}',
                     'dangerouslySetInnerHTML\\s*=\\s*\\{[^}]*userInput',
-                    'dangerouslySetInnerHTML\\s*=\\s*\\{[^}]*location',
+                    'dangerouslySetInnerHTML\\s*=\\s*\\{[^}]*location\\.',
                     'dangerouslySetInnerHTML\\s*=\\s*\\{[^}]*search',
                     'dangerouslySetInnerHTML\\s*=\\s*\\{[^}]*hash',
-                    // React XSS patterns
-                    '<div\\s+[^>]*dangerouslySetInnerHTML',
-                    '<span\\s+[^>]*dangerouslySetInnerHTML',
-                    '<p\\s+[^>]*dangerouslySetInnerHTML',
-                    // useState with user input
-                    'useState\\s*\\([^)]*location\\.',
-                    'useState\\s*\\([^)]*search',
-                    'useState\\s*\\([^)]*hash',
-                    // useEffect with eval
+                    'dangerouslySetInnerHTML\\s*=\\s*\\{[^}]*params\\.',
+                    // dangerouslySetInnerHTML with template literal
+                    'dangerouslySetInnerHTML\\s*=\\s*\\{\\s*\\{[^}]*__html\\s*:\\s*`[^`]*\\$\\{',
+                    // useEffect with eval/Function
                     'useEffect\\s*\\([^}]*eval\\s*\\(',
-                    'useEffect\\s*\\([^}]*Function\\s*\\(',
-                    // React Router vulnerabilities
-                    'useParams\\s*\\(\\s*\\)',
-                    'useSearchParams\\s*\\(\\s*\\)',
-                    'useLocation\\s*\\(\\s*\\)',
-                    // React Query/Server State
-                    'useQuery\\s*\\([^}]*userInput',
-                    'useMutation\\s*\\([^}]*dangerous',
-                    // React Context security
-                    'createContext\\s*\\([^)]*userInput',
-                    'useContext\\s*\\([^)]*untrusted',
-                    // React Hooks security issues
-                    'useMemo\\s*\\([^}]*userInput',
-                    'useCallback\\s*\\([^}]*dangerous',
-                    'useRef\\s*\\([^)]*location',
-                    'useRef\\s*\\([^)]*search',
-                    // React Suspense
-                    'Suspense\\s*\\([^}]*fallback.*userInput',
-                    'lazy\\s*\\([^)]*import.*userInput',
-                    // React Error Boundaries
-                    'componentDidCatch\\s*\\([^}]*console\\.error',
-                    'getDerivedStateFromError\\s*\\([^}]*userInput',
-                    // React Portals
-                    'createPortal\\s*\\([^,]+\\s*,\\s*document\\.body',
-                    'createPortal\\s*\\([^,]+\\s*,\\s*document\\.getElementById',
-                    // React Fragments
-                    '<>\\s*\\{[^}]*dangerous',
-                    '<React\\.Fragment>\\s*\\{[^}]*userInput',
-                    // React Strict Mode bypass
-                    '<React\\.StrictMode>\\s*\\{[^}]*eval',
-                    '<React\\.StrictMode>\\s*\\{[^}]*Function',
-                    // React Testing Library
-                    'render\\s*\\([^)]*dangerouslySetInnerHTML',
-                    'screen\\.getByText\\s*\\([^)]*userInput',
-                    // React DevTools
-                    '__REACT_DEVTOOLS_GLOBAL_HOOK__',
-                    'window\\.\\$r', // React DevTools global
-                    // React Server Components (RSC)
-                    'use server',
-                    '"use server"',
-                    // React Server Actions
-                    'action\\s*=\\s*async\\s*function',
-                    'export\\s+async\\s+function.*Action',
-                    // React taint checking bypass
-                    'taintUniqueValue',
-                    'taintObjectReference',
-                    // React concurrent features
-                    'useDeferredValue\\s*\\([^)]*userInput',
-                    'useTransition\\s*\\([^}]*dangerous',
-                    // React 18 features
-                    'createRoot\\s*\\([^)]*document\\.body',
-                    'hydrateRoot\\s*\\([^,]+\\s*,\\s*document\\.getElementById',
-                    // React performance issues that could be security
-                    'React\\.memo\\s*\\([^}]*userInput',
-                    'React\\.forwardRef\\s*\\([^}]*dangerous',
-                    // React class components
-                    'constructor\\s*\\([^)]*props[^}]*this\\.state\\s*=\\s*props',
-                    'componentWillReceiveProps\\s*\\([^}]*this\\.setState\\s*\\([^)]*nextProps',
-                    // React lifecycle methods with user input
-                    'componentDidMount\\s*\\(\\s*\\)[^}]*userInput',
-                    'componentWillUnmount\\s*\\(\\s*\\)[^}]*dangerous',
-                    'shouldComponentUpdate\\s*\\([^}]*nextProps[^}]*userInput',
-                    // React refs with user input
-                    'this\\.refs\\s*=\\s*[^}]*userInput',
-                    'ReactDOM\\.findDOMNode\\s*\\([^)]*this',
-                    // React propTypes bypass
-                    'propTypes\\s*=\\s*\\{[^}]*any',
-                    'propTypes\\s*=\\s*\\{[^}]*func',
-                    // React defaultProps with user input
-                    'defaultProps\\s*=\\s*\\{[^}]*location',
-                    'defaultProps\\s*=\\s*\\{[^}]*search',
-                    // React children manipulation
-                    'React\\.Children\\.map\\s*\\([^)]*userInput',
-                    'React\\.Children\\.forEach\\s*\\([^)]*dangerous',
-                    'React\\.cloneElement\\s*\\([^,]+\\s*,\\s*\\{[^}]*userInput',
-                    // React synthetic events
-                    'event\\.preventDefault\\s*\\(\\s*\\)',
-                    'event\\.stopPropagation\\s*\\(\\s*\\)',
-                    // React form handling
-                    'onSubmit\\s*=\\s*\\{[^}]*userInput',
-                    'onChange\\s*=\\s*\\{[^}]*dangerous',
-                    'onClick\\s*=\\s*\\{[^}]*location',
-                    // React routing security
-                    'Link\\s*to\\s*=\\s*\\{[^}]*userInput',
-                    'NavLink\\s*to\\s*=\\s*\\{[^}]*dangerous',
-                    'Redirect\\s*to\\s*=\\s*\\{[^}]*location',
-                    // React Redux security
-                    'mapStateToProps\\s*=\\s*\\([^}]*userInput',
-                    'mapDispatchToProps\\s*=\\s*\\([^}]*dangerous',
-                    'connect\\s*\\([^,]+\\s*,\\s*\\([^}]*userInput',
-                    // React context providers
-                    '<Provider\\s+[^>]*value\\s*=\\s*\\{[^}]*userInput',
-                    '<Context\\.Provider\\s+[^>]*value\\s*=\\s*\\{[^}]*dangerous'
+                    'useEffect\\s*\\([^}]*new\\s+Function\\s*\\(',
+                    // JSX script injection
+                    '<script\\s+[^>]*dangerouslySetInnerHTML',
+                    // React Router redirect from user input
+                    '<Redirect\\s+to\\s*=\\s*\\{[^}]*(?:location|search|hash|params)',
+                    '<Navigate\\s+to\\s*=\\s*\\{[^}]*(?:location|search|hash|params)'
                 ],
                 severity: 'CRITICAL',
-                description: 'React-specific XSS and injection vulnerabilities'
+                description: 'React XSS via dangerouslySetInnerHTML with user-controlled input'
             },
 
             'Next.js Security Issues': {
                 patterns: [
-                    // API Routes (Critical)
-                    'export\\s+default\\s+function\\s+[^}]*req\\.',
-                    'export\\s+async\\s+function\\s+[^}]*req\\.',
-                    'export\\s+default\\s+async\\s*\\([^}]*req',
-                    // Missing authentication in API routes
-                    'export.*function.*req.*res[^}]*res\\.status\\(\\d+\\)\\.json',
-                    'export.*function.*req.*res[^}]*res\\.send',
-                    // SSR vulnerabilities
-                    'getServerSideProps\\s*=\\s*async',
-                    'getStaticProps\\s*=\\s*async',
-                    'getInitialProps\\s*=\\s*async',
-                    // Next.js config vulnerabilities
-                    'next\\.config\\.js.*headers',
-                    'next\\.config\\.js.*rewrites',
-                    'next\\.config\\.js.*redirects',
-                    // Middleware vulnerabilities
-                    'middleware\\.ts',
-                    'middleware\\.js',
-                    // Next.js API authentication bypass
-                    'export.*function.*req.*res[^}]*!req\\.headers\\.authorization',
-                    'export.*function.*req.*res[^}]*!req\\.cookies',
-                    // Next.js Image component bypass
-                    'next/image.*unoptimized',
-                    'next/image.*dangerouslyAllowSVG',
-                    // Next.js Script injection
-                    'next/script.*dangerouslySetInnerHTML'
+                    // API routes with user input in response
+                    'res\\.json\\s*\\([^)]*(?:req\\.(?:query|body|params))',
+                    'res\\.send\\s*\\([^)]*(?:req\\.(?:query|body|params))',
+                    // SSR with user input
+                    'getServerSideProps[^}]*props[^}]*req\\.(?:query|body|params)',
+                    // API routes without auth check
+                    'export\\s+(?:default\\s+)?(?:async\\s+)?function\\s+handler\\s*\\([^)]*req[^)]*\\)\\s*\\{[^}]*(?:req\\.query|req\\.body|req\\.params)',
+                    // dangerouslySetInnerHTML in SSR
+                    'dangerouslySetInnerHTML\\s*=\\s*\\{[^}]*(?:serverData|ssrData|props\\.)',
+                    // Next.js Image with unoptimized
+                    'next/image[^>]*unoptimized\\s*=\\s*\\{?\\s*(?:true|"true"|\'true\')',
+                    // Missing auth on API route (no session/auth check)
+                    'app\\.api\\.(?:get|post|put|delete)\\s*\\([^)]*\\)\\s*\\((?:req|request)\\s*=>'
                 ],
-                severity: 'CRITICAL',
-                description: 'Next.js API routes and SSR security vulnerabilities'
+                severity: 'HIGH',
+                description: 'Next.js SSR/API security - user input in server render, missing auth on API routes'
             },
 
             'Vue.js Security Issues': {
                 patterns: [
-                    // Template injection (Critical)
-                    'v-html\\s*=\\s*["\'][^"\']*\\$\\{',
-                    'v-html\\s*=\\s*["\'][^"\']*userInput',
-                    'v-html\\s*=\\s*["\'][^"\']*location',
-                    'v-html\\s*=\\s*["\'][^"\']*search',
-                    'v-html\\s*=\\s*["\'][^"\']*hash',
-                    // Vue XSS patterns
-                    '<div\\s+v-html',
-                    '<span\\s+v-html',
-                    '<p\\s+v-html',
-                    // Vue.js data binding vulnerabilities
-                    'v-model\\s*=\\s*["\'][^"\']*location',
-                    'v-model\\s*=\\s*["\'][^"\']*search',
-                    'v-model\\s*=\\s*["\'][^"\']*hash',
-                    // Vue Router vulnerabilities
-                    'this\\.\\$route\\.params',
-                    'this\\.\\$route\\.query',
-                    'this\\.\\$route\\.hash',
-                    // Vuex store injection
-                    'commit\\s*\\([^)]*userInput',
-                    'dispatch\\s*\\([^)]*dangerous',
-                    // Vue computed properties
-                    'computed\\s*:\\s*\\{[^}]*location',
-                    'computed\\s*:\\s*\\{[^}]*search',
-                    // Vue lifecycle hooks
-                    'mounted\\s*\\(\\s*\\)[^}]*eval',
-                    'created\\s*\\(\\s*\\)[^}]*Function',
-                    // Vue components
-                    'components\\s*:\\s*\\{[^}]*dangerous'
+                    // v-html with user input
+                    'v-html\\s*=\\s*["\'][^"\']*(?:\\$\\{|location|search|hash|params|input|req)',
+                    // Vue XSS via render function
+                    'render\\s*\\(\\s*h\\s*=>\\s*h\\([^)]*(?:location|search|hash|params|input)',
+                    // Vue template with dangerous directives
+                    '\\$el\\.innerHTML\\s*=\\s*[^;]*(?:location|search|input)',
+                    'v-bind:innerHTML\\s*=\\s*["\'][^"\']*(?:location|search|input)',
+                    // Vue XSS via computed properties
+                    'computed\\s*:\\s*\\{[^}]*innerHTML\\s*:\\s*(?:function|\\(\\))\\s*=>[^}]*(?:location|search|input)',
+                    // Vue XSS via method
+                    'methods\\s*:\\s*\\{[^}]*innerHTML\\s*:\\s*(?:function|\\(\\))\\s*=>[^}]*(?:location|search|input)'
                 ],
                 severity: 'CRITICAL',
-                description: 'Vue.js template injection and XSS vulnerabilities'
+                description: 'Vue.js XSS via v-html with user-controlled input'
             },
 
             'Angular Security Issues': {
                 patterns: [
-                    // DOM sanitization bypass (Critical)
-                    'bypassSecurityTrustHtml',
-                    'bypassSecurityTrustScript',
-                    'bypassSecurityTrustStyle',
-                    'bypassSecurityTrustUrl',
-                    'bypassSecurityTrustResourceUrl',
-                    // Angular XSS patterns
-                    '\\[innerHTML\\]',
-                    '\\[outerHTML\\]',
-                    '\\[innerText\\]',
-                    '\\[textContent\\]',
+                    // Bypass security trust
+                    'bypassSecurityTrustHtml\\s*\\(',
+                    'bypassSecurityTrustScript\\s*\\(',
+                    'bypassSecurityTrustUrl\\s*\\(',
+                    'bypassSecurityTrustResourceUrl\\s*\\(',
+                    // [innerHTML] with user input
+                    '\\[innerHTML\\]\\s*=\\s*[^;]*(?:location|search|hash|params|input|userInput)',
+                    '\\[outerHTML\\]\\s*=\\s*[^;]*(?:location|search|hash|params|input)',
                     // Angular template injection
-                    '\\{\\{[^}]*userInput\\}\\}',
-                    '\\{\\{[^}]*location\\}\\}',
-                    '\\{\\{[^}]*search\\}\\}',
-                    '\\{\\{[^}]*hash\\}\\}',
-                    // Angular forms
-                    'FormControl\\s*\\([^)]*location',
-                    'FormControl\\s*\\([^)]*search',
-                    'FormControl\\s*\\([^)]*hash',
-                    // Angular HTTP client
-                    'HttpClient.*post\\s*\\([^)]*userInput',
-                    'HttpClient.*get\\s*\\([^)]*dangerous',
-                    // Angular services
-                    'Injectable\\s*\\(\\s*\\)[^}]*location',
-                    'Injectable\\s*\\(\\s*\\)[^}]*search',
-                    // Angular routing
-                    'ActivatedRoute.*params',
-                    'ActivatedRoute.*queryParams',
-                    'ActivatedRoute.*fragment',
-                    // Angular directives
-                    'ElementRef.*nativeElement',
-                    'Renderer2.*setProperty',
-                    'Renderer2.*setAttribute',
-                    // Angular modules and components
                     '@Component\\s*\\([^}]*template\\s*:\\s*["\'][^"\']*\\$\\{',
-                    '@Component\\s*\\([^}]*templateUrl\\s*:\\s*["\'][^"\']*userInput',
-                    // Angular pipes
-                    '@Pipe\\s*\\([^}]*transform\\s*:\\s*function[^}]*userInput',
-                    // Angular guards
-                    'CanActivate\\s*\\([^}]*canActivate[^}]*!user',
-                    'CanActivate\\s*\\([^}]*canActivate[^}]*!auth',
-                    // Angular interceptors
-                    'HttpInterceptor.*intercept[^}]*!auth',
-                    'HttpInterceptor.*intercept[^}]*!token',
-                    // Angular change detection
-                    'ChangeDetectorRef.*detectChanges',
-                    'ChangeDetectorRef.*markForCheck',
-                    // Angular zone
-                    'NgZone.*runOutsideAngular',
-                    'NgZone.*run',
-                    // Angular animations
-                    'trigger\\s*\\([^,]+\\s*,\\s*\\[[^\\]]*userInput',
-                    // Angular i18n
-                    'translate\\.get\\s*\\([^)]*userInput',
-                    'translate\\.instant\\s*\\([^)]*dangerous',
-                    // Angular testing utilities
-                    'TestBed.*configureTestingModule[^}]*userInput',
-                    // Angular CLI and build
-                    'ng build.*--configuration',
-                    'ng serve.*--host',
-                    'ng serve.*--port',
-                    // Angular SSR
-                    'renderModule\\s*\\([^)]*userInput',
-                    'renderModuleFactory\\s*\\([^)]*dangerous',
-                    // Angular universal
-                    'platformBrowser\\s*\\([^)]*userInput',
-                    'platformServer\\s*\\([^)]*dangerous',
-                    // Angular material
-                    'MatDialog.*open\\s*\\([^)]*userInput',
-                    'MatSnackBar.*open\\s*\\([^)]*dangerous',
-                    // Angular CDK
-                    'Overlay.*create\\s*\\([^)]*userInput',
-                    'Portal.*attach\\s*\\([^)]*dangerous',
-                    // Angular forms validation bypass
-                    'AbstractControl.*setValidators\\s*\\([^)]*\\[\\]',
-                    'AbstractControl.*clearValidators',
-                    // Angular router guards
-                    'CanDeactivate\\s*\\([^}]*canDeactivate[^}]*!user',
-                    'CanLoad\\s*\\([^}]*canLoad[^}]*!auth',
-                    // Angular service injection
-                    'constructor\\s*\\([^)]*private\\s+[^:]*:\\s*[^,]*userInput',
-                    'constructor\\s*\\([^)]*public\\s+[^:]*:\\s*[^,]*dangerous',
-                    // Angular lifecycle hooks with user input
-                    'ngOnInit\\s*\\(\\s*\\)[^}]*userInput',
-                    'ngOnChanges\\s*\\([^}]*changes[^}]*userInput',
-                    'ngAfterViewInit\\s*\\(\\s*\\)[^}]*dangerous',
-                    // Angular content projection
-                    '<ng-content.*select.*userInput',
-                    '<ng-content.*select.*dangerous',
-                    // Angular structural directives
-                    '\\*ngIf\\s*=\\s*["\'][^"\']*userInput',
-                    '\\*ngFor\\s*=\\s*["\'][^"\']*dangerous',
-                    '\\*ngSwitch\\s*=\\s*["\'][^"\']*untrusted'
+                    // ElementRef manipulation
+                    'elementRef\\.nativeElement\\.innerHTML\\s*=\\s*[^;]*(?:location|search|input)',
+                    // Angular sanitizer bypass
+                    'Sanitizer\\.bypassSecurityTrust',
+                    // Renderer2 setProperty with dangerous values
+                    'renderer2?\\.setProperty\\s*\\([^)]*innerHTML',
+                    // Dynamic component loading from user input
+                    'ComponentFactoryResolver[^}]*(?:location|search|input)'
                 ],
                 severity: 'CRITICAL',
-                description: 'Angular DOM sanitization bypasses and template injection'
+                description: 'Angular DOM sanitization bypass - bypassSecurityTrust with user input'
             },
 
             'Framework Deserialization Issues': {
                 patterns: [
-                    // React deserialization
-                    'JSON\\.parse\\s*\\([^)]*useState',
-                    'JSON\\.parse\\s*\\([^)]*useEffect',
-                    'JSON\\.parse\\s*\\([^)]*useContext',
-                    // Vue deserialization
-                    'JSON\\.parse\\s*\\([^)]*data\\(\\)',
-                    'JSON\\.parse\\s*\\([^)]*computed',
-                    'JSON\\.parse\\s*\\([^)]*methods',
-                    // Angular deserialization
-                    'JSON\\.parse\\s*\\([^)]*ngOnInit',
-                    'JSON\\.parse\\s*\\([^)]*ngOnChanges',
-                    'JSON\\.parse\\s*\\([^)]*constructor',
-                    // Next.js deserialization
-                    'JSON\\.parse\\s*\\([^)]*getServerSideProps',
-                    'JSON\\.parse\\s*\\([^)]*getStaticProps',
-                    'JSON\\.parse\\s*\\([^)]*getInitialProps',
-                    // Framework-specific eval
-                    'eval\\s*\\([^)]*props',
-                    'eval\\s*\\([^)]*state',
-                    'eval\\s*\\([^)]*data',
-                    'Function\\s*\\([^)]*this\\.',
-                    // Framework SSR deserialization
-                    'JSON\\.parse\\s*\\([^)]*__NEXT_DATA__',
-                    'JSON\\.parse\\s*\\([^)]*__NUXT__',
-                    'JSON\\.parse\\s*\\([^)]*window\\.__INITIAL_STATE__',
-                    // Framework config deserialization
-                    'JSON\\.parse\\s*\\([^)]*process\\.env',
-                    'JSON\\.parse\\s*\\([^)]*config',
-                    'JSON\\.parse\\s*\\([^)]*settings'
+                    // React SSR deserialization
+                    'JSON\\.parse\\s*\\(\\s*(?:req\\.body|req\\.query|req\\.params|input)',
+                    // Next.js SSR data
+                    'JSON\\.parse\\s*\\(\\s*(?:__NEXT_DATA__|window\\.__INITIAL_STATE__)[^)]*(?:req|input|query)',
+                    // Nuxt SSR data
+                    'JSON\\.parse\\s*\\(\\s*__NUXT__[^)]*(?:req|input|query)',
+                    // Vue/Vuex hydration
+                    'JSON\\.parse\\s*\\(\\s*[^)]*(?:preloadedState|initialState|hydrate)[^)]*(?:req|input|query)',
+                    // Framework config deserialization from user
+                    'JSON\\.parse\\s*\\(\\s*(?:req\\.(?:body|query|params)|input|query|params|body)'
                 ],
                 severity: 'HIGH',
-                description: 'Framework-specific deserialization vulnerabilities'
+                description: 'Framework deserialization of user-controlled input during SSR hydration'
             },
 
-'Modern Framework Injection': {
+            'Modern Framework Injection': {
                 patterns: [
-                    'ReactDOM\\.render\\s*\\([^)]*dangerous',
-                    'ReactDOM\\.hydrate\\s*\\([^)]*userInput',
-                    'createElement\\s*\\([^)]*dangerous',
-                    'Vue\\.prototype\\s*=\\s*.*',
-                    'Vue\\.mixin\\s*\\([^)]*dangerous',
-                    'Vue\\.component\\s*\\([^)]*userInput',
-                    'Component\\s*\\([^}]*template\\s*:\\s*["\'][^"\']*\\$\\{',
-                    'Directive\\s*\\([^}]*selector\\s*:\\s*["\'][^"\']*userInput',
-                    '{@html\\s+[^}]*userInput}',
-                    '{@html\\s+[^}]*location}',
-                    'Ember\\.String\\.htmlSafe\\s*\\(',
-                    'htmlSafe\\s*\\([^)]*userInput',
-                    'router\\.push\\s*\\([^)]*userInput',
-                    'navigate\\s*\\([^)]*dangerous',
-                    'history\\.push\\s*\\([^)]*untrusted',
-                    'dispatch\\s*\\([^)]*userInput',
-                    'commit\\s*\\([^)]*dangerous',
-                    'setState\\s*\\([^)]*untrusted',
-                    'fetch\\s*\\([^)]*userInput',
-                    'axios\\s*\\([^)]*dangerous',
-                    'api\\.call\\s*\\([^)]*untrusted'
+                    // React DOM render with user input
+                    'ReactDOM\\.render\\s*\\([^)]*(?:location|search|hash|input|params)',
+                    'ReactDOM\\.hydrate\\s*\\([^)]*(?:location|search|hash|input|params)',
+                    // Vue prototype pollution
+                    'Vue\\.prototype\\s*\\[\\s*[^\\]]*(?:req|input|query|params)',
+                    'Vue\\.mixin\\s*\\([^)]*(?:innerHTML|dangerouslySetInnerHTML)',
+                    // Ember htmlSafe with user input
+                    'htmlSafe\\s*\\([^)]*(?:location|search|input|params)',
+                    // Svelte {@html} with user input
+                    '{@html\\s+[^}]*(?:location|search|input|params)',
+                    // Router navigation with user-controlled path
+                    'router\\.push\\s*\\([^)]*(?:req\\.(?:query|body|params)|location|search|hash|input)',
+                    'navigate\\s*\\([^)]*(?:req\\.(?:query|body|params)|location|search|hash|input)',
+                    // State management with user input in dangerous context
+                    'dispatch\\s*\\([^)]*(?:innerHTML|eval|Function|document\\.write)',
+                    'commit\\s*\\([^)]*(?:innerHTML|eval|Function|document\\.write)'
                 ],
                 severity: 'HIGH',
-                description: 'Modern framework injection and state manipulation vulnerabilities'
+                description: 'Framework-specific injection via routing, state management, or rendering with user input'
             },
 
             'Web3 Security Issues': {
@@ -1537,6 +915,110 @@ class CompleteJSVulnHunter {
                 ],
                 severity: 'LOW',
                 description: 'Quantum computing security considerations - future-proofing against quantum attacks'
+            },
+
+            // ═══════════════════════════════════════════════════════════
+            // 🆕 5 NEW HIGH-VALUE VULNERABILITY CLASSES
+            // ═══════════════════════════════════════════════════════════
+
+            'CSRF Token Bypass': {
+                patterns: [
+                    // Missing CSRF token on state-changing requests
+                    'fetch\\s*\\(\\s*["\'][^"\']*["\']\\s*,\\s*\\{[^}]*method\\s*:\\s*["\'](?:POST|PUT|DELETE|PATCH)["\'](?:[^}]*(?!csrf|_token|xsrf|authenticity_token))[^}]*\\}',
+                    'axios\\s*\\.\\s*(?:post|put|delete|patch)\\s*\\([^)]*(?!.*(?:csrf|_token|xsrf|authenticity_token))',
+                    // Form submission without CSRF
+                    '<form[^>]*method\\s*=\\s*["\']POST["\'](?![^>]*csrf)(?![^>]*_token)(?![^>]*authenticity_token)',
+                    // XMLHttpRequest POST without CSRF
+                    'XMLHttpRequest[^;]*\\.send\\s*\\([^)]*(?!.*(?:csrf|_token|xsrf))',
+                    // SameSite=None cookies (CSRF-enabling)
+                    'Set-Cookie[^;]*SameSite\\s*=\\s*None',
+                    'document\\.cookie\\s*=\\s*[^;]*SameSite\\s*=\\s*None'
+                ],
+                severity: 'HIGH',
+                description: 'CSRF protection missing on state-changing requests - attacker can forge cross-site requests'
+            },
+
+            'Server-Side Template Injection': {
+                patterns: [
+                    // SSTI via template engines
+                    'render\\s*\\(\\s*["\'][^"\']*(?:\\{\\{|<%=|\\$\\{)[^"\']*(?:req|query|params|body|input)',
+                    'template\\s*\\(\\s*["\'][^"\']*(?:req|query|params|body|input)',
+                    'compile\\s*\\(\\s*["\'][^"\']*(?:req|query|params|body|input)',
+                    // Jinja2/Python SSTI
+                    'jinja2\\.Template\\s*\\(\\s*[^)]*(?:req|query|params|body|input)',
+                    'Environment\\(\\)[^}]*from_string\\s*\\([^)]*(?:req|query|params|body|input)',
+                    // Twig/PHP SSTI
+                    'Twig\\\\Template[^}]*loadTemplate\\s*\\([^)]*(?:req|query|params|body|input)',
+                    // Handlebars SSTI
+                    'Handlebars\\.compile\\s*\\([^)]*(?:req|query|params|body|input)',
+                    // EJS/JS SSTI
+                    'ejs\\.render\\s*\\([^)]*(?:req|query|params|body|input)',
+                    'pug\\.render\\s*\\([^)]*(?:req|query|params|body|input)',
+                    // Template string evaluation
+                    '`\\s*\\$\\{[^}]*(?:exec|eval|Function|child_process|require)\\s*\\('
+                ],
+                severity: 'CRITICAL',
+                description: 'Server-side template injection - user input in template rendering leads to RCE'
+            },
+
+            'Insecure File Upload': {
+                patterns: [
+                    // Upload without file type validation
+                    'multer\\s*\\(\\s*\\)\\s*(?!.*fileFilter)',
+                    'multer\\s*\\(\\s*\\{[^}]*\\}\\s*\\)(?![^}]*fileFilter)',
+                    // Upload with dangerous file types allowed
+                    '(?:upload|file|attachment|avatar|image)[^}]*(?:\\.\\w+|originalname|filename)[^}]*\\.\\w+\\b(?!.*(?:filter|whitelist|allowed|accept))',
+                    // File path construction from user input
+                    'path\\.join\\s*\\([^)]*(?:upload|file|avatar|attachment)[^)]*(?:req|input|query|params)',
+                    // Unrestricted file write after upload
+                    'fs\\.writeFile\\s*\\([^)]*(?:upload|file|avatar|attachment|originalname|filename)',
+                    'fs\\.createWriteStream\\s*\\([^)]*(?:upload|file|avatar|attachment|originalname|filename)',
+                    // MIME type not validated
+                    'mimetype\\s*(?:===|!==|\\.includes)\\s*["\']image/',
+                    // Upload destination from user input
+                    'destination\\s*:\\s*(?:req|input|query|params|body)'
+                ],
+                severity: 'HIGH',
+                description: 'Insecure file upload - missing type validation allows webshell or malicious file upload'
+            },
+
+            'Race Condition': {
+                patterns: [
+                    // Non-atomic balance/credit operations
+                    '(?:balance|credit|amount|points|score)\\s*(?:\\+=|-=|\\+\\s*=|\\-\\s*=)\\s*[^;]*(?!.*(?:atomic|lock|mutex|semaphore|transaction))',
+                    // Check-then-act without lock
+                    '(?:if|\\?)\\s*\\(\\s*(?:balance|stock|quantity|count|limit)\\s*(?:>=|<=|>|<|===|!==)\\s*[^)]*\\)\\s*[^{]*\\{(\\s*[^}]*(?:balance|stock|quantity|count|limit)\\s*(?:\\-=|\\+=|\\+\\s*=|\\-\\s*=))',
+                    // Concurrent DB writes without transaction
+                    '(?:update|save|modify)\\s*\\([^)]*(?:count|balance|stock|quantity|limit)',
+                    // Race on coupon/discount
+                    '(?:coupon|discount|promo|voucher)[^}]*(?:count|usage|limit|redeem)[^}]*(?:-\\s*=|\\+=|update|save)',
+                    // Race on signup/login
+                    '(?:create|insert|save)\\s*\\([^)]*(?:email|username|phone)[^)]*\\)\\s*(?:\\.then|\\)|;)[^}]*(?:create|insert|save)\\s*\\([^)]*(?:email|username|phone)'
+                ],
+                severity: 'HIGH',
+                description: 'Race condition - non-atomic check-then-act allows double-spend, double-redeem, or bypass'
+            },
+
+            'Open Redirect': {
+                patterns: [
+                    // Redirect with user-controlled URL
+                    'res\\.redirect\\s*\\([^)]*(?:req\\.(?:query|body|params)\\.|input|query|params|body)',
+                    'res\\.send\\s*\\(\\s*["\'](?:<meta|<script)[^"\']*http-equiv\\s*=\\s*["\']refresh["\'][^"\']*url\\s*=\\s*["\'](?:\\+|%2B|%252B)?(?:req|input|query|params|body)',
+                    // window.location with user input
+                    'window\\.location\\s*=\\s*[^;]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'window\\.location\\.href\\s*=\\s*[^;]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    'window\\.location\\.replace\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // Template literal redirect
+                    'res\\.redirect\\s*\\(\\s*`[^`]*\\$\\{[^}]*(?:req|input|query|params|body)',
+                    // Express redirect with query param
+                    'res\\.redirect\\s*\\(\\s*["\']\\/[?"\'][^"\']*(?:req\\.(?:query|body|params)|input|query|params|body)',
+                    // Meta refresh redirect
+                    '<meta[^>]*http-equiv\\s*=\\s*["\']refresh["\'][^>]*content\\s*=\\s*["\']\\d+;\\s*url\\s*=',
+                    // JavaScript redirect
+                    'window\\.open\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)'
+                ],
+                severity: 'HIGH',
+                description: 'Open redirect - user-controlled URL used in redirect allows phishing and OAuth token theft'
             }
         };
 
@@ -2590,14 +2072,28 @@ class CompleteJSVulnHunter {
                             const existingIdx = this._dedupIndex.get(dedupKey);
 
                             if (existingIdx === undefined) {
+                                // Build context: 2 lines before + vulnerable line + 2 lines after
+                                const ctxStart = Math.max(0, lineNum - 2);
+                                const ctxEnd = Math.min(lines.length, lineNum + 3);
+                                const contextLines = [];
+                                for (let ci = ctxStart; ci < ctxEnd; ci++) {
+                                    contextLines.push({
+                                        line: ci + 1,
+                                        code: lines[ci],
+                                        highlight: ci === lineNum
+                                    });
+                                }
+
                                 const idx = this.results[vulnType].length;
                                 this._dedupIndex.set(dedupKey, idx);
                                 this.results[vulnType].push({
                                     vulnerability: vulnType,
                                     severity: this.vulnerabilityTypes[vulnType].severity,
                                     source: sourceName,
+                                    fullSource: script.source || `(inline #${scriptIndex})`,
                                     line: lineNum + 1,
-                                    code: line.trim().substring(0, 100),
+                                    code: line.trim().substring(0, 200),
+                                    context: contextLines,
                                     description: this.vulnerabilityTypes[vulnType].description,
                                     pattern_matched: [pattern]
                                 });
@@ -2632,28 +2128,50 @@ class CompleteJSVulnHunter {
             }
         });
 
-        // Professional summary only
-        console.log(`\n🔥 SCAN RESULTS:`);
-        console.log(`   📊 Scripts Analyzed: ${this.scripts.length}`);
-        console.log(`   🎯 Total Vulnerabilities: ${totalVulns}`);
-        console.log(`   🔴 Critical: ${criticalCount}`);
-        console.log(`   🟠 High: ${highCount}`);
-        console.log(`   🟡 Medium/Low: ${totalVulns - criticalCount - highCount}`);
+        console.log('');
+        console.log('  ╔═══════════════════════════════════════════════════════════════╗');
+        console.log('  ║                    SCAN RESULTS                              ║');
+        console.log('  ╚═══════════════════════════════════════════════════════════════╝');
+        console.log(`  Scripts Analyzed: ${this.scripts.length}`);
+        console.log(`  Total Findings:   ${totalVulns}`);
+        console.log(`  Critical: ${criticalCount}  |  High: ${highCount}  |  Medium/Low: ${totalVulns - criticalCount - highCount}`);
+        console.log('');
 
-        // Show detailed results only if not quiet
         if (!this.quiet && totalVulns > 0) {
-            console.log('\n📋 DETAILED FINDINGS:');
-            Object.entries(this.results).forEach(([vulnType, vulnerabilities]) => {
-                if (vulnerabilities.length > 0) {
-                    console.log(`\n${vulnType} (${vulnerabilities[0].severity}): ${vulnerabilities.length} found`);
-                    vulnerabilities.slice(0, 3).forEach(v => { // Show first 3 per type
-                        console.log(`   📍 ${v.source}:${v.line} - ${v.pattern_matched[0]}`);
+            const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4 };
+            const allFindings = [];
+            Object.entries(this.results).forEach(([vulnType, vulns]) => {
+                vulns.forEach(v => allFindings.push({ ...v, vulnType }));
+            });
+            allFindings.sort((a, b) => (severityOrder[a.severity] || 5) - (severityOrder[b.severity] || 5));
+
+            console.log('  ┌─── FINDINGS ─────────────────────────────────────────────────┐');
+            allFindings.forEach((v, i) => {
+                const sev = v.severity === 'CRITICAL' ? '[!!!CRITICAL!!!]' :
+                    v.severity === 'HIGH' ? '[!!HIGH!!]' :
+                    v.severity === 'MEDIUM' ? '[MEDIUM]' : '[LOW]';
+                console.log('');
+                console.log(`  ${sev} #${i + 1} ${v.vulnType}`);
+                console.log(`  File: ${v.fullSource || v.source}`);
+                console.log(`  Line: ${v.line}`);
+                console.log(`  Code: ${v.code}`);
+                console.log(`  Why:  ${v.description}`);
+
+                // Show code context
+                if (v.context && v.context.length > 0) {
+                    console.log('  Context:');
+                    v.context.forEach(ctx => {
+                        const marker = ctx.highlight ? '  >>' : '    ';
+                        console.log(`    ${marker} ${ctx.line}: ${ctx.code}`);
                     });
-                    if (vulnerabilities.length > 3) {
-                        console.log(`   ... and ${vulnerabilities.length - 3} more`);
-                    }
+                }
+
+                if (v.pattern_matched && v.pattern_matched.length > 0) {
+                    console.log(`  Pattern: ${v.pattern_matched[0]}`);
                 }
             });
+            console.log('');
+            console.log('  └──────────────────────────────────────────────────────────────┘');
         }
 
         return {
@@ -5197,34 +4715,59 @@ setTimeout(() => {
         }
     };
 
-    console.log('\n🎯 PROFESSIONAL JAVASCRIPT VULNERABILITY HUNTER READY');
-    console.log('═══════════════════════════════════════════════════════════════');
-    console.log('📋 WORKFLOW:');
-    console.log('   1. Silent collection & fetching of all JS files');
-    console.log('   2. User chooses scan options');
-    console.log('   3. Comprehensive vulnerability analysis');
-    console.log('\n✅ PROFESSIONAL FEATURES:');
-    console.log('   • Zero console errors or CORS issues (FIXED)');
-    console.log('   • Complete silent operation during scanning');
-    console.log('   • Smart CORS handling - no fetch attempts for cross-origin');
-    console.log('   • Clean, professional output only');
-    console.log('   • Analyzes ALL accessible scripts (inline + same-origin)');
-    console.log('\n💡 START INTERACTIVE SCAN:');
-    console.log('   window.JSHunter.JSFILE.interactive()');
-    console.log('\n🔧 DIRECT SCAN OPTIONS:');
-    console.log('   window.JSHunter.JSFILE.runScan("1,2,3")  // Multiple');
-    console.log('   window.JSHunter.JSFILE.runScan(1)        // Single');
-    console.log('   window.JSHunter.JS.runScan("1,2,3")      // Alternative');
-    console.log('\n📊 Results: window.INSTANT_REPORT | window.HUNT_REPORT');
-    console.log('🔍 Search: window.JSHunter.searchVulnerability("type")');
-    console.log('📄 Source: window.JSHunter.getSourceCode("file", line)');
-    console.log('\n🎯 NOTE: Completely silent operation with zero errors');
+    console.log('');
+    console.log('  ╔═══════════════════════════════════════════════════════════════╗');
+    console.log('  ║   FULL-GLOBAL-JS-HUNTER v3.0  —  SECURITY AUDIT SUITE      ║');
+    console.log('  ║   Hardened Edition • 20 Audit Modules • 28 Vuln Classes     ║');
+    console.log('  ╚═══════════════════════════════════════════════════════════════╝');
+    console.log('');
+    console.log('  ┌─ PATTERN SCAN (28 vulnerability classes) ──────────────────┐');
+    console.log('  │  window.JSHunter.JSFILE.runScan(1)   Instant (inline only) │');
+    console.log('  │  window.JSHunter.JSFILE.runScan(2)   Fast (~15s)           │');
+    console.log('  │  window.JSHunter.JSFILE.runScan(3)   Full (all scripts)    │');
+    console.log('  └────────────────────────────────────────────────────────────┘');
+    console.log('');
+    console.log('  ┌─ SECURITY AUDIT (20 modules) ──────────────────────────────┐');
+    console.log('  │  await window.JSHunter.JSFILE.fullAudit()   Run everything │');
+    console.log('  │                                                             │');
+    console.log('  │  window.JSHunter.JSFILE.csp()         CSP analysis          │');
+    console.log('  │  window.JSHunter.JSFILE.cookies()     Cookie security       │');
+    console.log('  │  window.JSHunter.JSFILE.storage()     Storage scan          │');
+    console.log('  │  window.JSHunter.JSFILE.dom()         DOM XSS sinks        │');
+    console.log('  │  window.JSHunter.JSFILE.redirects()   Open redirects        │');
+    console.log('  │  window.JSHunter.JSFILE.forms()       Form hijacking        │');
+    console.log('  │  window.JSHunter.JSFILE.iframes()     iframe security       │');
+    console.log('  │  window.JSHunter.JSFILE.jsURLs()      javascript: URIs      │');
+    console.log('  │  window.JSHunter.JSFILE.sri()         Subresource integrity │');
+    console.log('  │  window.JSHunter.JSFILE.thirdParty()  3rd-party risk score  │');
+    console.log('  │  window.JSHunter.JSFILE.urls()        URL/endpoint extract  │');
+    console.log('  │  window.JSHunter.JSFILE.graph()       Dependency graph      │');
+    console.log('  │  window.JSHunter.JSFILE.mixed()       Mixed content         │');
+    console.log('  │  window.JSHunter.JSFILE.clobbering()  DOM clobbering        │');
+    console.log('  │  window.JSHunter.JSFILE.ws()          WebSocket audit       │');
+    console.log('  │  window.JSHunter.JSFILE.permissions() Permission monitor    │');
+    console.log('  │  window.JSHunter.JSFILE.diff()        Scan comparison       │');
+    console.log('  │  window.JSHunter.JSFILE.exploits()    Exploit payloads      │');
+    console.log('  │  window.JSHunter.JSFILE.monitor(cb)   DOM mutation watch    │');
+    console.log('  │  window.JSHunter.JSFILE.report()      Download HTML report  │');
+    console.log('  └────────────────────────────────────────────────────────────┘');
+    console.log('');
+    console.log('  ┌─ UTILITIES ────────────────────────────────────────────────┐');
+    console.log('  │  window.JSHunter.JSFILE.features      List all features    │');
+    console.log('  │  window.JSHunter.searchVulnerability(type)  Search by class │');
+    console.log('  │  window.JSHunter.getSourceCode(file, line)  View context    │');
+    console.log('  │  window.JSHunter.getFixSuggestions(type)    Fix guidance    │');
+    console.log('  │  window.FULL_AUDIT    Results from fullAudit()              │');
+    console.log('  │  window.INSTANT_REPORT    Instant scan results              │');
+    console.log('  │  window.HUNT_REPORT       Fast scan results                 │');
+    console.log('  └────────────────────────────────────────────────────────────┘');
+    console.log('');
 
     // Restore full silence after menu display
     setTimeout(() => {
         console.log = () => {};
-    }, 1000);
-}, 3000);
+    }, 5000);
+}, 2000);
 
 // ============================================================================
 // 🙏 THANKS & ACKNOWLEDGMENTS
@@ -5242,6 +4785,6 @@ setTimeout(() => {
 // Disclaimer: Use this tool responsibly and only on systems you own or have
 // explicit permission to test. Security testing without authorization is illegal.
 //
-// Version: 2.0.0 (Hardened Edition)
-// Last Updated: 2026-06-24
+// Version: 3.0.0 (Hardened + 20 Audit Modules)
+// Last Updated: 2026-06-27
 // ============================================================================
