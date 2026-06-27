@@ -1211,7 +1211,7 @@ class CompleteJSVulnHunter {
                     // createReadStream with user input
                     'createReadStream\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)',
                     // fs.readFile with user input (no path traversal check)
-                    'readFile\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)(?!.*(?:path\\.resolve|path\\.join|\\.\\.)',
+                    'readFile\\s*\\([^)]*(?:req\\.(?:query|body|params)|input|query|params|body)(?!.*(?:path\\.resolve|path\\.join|\\.\\.))',
                     // Express static file serving with user-controlled path
                     'express\\.static\\s*\\([^)]*(?:req|input|query|params|body)',
                     // File download endpoint without path validation
@@ -5148,15 +5148,18 @@ const originalOnUnhandledRejection = window.onunhandledrejection;
 window.onerror = function() { return true; };
 window.onunhandledrejection = function() { return true; };
 
-// Override addEventListener to suppress unhandled promise rejections
-const originalAddEventListener = window.addEventListener;
-window.addEventListener = function(type, listener, options) {
-    if (type === 'unhandledrejection' || type === 'error') {
-        // Suppress these events completely
-        return;
-    }
-    return originalAddEventListener.call(this, type, listener, options);
-};
+// Override addEventListener to suppress unhandled promise rejections (with re-entry guard)
+const _originalAddEventListener = window.addEventListener.bind(window);
+let _addEventListenerOverridden = false;
+if (!_addEventListenerOverridden) {
+    _addEventListenerOverridden = true;
+    window.addEventListener = function(type, listener, options) {
+        if (type === 'unhandledrejection' || type === 'error') {
+            return;
+        }
+        return _originalAddEventListener(type, listener, options);
+    };
+}
 
 // Initialize with ultra-quiet mode for professional use
 const professionalHunter = new CompleteJSVulnHunter({quiet: true});
