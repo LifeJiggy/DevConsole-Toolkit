@@ -5203,17 +5203,20 @@ window.JSHunter.JS = {
 
         window.JS_MULTI_RESULTS = results;
 
-        // Log results summary
+        // Temporarily restore console to show results
+        const _savedLog2 = console.log;
+        console.log = _realConsole.log;
         const summary = results.instant || results.fast || results.full;
         if (summary && summary.summary) {
-            _realConsole.log('');
-            _realConsole.log('  ╔═══════════════════════════════════════════════════════════════╗');
-            _realConsole.log('  ║                    SCAN RESULTS                              ║');
-            _realConsole.log('  ╚═══════════════════════════════════════════════════════════════╝');
-            _realConsole.log(`  Total: ${summary.summary.total} | Crit: ${summary.summary.critical} | High: ${summary.summary.high} | Med/Low: ${summary.summary.mediumLow}`);
-            _realConsole.log(`  Scripts: ${summary.summary.scripts}`);
-            _realConsole.log('  Export: window.JSHunter.JSFILE.exportJSON() / exportCSV() / exportMD()');
+            console.log('');
+            console.log('  ╔═══════════════════════════════════════════════════════════════╗');
+            console.log('  ║                    SCAN RESULTS                              ║');
+            console.log('  ╚═══════════════════════════════════════════════════════════════╝');
+            console.log(`  Total: ${summary.summary.total} | Crit: ${summary.summary.critical} | High: ${summary.summary.high} | Med/Low: ${summary.summary.mediumLow}`);
+            console.log(`  Scripts: ${summary.summary.scripts}`);
+            console.log('  Export: window.JSHunter.JSFILE.exportJSON() / exportCSV() / exportMD()');
         }
+        console.log = _savedLog2;
 
         return results;
     },
@@ -5480,9 +5483,15 @@ setTimeout(() => {
 
     // Silence console after banner (5s)
     setTimeout(() => {
-        Object.keys(_realConsole).forEach(key => {
-            console[key] = function(...args) { return; };
-        });
+        const noop = function() {};
+        console.log = noop;
+        console.error = noop;
+        console.warn = noop;
+        console.info = noop;
+        console.debug = noop;
+        console.table = noop;
+        console.group = noop;
+        console.groupEnd = noop;
     }, 5000);
 }, 2000);
 
