@@ -4945,6 +4945,171 @@ tr.severity-medium{border-left:3px solid #58a6ff}
     }
 
     // ═══════════════════════════════════════════════════════════════════
+    // 📤 EXPORT METHODS (JSON, CSV, Markdown)
+    // ═══════════════════════════════════════════════════════════════════
+
+    _collectExportFindings() {
+        const all = [];
+        const resultKeys = [
+            'domAuditResults', 'openRedirectResults', 'formAuditResults',
+            'iframeAuditResults', 'jsUrlResults', 'cspResults',
+            'cookieAuditResults', 'storageAuditResults', 'wsAnalysisResults',
+            'sriResults', 'thirdPartyResults', 'mixedContentResults',
+            'domClobberingResults', 'permissionResults', 'domMonitorResults'
+        ];
+        resultKeys.forEach(key => {
+            const data = this[key];
+            if (!data) return;
+            if (Array.isArray(data)) all.push(...data);
+            else if (data?.findings) all.push(...data.findings);
+        });
+        if (this.extractedURLs) {
+            Object.entries(this.extractedURLs).forEach(([cat, items]) => {
+                if (Array.isArray(items)) {
+                    items.forEach(item => all.push({
+                        feature: 'URL Extraction', category: cat, url: item.url,
+                        source: item.source, severity: ['admin', 'debug', 'staging'].includes(cat) ? 'HIGH' : 'MEDIUM',
+                        description: `${cat}: ${item.url.substring(0, 80)}`
+                    }));
+                }
+            });
+        }
+        if (this.exploitSuggestions) {
+            this.exploitSuggestions.forEach(s => {
+                all.push({
+                    feature: 'Exploit Suggestion', severity: s.severity,
+                    description: `[${s.exploit?.type}] ${s.finding}`,
+                    value: s.exploit?.payloads?.[0]?.substring(0, 80) || ''
+                });
+            });
+        }
+        // Add pattern scan results
+        if (this.results) {
+            Object.entries(this.results).forEach(([vulnType, vulns]) => {
+                vulns.forEach(v => all.push({ ...v, feature: vulnType }));
+            });
+        }
+        return all;
+    }
+
+    _downloadFile(content, filename, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    exportJSON() {
+        const findings = this._collectExportFindings();
+        const data = {
+            tool: 'Full-Global-JS-HUNTER v3.0',
+            url: window.location.href,
+            timestamp: new Date().toISOString(),
+            summary: {
+                total: findings.length,
+                critical: findings.filter(f => f.severity === 'CRITICAL').length,
+                high: findings.filter(f => f.severity === 'HIGH').length,
+                medium: findings.filter(f => f.severity === 'MEDIUM').length,
+                low: findings.filter(f => f.severity === 'LOW').length,
+                info: findings.filter(f => f.severity === 'INFO').length
+            },
+            findings: findings
+        };
+        const json = JSON.stringify(data, null, 2);
+        const hostname = window.location.hostname.replace(/[^a-z0-9]/gi, '_');
+        this._downloadFile(json, `security-audit-${hostname}-${Date.now()}.json`, 'application/json');
+        return data.summary;
+    }
+
+    exportCSV() {
+        const findings = this._collectExportFindings();
+        const headers = ['Severity', 'Feature', 'Source', 'Line', 'Code', 'Description', 'Pattern'];
+        const escapeCSV = (val) => {
+            if (val === null || val === undefined) return '';
+            const str = String(val);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
+        let csv = headers.join(',') + '\n';
+        findings.forEach(f => {
+            csv += [
+                escapeCSV(f.severity),
+                escapeCSV(f.feature || f.vulnerability),
+                escapeCSV(f.source || f.fullSource || ''),
+                escapeCSV(f.line || ''),
+                escapeCSV((f.code || '').replace(/\n/g, ' ')),
+                escapeCSV(f.description || ''),
+                escapeCSV(f.pattern_matched?.[0] || '')
+            ].join(',') + '\n';
+        });
+        const hostname = window.location.hostname.replace(/[^a-z0-9]/gi, '_');
+        this._downloadFile(csv, `security-audit-${hostname}-${Date.now()}.csv`, 'text/csv');
+        return { total: findings.length, filename: `security-audit-${hostname}-${Date.now()}.csv` };
+    }
+
+    exportMD() {
+        const findings = this._collectExportFindings();
+        const hostname = window.location.hostname;
+        const url = window.location.href;
+        const ts = new Date().toISOString();
+        const critCount = findings.filter(f => f.severity === 'CRITICAL').length;
+        const highCount = findings.filter(f => f.severity === 'HIGH').length;
+        const medCount = findings.filter(f => f.severity === 'MEDIUM').length;
+        const lowCount = findings.filter(f => f.severity === 'LOW' || f.severity === 'INFO').length;
+
+        let md = `# Security Audit Report\n\n`;
+        md += `**URL:** ${url}  \n`;
+        md += `**Date:** ${ts}  \n`;
+        md += `**Tool:** Full-Global-JS-HUNTER v3.0  \n\n`;
+        md += `## Summary\n\n`;
+        md += `| Severity | Count |\n|----------|-------|\n`;
+        md += `| CRITICAL | ${critCount} |\n`;
+        md += `| HIGH | ${highCount} |\n`;
+        md += `| MEDIUM | ${medCount} |\n`;
+        md += `| LOW/INFO | ${lowCount} |\n`;
+        md += `| **Total** | **${findings.length}** |\n\n`;
+
+        if (findings.length === 0) {
+            md += `No vulnerabilities found.\n`;
+        } else {
+            md += `## Findings\n\n`;
+            const sevOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4 };
+            findings.sort((a, b) => (sevOrder[a.severity] || 5) - (sevOrder[b.severity] || 5));
+            findings.forEach((f, i) => {
+                const badge = f.severity === 'CRITICAL' ? '🔴' : f.severity === 'HIGH' ? '🟠' : f.severity === 'MEDIUM' ? '🟡' : '⚪';
+                md += `### ${badge} ${i + 1}. ${f.feature || f.vulnerability || 'Unknown'}\n\n`;
+                md += `- **Severity:** ${f.severity}\n`;
+                if (f.source || f.fullSource) md += `- **Source:** \`${f.fullSource || f.source}\`\n`;
+                if (f.line) md += `- **Line:** ${f.line}\n`;
+                if (f.code) md += `- **Code:** \`${f.code.substring(0, 120)}\`\n`;
+                md += `- **Description:** ${f.description}\n`;
+                if (f.pattern_matched?.[0]) md += `- **Pattern:** \`${f.pattern_matched[0]}\`\n`;
+                if (f.context && f.context.length > 0) {
+                    md += `\n\`\`\`javascript\n`;
+                    f.context.forEach(ctx => {
+                        const marker = ctx.highlight ? '>> ' : '   ';
+                        md += `${marker}${ctx.line}: ${ctx.code}\n`;
+                    });
+                    md += `\`\`\`\n`;
+                }
+                md += `\n`;
+            });
+        }
+
+        md += `---\n*Generated by Full-Global-JS-HUNTER v3.0*\n`;
+        const host = hostname.replace(/[^a-z0-9]/gi, '_');
+        this._downloadFile(md, `security-audit-${host}-${Date.now()}.md`, 'text/markdown');
+        return { total: findings.length, filename: `security-audit-${host}-${Date.now()}.md` };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     // 📊 ENHANCED REPORT
     // ═══════════════════════════════════════════════════════════════════
     generateEnhancedReport() {
@@ -5121,32 +5286,100 @@ window.JSHunter.JSFILE = {
     graph: () => window.JSHunter.buildDependencyGraph(),
     exploits: () => window.JSHunter.generateExploitSuggestions(),
     report: () => window.JSHunter.downloadHTMLReport(),
+    exportJSON: () => window.JSHunter.exportJSON(),
+    exportCSV: () => window.JSHunter.exportCSV(),
+    exportMD: () => window.JSHunter.exportMD(),
     diff: (key) => window.JSHunter.compareScans(key),
     monitor: (cb) => window.JSHunter.startDOMMonitor(cb),
     stopMonitor: () => window.JSHunter.stopDOMMonitor(),
 
     // List all features
     features: [
-        '1.  dom       - DOM Security Audit',
-        '2.  csp       - CSP Header Analysis',
-        '3.  cookies   - Cookie Security Audit',
-        '4.  storage   - Storage Sensitive Data Scan',
-        '5.  redirects - Open Redirect Detection',
-        '6.  mixed     - Mixed Content Detection',
-        '7.  sri       - Subresource Integrity Check',
-        '8.  ws        - WebSocket Security Analysis',
-        '9.  thirdParty - Third-Party Script Risk Score',
-        '10. clobbering - DOM Clobbering Detection',
-        '11. forms     - Form Action Hijacking Audit',
-        '12. iframes   - iframe Security Check',
-        '13. jsURLs    - JavaScript URL Protocol Audit',
-        '14. urls      - Hardcoded URL/Endpoint Extractor',
-        '15. permissions - Permission Request Monitor',
-        '16. report    - Download HTML Report',
-        '17. diff      - Scan Comparison (Diff)',
-        '18. exploits  - Auto-Exploit Suggestions',
-        '19. graph     - Script Dependency Graph',
-        '20. monitor   - Real-Time DOM Mutation Monitor'
+        'SCAN:    runScan(1|2|3)  fullAudit()  interactive()',
+        'EXPORT:  report(HTML)  exportJSON  exportCSV  exportMD',
+        'UTILS:   features  searchVulnerability(type)  getSourceCode(file,line)',
+        '         getFixSuggestions(type)  updateConfig(opts)',
+        '',
+        '═══ 53 VULNERABILITY CLASSES ═══',
+        '───────────────────────────────────────────',
+        'CLIENT-SIDE (8):',
+        '  1.  DOM-Based XSS',
+        '  2.  Code Execution',
+        '  3.  Event Handler Injection',
+        '  4.  Client-Side Injection',
+        '  5.  PostMessage XSS',
+        '  6.  Clickjacking',
+        '  7.  Insecure Storage',
+        '  8.  Insecure Random',
+        '',
+        'AUTH & ACCESS (8):',
+        '  9.  Broken Access Control',
+        '  10. IDOR',
+        '  11. CSRF Token Bypass',
+        '  12. OAuth/OIDC Vulnerabilities',
+        '  13. Type Coercion Auth Bypass',
+        '  14. JWT Manipulation',
+        '  15. Password Reset Flaws',
+        '  16. Timing Side-Channel',
+        '',
+        'INJECTION (7):',
+        '  17. SQL Injection',
+        '  18. NoSQL Injection',
+        '  19. Command Injection',
+        '  20. Server-Side Template Injection',
+        '  21. Server-Side Include (SSI) Injection',
+        '  22. XML External Entity (XXE)',
+        '  23. Prototype Pollution',
+        '',
+        'DATA & FILE (5):',
+        '  24. Sensitive Data Exposure',
+        '  25. Path Traversal',
+        '  26. Insecure Direct File Download',
+        '  27. Insecure File Upload',
+        '  28. Deserialization',
+        '',
+        'NETWORK (6):',
+        '  29. SSRF',
+        '  30. CORS Misconfiguration',
+        '  31. CORS Origin Reflection',
+        '  32. HTTP Header Injection',
+        '  33. Open Redirect',
+        '  34. Client-Side Redirect Manipulation',
+        '',
+        'FRAMEWORKS (7):',
+        '  35. React Security Issues',
+        '  36. Next.js Security Issues',
+        '  37. Vue.js Security Issues',
+        '  38. Angular Security Issues',
+        '  39. Framework Deserialization Issues',
+        '  40. Modern Framework Injection',
+        '  41. Sandbox Escape (Node.js vm)',
+        '',
+        'NODEJS & INFRA (8):',
+        '  42. Node.js Security Issues',
+        '  43. GraphQL Security',
+        '  44. Business Logic Flaws',
+        '  45. Race Condition',
+        '  46. ReDoS (Regex Denial of Service)',
+        '  47. Log Injection',
+        '  48. Memory Safety (Buffer Overflow)',
+        '  49. Subresource Integrity (SRI) Bypass',
+        '',
+        'CLOUD & WEB3 (6):',
+        '  50. Serverless Security Issues',
+        '  51. Container Security Issues',
+        '  52. Web3 Security Issues',
+        '  53. Supply Chain Security Issues',
+        '───────────────────────────────────────────',
+        '',
+        '═══ 20 AUDIT MODULES ═══',
+        '───────────────────────────────────────────',
+        'DOM:     dom  redirects  forms  iframes  jsURLs  clobbering',
+        'HEADERS: csp  mixed  ws  sri  permissions',
+        'STORAGE: cookies  storage',
+        'INTEL:   thirdParty  urls  graph  diff  exploits',
+        'MONITOR: monitor(cb)  stopMonitor',
+        '───────────────────────────────────────────'
     ]
 };
 
@@ -5195,51 +5428,48 @@ setTimeout(() => {
     };
 
     console.log('');
-    console.log('  ╔═══════════════════════════════════════════════════════════════╗');
-    console.log('  ║   FULL-GLOBAL-JS-HUNTER v3.0  —  SECURITY AUDIT SUITE      ║');
-    console.log('  ║   Hardened Edition • 20 Audit Modules • 53 Vuln Classes     ║');
-    console.log('  ╚═══════════════════════════════════════════════════════════════╝');
+    console.log('  ╔═══════════════════════════════════════════════════════════════════╗');
+    console.log('  ║     FULL-GLOBAL-JS-HUNTER v3.0  —  SECURITY AUDIT SUITE        ║');
+    console.log('  ║     Hardened Edition • 20 Audit Modules • 53 Vuln Classes       ║');
+    console.log('  ╚═══════════════════════════════════════════════════════════════════╝');
     console.log('');
-    console.log('  ┌─ PATTERN SCAN (28 vulnerability classes) ──────────────────┐');
-    console.log('  │  window.JSHunter.JSFILE.runScan(1)   Instant (inline only) │');
-    console.log('  │  window.JSHunter.JSFILE.runScan(2)   Fast (~15s)           │');
-    console.log('  │  window.JSHunter.JSFILE.runScan(3)   Full (all scripts)    │');
-    console.log('  └────────────────────────────────────────────────────────────┘');
+    console.log('  ┌─ PATTERN SCAN (53 vulnerability classes) ─────────────────────────┐');
+    console.log('  │  window.JSHunter.JSFILE.runScan(1)   Instant (inline only)       │');
+    console.log('  │  window.JSHunter.JSFILE.runScan(2)   Fast (~15s)                 │');
+    console.log('  │  window.JSHunter.JSFILE.runScan(3)   Full (all scripts)          │');
+    console.log('  └──────────────────────────────────────────────────────────────────┘');
     console.log('');
-    console.log('  ┌─ SECURITY AUDIT (20 modules) ──────────────────────────────┐');
-    console.log('  │  await window.JSHunter.JSFILE.fullAudit()   Run everything │');
-    console.log('  │                                                             │');
-    console.log('  │  window.JSHunter.JSFILE.csp()         CSP analysis          │');
-    console.log('  │  window.JSHunter.JSFILE.cookies()     Cookie security       │');
-    console.log('  │  window.JSHunter.JSFILE.storage()     Storage scan          │');
-    console.log('  │  window.JSHunter.JSFILE.dom()         DOM XSS sinks        │');
-    console.log('  │  window.JSHunter.JSFILE.redirects()   Open redirects        │');
-    console.log('  │  window.JSHunter.JSFILE.forms()       Form hijacking        │');
-    console.log('  │  window.JSHunter.JSFILE.iframes()     iframe security       │');
-    console.log('  │  window.JSHunter.JSFILE.jsURLs()      javascript: URIs      │');
-    console.log('  │  window.JSHunter.JSFILE.sri()         Subresource integrity │');
-    console.log('  │  window.JSHunter.JSFILE.thirdParty()  3rd-party risk score  │');
-    console.log('  │  window.JSHunter.JSFILE.urls()        URL/endpoint extract  │');
-    console.log('  │  window.JSHunter.JSFILE.graph()       Dependency graph      │');
-    console.log('  │  window.JSHunter.JSFILE.mixed()       Mixed content         │');
-    console.log('  │  window.JSHunter.JSFILE.clobbering()  DOM clobbering        │');
-    console.log('  │  window.JSHunter.JSFILE.ws()          WebSocket audit       │');
-    console.log('  │  window.JSHunter.JSFILE.permissions() Permission monitor    │');
-    console.log('  │  window.JSHunter.JSFILE.diff()        Scan comparison       │');
-    console.log('  │  window.JSHunter.JSFILE.exploits()    Exploit payloads      │');
-    console.log('  │  window.JSHunter.JSFILE.monitor(cb)   DOM mutation watch    │');
-    console.log('  │  window.JSHunter.JSFILE.report()      Download HTML report  │');
-    console.log('  └────────────────────────────────────────────────────────────┘');
+    console.log('  ┌─ SECURITY AUDIT (20 modules) ────────────────────────────────────┐');
+    console.log('  │  await window.JSHunter.JSFILE.fullAudit()   Run everything       │');
+    console.log('  │                                                                   │');
+    console.log('  │  DOM:     dom  redirects  forms  iframes  jsURLs  clobbering     │');
+    console.log('  │  Headers: csp  mixed  ws  sri  permissions                        │');
+    console.log('  │  Storage: cookies  storage                                        │');
+    console.log('  │  Intel:   thirdParty  urls  graph  diff  exploits                 │');
+    console.log('  │  Monitor: monitor(cb)  stopMonitor                                │');
+    console.log('  └──────────────────────────────────────────────────────────────────┘');
     console.log('');
-    console.log('  ┌─ UTILITIES ────────────────────────────────────────────────┐');
-    console.log('  │  window.JSHunter.JSFILE.features      List all features    │');
-    console.log('  │  window.JSHunter.searchVulnerability(type)  Search by class │');
-    console.log('  │  window.JSHunter.getSourceCode(file, line)  View context    │');
-    console.log('  │  window.JSHunter.getFixSuggestions(type)    Fix guidance    │');
-    console.log('  │  window.FULL_AUDIT    Results from fullAudit()              │');
-    console.log('  │  window.INSTANT_REPORT    Instant scan results              │');
-    console.log('  │  window.HUNT_REPORT       Fast scan results                 │');
-    console.log('  └────────────────────────────────────────────────────────────┘');
+    console.log('  ┌─ NEW CLASSES (53 total) ─────────────────────────────────────────┐');
+    console.log('  │  OAuth/OIDC  NoSQLi  Mass Assignment  Type Coercion  Sandbox    │');
+    console.log('  │  GraphQL  XXE  File Download  PostMessage  Timing  Header Inj   │');
+    console.log('  │  Business Logic  ReDoS  CORS Reflect  Password Reset  SSI       │');
+    console.log('  │  Memory Safety  Log Injection  Client Redirect  SRI Bypass      │');
+    console.log('  └──────────────────────────────────────────────────────────────────┘');
+    console.log('');
+    console.log('  ┌─ EXPORT ─────────────────────────────────────────────────────────┐');
+    console.log('  │  window.JSHunter.JSFILE.exportJSON()    Download as JSON         │');
+    console.log('  │  window.JSHunter.JSFILE.exportCSV()     Download as CSV          │');
+    console.log('  │  window.JSHunter.JSFILE.exportMD()      Download as Markdown     │');
+    console.log('  │  window.JSHunter.JSFILE.report()        Download as HTML          │');
+    console.log('  └──────────────────────────────────────────────────────────────────┘');
+    console.log('');
+    console.log('  ┌─ UTILITIES ──────────────────────────────────────────────────────┐');
+    console.log('  │  window.JSHunter.JSFILE.features      List all features          │');
+    console.log('  │  window.JSHunter.searchVulnerability(type)  Search by class      │');
+    console.log('  │  window.JSHunter.getSourceCode(file, line)  View context         │');
+    console.log('  │  window.JSHunter.getFixSuggestions(type)    Fix guidance          │');
+    console.log('  │  window.FULL_AUDIT  window.INSTANT_REPORT  window.HUNT_REPORT    │');
+    console.log('  └──────────────────────────────────────────────────────────────────┘');
     console.log('');
 
     // Restore full silence after menu display
