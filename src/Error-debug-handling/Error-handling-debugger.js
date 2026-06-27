@@ -397,104 +397,44 @@
       return false;
     },
 
-    // Check if property is a browser native
+    // Check if property is a browser native (using Set for O(1) lookup)
+    _browserNativesSet: null,
     isBrowserNative: function(prop) {
       if (!config.excludeBrowserNatives) return false;
-      const browserNatives = [
-        'Event', 'Element', 'HTMLElement', 'Node', 'Document', 'Window',
-        'HTMLDocument', 'DocumentFragment', 'Text', 'Comment', 'Attr',
-        'NamedNodeMap', 'NodeList', 'HTMLCollection', 'DOMTokenList',
-        'CSSStyleDeclaration', 'CSSRule', 'CSSStyleSheet', 'MediaList',
-        'StyleSheetList', 'DOMImplementation', 'XMLHttpRequest', 'Fetch',
-        'WebSocket', 'EventTarget', 'AbortController', 'AbortSignal',
-        'Blob', 'File', 'FileReader', 'FormData', 'URL', 'URLSearchParams',
-        'Headers', 'Request', 'Response', 'ReadableStream', 'WritableStream',
-        'TransformStream', 'MessageChannel', 'MessagePort', 'BroadcastChannel',
-        'SharedWorker', 'Worker', 'ServiceWorker', 'Cache', 'CacheStorage',
-        'IndexedDB', 'IDBFactory', 'IDBDatabase', 'IDBObjectStore', 'IDBIndex',
-        'IDBKeyRange', 'IDBCursor', 'IDBTransaction', 'IDBRequest', 'IDBOpenDBRequest',
-        'Storage', 'localStorage', 'sessionStorage', 'Navigator', 'Location',
-        'History', 'Screen', 'Performance', 'PerformanceEntry', 'PerformanceMark',
-        'PerformanceMeasure', 'PerformanceNavigation', 'PerformanceTiming',
-        'PerformanceObserver', 'PerformanceObserverEntryList', 'Console',
-        'console', 'Math', 'Date', 'RegExp', 'Error', 'EvalError', 'RangeError',
-        'ReferenceError', 'SyntaxError', 'TypeError', 'URIError', 'JSON',
-        'Array', 'Object', 'Function', 'Boolean', 'Number', 'String', 'Symbol',
-        'Map', 'Set', 'WeakMap', 'WeakSet', 'Promise', 'Proxy', 'Reflect',
-        'Intl', 'WebAssembly', 'Atomics', 'SharedArrayBuffer', 'ArrayBuffer',
-        'DataView', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Int8Array',
-        'Int16Array', 'Int32Array', 'Float32Array', 'Float64Array', 'BigInt64Array',
-        'BigUint64Array', 'Generator', 'GeneratorFunction', 'AsyncFunction',
-        'Iterator', 'AsyncIterator', 'MediaQueryList', 'ResizeObserver',
-        'IntersectionObserver', 'MutationObserver', 'PerformanceObserver',
-        'ReportingObserver', 'VisualViewport', 'DeviceOrientationEvent',
-        'DeviceMotionEvent', 'Geolocation', 'GeolocationPosition',
-        'GeolocationPositionError', 'Notification', 'PushManager', 'PushSubscription',
-        'ServiceWorkerRegistration', 'ServiceWorkerContainer', 'PeriodicSyncManager',
-        'BackgroundFetchManager', 'ContentIndex', 'Bluetooth', 'USB', 'HID',
-        'Serial', 'WebOTP', 'Credential', 'CredentialsContainer', 'PasswordCredential',
-        'FederatedCredential', 'PublicKeyCredential', 'AuthenticatorAssertionResponse',
-        'AuthenticatorAttestationResponse', 'PaymentRequest', 'PaymentResponse',
-        'PaymentAddress', 'PaymentMethodChangeEvent', 'MerchantValidationEvent',
-        'CanMakePaymentEvent', 'WebAuthn', 'Crypto', 'SubtleCrypto', 'CryptoKey',
-        'RandomSource', 'MediaDevices', 'MediaStream', 'MediaStreamTrack',
-        'MediaStreamTrackEvent', 'RTCConfiguration', 'RTCPeerConnection',
-        'RTCSessionDescription', 'RTCIceCandidate', 'RTCDataChannel',
-        'RTCDataChannelEvent', 'RTCDTMFSender', 'RTCDTMFToneChangeEvent',
-        'RTCStatsReport', 'RTCIceCandidatePair', 'RTCIceCandidateStats',
-        'RTCInboundRTPStreamStats', 'RTCOutboundRTPStreamStats', 'RTCRemoteInboundRtpStreamStats',
-        'RTCRemoteOutboundRtpStreamStats', 'RTCTransportStats', 'RTCIceServerStats',
-        'RTCMediaHandlerStats', 'RTCMediaStreamStats', 'RTCMediaStreamTrackStats',
-        'RTCCodecStats', 'RTCDataChannelStats', 'WebRTC', 'Canvas', 'CanvasRenderingContext2D',
-        'ImageBitmap', 'ImageData', 'Path2D', 'TextMetrics', 'OffscreenCanvas',
-        'WebGLRenderingContext', 'WebGL2RenderingContext', 'WebGLContextEvent',
-        'WebGLShader', 'WebGLProgram', 'WebGLBuffer', 'WebGLFramebuffer',
-        'WebGLRenderbuffer', 'WebGLTexture', 'WebGLUniformLocation', 'WebGLVertexArrayObject',
-        'WebGLSampler', 'WebGLSync', 'WebGLQuery', 'WebGLTransformFeedback',
-        'EXT_texture_filter_anisotropic', 'OES_vertex_array_object', 'WEBGL_debug_renderer_info',
-        'WEBGL_debug_shaders', 'WEBGL_lose_context', 'ANGLE_instanced_arrays',
-        'OES_element_index_uint', 'OES_texture_float', 'OES_texture_half_float',
-        'OES_standard_derivatives', 'EXT_frag_depth', 'EXT_shader_texture_lod',
-        'EXT_sRGB', 'WEBGL_color_buffer_float', 'WEBGL_compressed_texture_s3tc',
-        'WEBGL_compressed_texture_etc1', 'WEBGL_compressed_texture_pvrtc',
-        'WEBGL_compressed_texture_astc', 'EXT_color_buffer_half_float',
-        'WEBGL_compressed_texture_s3tc_srgb', 'WEBGL_depth_texture',
-        'OES_texture_float_linear', 'OES_texture_half_float_linear',
-        'EXT_blend_minmax', 'EXT_float_blend', 'WEBGL_compressed_texture_etc',
-        'KHR_parallel_shader_compile', 'EXT_disjoint_timer_query_webgl2',
-        'EXT_disjoint_timer_query', 'EXT_texture_norm16', 'WEBGL_multi_draw',
-        'OES_draw_buffers_indexed', 'EXT_clip_control', 'OES_fbo_render_mipmap',
-        'EXT_texture_compression_bptc', 'EXT_texture_compression_rgtc',
-
-        // Modern Web APIs (2024+)
-        'Clipboard', 'ClipboardItem', 'Permissions', 'PermissionStatus',
-        'WakeLock', 'WakeLockSentinel', 'ScreenWakeLock', 'FileSystemHandle',
-        'FileSystemFileHandle', 'FileSystemDirectoryHandle', 'FileSystemWritableFileStream',
-        'OriginPrivateFileSystem', 'StorageManager', 'NavigatorUAData',
-        'UserActivation', 'Scheduler', 'TaskController', 'TaskSignal',
-        'TaskPriorityChangeEvent', 'CompressionStream', 'DecompressionStream',
-        'TextEncoderStream', 'TextDecoderStream', 'WebTransport', 'WebTransportBidirectionalStream',
-        'WebTransportDatagramDuplexStream', 'WebTransportReceiveStream', 'WebTransportSendStream',
-        'EyeDropper', 'FontFace', 'FontFaceSet', 'FontFaceSetLoadEvent',
-        'CSSFontFaceRule', 'CSSCounterStyleRule', 'CSSKeyframesRule', 'CSSKeyframeRule',
-        'CSSPageRule', 'CSSMarginRule', 'CSSNamespaceRule', 'CSSImportRule',
-        'CSSGroupingRule', 'CSSConditionRule', 'CSSMediaRule', 'CSSSupportsRule',
-        'CSSContainerRule', 'CSSStartingStyleRule', 'CSSNestedDeclarations',
-        'CSSPropertyRule', 'CSSLayerBlockRule', 'CSSLayerStatementRule',
-        'CSSScopeRule', 'CSSFontFeatureValuesRule', 'CSSFontPaletteValuesRule',
-        'Animation', 'AnimationEvent', 'AnimationPlaybackEvent', 'KeyframeEffect',
-        'ScrollTimeline', 'ViewTimeline', 'CSSAnimation', 'CSSTransition',
-        'TransitionEvent', 'CustomElementRegistry', 'ShadowRoot', 'HTMLSlotElement',
-        'HTMLTemplateElement', 'HTMLDialogElement', 'HTMLDetailsElement', 'HTMLSummaryElement',
-        'PopoverInvokerElement', 'ToggleEvent', 'BeforeToggleEvent',
-        'TrustedHTML', 'TrustedScript', 'TrustedScriptURL',
-        'TrustedTypePolicy', 'TrustedTypePolicyFactory', 'Sanitizer', 'Worklet',
-        'PaintWorklet', 'LayoutWorklet', 'AnimationWorklet', 'AudioWorklet',
-        'AudioWorkletNode', 'AudioWorkletProcessor', 'CookieStore', 'CookieStoreManager',
-        'CookieChangeEvent', 'BackgroundFetchRegistration', 'BackgroundFetchManager',
-        'PeriodicSyncManager', 'ContentIndex', 'ContentIndexEvent'
-      ];
-      return browserNatives.includes(prop) || prop.startsWith('webkit') ||
+      if (!this._browserNativesSet) {
+        this._browserNativesSet = new Set([
+          'Event', 'Element', 'HTMLElement', 'Node', 'Document', 'Window',
+          'HTMLDocument', 'DocumentFragment', 'Text', 'Comment', 'Attr',
+          'NamedNodeMap', 'NodeList', 'HTMLCollection', 'DOMTokenList',
+          'CSSStyleDeclaration', 'CSSRule', 'CSSStyleSheet', 'MediaList',
+          'StyleSheetList', 'DOMImplementation', 'XMLHttpRequest', 'Fetch',
+          'WebSocket', 'EventTarget', 'AbortController', 'AbortSignal',
+          'Blob', 'File', 'FileReader', 'FormData', 'URL', 'URLSearchParams',
+          'Headers', 'Request', 'Response', 'ReadableStream', 'WritableStream',
+          'TransformStream', 'MessageChannel', 'MessagePort', 'BroadcastChannel',
+          'SharedWorker', 'Worker', 'ServiceWorker', 'Cache', 'CacheStorage',
+          'Storage', 'localStorage', 'sessionStorage', 'Navigator', 'Location',
+          'History', 'Screen', 'Performance', 'Console', 'console',
+          'Math', 'Date', 'RegExp', 'Error', 'JSON', 'Array', 'Object',
+          'Function', 'Boolean', 'Number', 'String', 'Symbol', 'Map', 'Set',
+          'WeakMap', 'WeakSet', 'Promise', 'Proxy', 'Reflect', 'Intl',
+          'WebAssembly', 'ArrayBuffer', 'DataView', 'JSON', 'Intl',
+          'Generator', 'GeneratorFunction', 'AsyncFunction',
+          'MutationObserver', 'ResizeObserver', 'IntersectionObserver',
+          'Notification', 'Crypto', 'SubtleCrypto', 'CryptoKey',
+          'MediaDevices', 'MediaStream', 'MediaStreamTrack',
+          'RTCPeerConnection', 'RTCSessionDescription', 'RTCIceCandidate',
+          'CanvasRenderingContext2D', 'Path2D', 'TextMetrics',
+          'WebGLRenderingContext', 'WebGL2RenderingContext',
+          'Clipboard', 'ClipboardItem', 'Permissions', 'PermissionStatus',
+          'WakeLock', 'FileSystemHandle', 'StorageManager',
+          'CompressionStream', 'DecompressionStream',
+          'FontFace', 'FontFaceSet', 'CustomElementRegistry', 'ShadowRoot',
+          'TrustedHTML', 'TrustedScript', 'TrustedScriptURL',
+          'CookieStore', 'CookieStoreManager'
+        ]);
+      }
+      return this._browserNativesSet.has(prop) || prop.startsWith('webkit') ||
              prop.startsWith('moz') || prop.startsWith('ms') || prop.startsWith('o');
     },
 
@@ -1423,27 +1363,24 @@
 
     function checkStorageItem(key, value, storageType, keywords) {
       const keyLower = key.toLowerCase();
-      const valueLower = value.toLowerCase();
+      const valLower = value.toLowerCase();
 
       for (const keyword of keywords) {
-        if (keyLower.includes(keyword) || valueLower.includes(keyword)) {
-          // Additional validation for tokens
+        if (keyLower.includes(keyword) || valLower.includes(keyword)) {
           if (keyword === 'token' || keyword === 'key' || keyword === 'secret') {
-            if (!helpers.isValidToken(value)) continue; // Skip if doesn't look like a real token
+            if (!helpers.isValidToken(value)) continue;
           }
 
-          // Skip generic or placeholder values
-          const valueLower = value.toLowerCase();
-          const isGeneric = valueLower.length < 5 ||
-                          valueLower.includes('placeholder') ||
-                          valueLower.includes('example') ||
-                          valueLower.includes('test') ||
-                          valueLower.includes('sample') ||
-                          valueLower.includes('default') ||
-                          valueLower === 'null' ||
-                          valueLower === 'undefined' ||
-                          valueLower === 'true' ||
-                          valueLower === 'false';
+          const isGeneric = valLower.length < 5 ||
+                          valLower.includes('placeholder') ||
+                          valLower.includes('example') ||
+                          valLower.includes('test') ||
+                          valLower.includes('sample') ||
+                          valLower.includes('default') ||
+                          valLower === 'null' ||
+                          valLower === 'undefined' ||
+                          valLower === 'true' ||
+                          valLower === 'false';
 
           if (!isGeneric) {
             const finding = `[${storageType.toUpperCase()}_LEAK] Key: ${key}, Value: ${value.substring(0, config.maxStringLength)}${value.length > config.maxStringLength ? '...' : ''}`;
@@ -1482,234 +1419,21 @@
       'input[name*="secret"]', 'input[name*="auth"]', 'input[type="password"]',
       'input[type="hidden"]', 'input[name*="api"]', 'input[name*="session"]',
       'input[name*="jwt"]', 'input[name*="bearer"]', 'input[name*="credential"]',
-      'textarea[name*="config"]', 'textarea[name*="settings"]', 'textarea[name*="json"]',
-      'select[name*="env"]', 'select[name*="environment"]',
-      'input[name*="access"]',
-      'input[name*="refresh"]',
-      'input[name*="security"]',
-      'input[name*="pin"]',
-      'input[name*="passcode"]',
-      'input[name*="private"]',
-      'input[name*="settings"]',
-      'input[name*="user"]',
-      'input[name*="email"]',
-      'input[name*="login"]',
-      'textarea[name*="config"]',
-      'textarea[name*="settings"]',
-      'textarea[name*="json"]',
-      'select[name*="env"]',
-      'select[name*="environment"]',
-      // Financial data
-      'input[name*="card"]',
-      'input[name*="ccnum"]',
-      'input[name*="credit"]',
-      'input[name*="debit"]',
-      'input[name*="cvc"]',
-      'input[name*="cvv"]',
-      'input[name*="iban"]',
-      'input[name*="swift"]',
-      'input[name*="routing"]',
-      'input[name*="account"]',
-
-      // Personal identifiers
-      'input[name*="ssn"]',
-      'input[name*="social"]',
-      'input[name*="nationalid"]',
-      'input[name*="passport"]',
-      'input[name*="driver"]',
-      'input[name*="license"]',
-      'input[name*="taxid"]',
-      'input[name*="nin"]', // Nigeria National Identification Number
-
-      // Security & recovery
-      'input[name*="otp"]',
-      'input[name*="2fa"]',
-      'input[name*="mfa"]',
-      'input[name*="recovery"]',
-      'input[name*="challenge"]',
-      'input[name*="securityanswer"]',
-
-      // File uploads (potential sensitive docs)
-      'input[type="file"][name*="id"]',
-      'input[type="file"][name*="document"]',
-      'input[type="file"][name*="upload"]',
-
-    // Textareas for secrets or code
-      'textarea[name*="private"]',
-      'textarea[name*="pem"]',
-      'textarea[name*="certificate"]',
-
-      // Environment and configuration
-      'input[name*="env"]',
-      'input[name*="config"]',
-      'input[name*="setting"]',
-      'input[name*="option"]',
-      'input[name*="preference"]',
-      'input[name*="profile"]',
-
-      // Database and backend
-      'input[name*="db"]',
-      'input[name*="database"]',
-      'input[name*="connection"]',
-      'input[name*="host"]',
-      'input[name*="port"]',
-      'input[name*="server"]',
-      'input[name*="endpoint"]',
-
-      // Communication and messaging
-      'input[name*="email"]',
-      'input[name*="mail"]',
-      'input[name*="message"]',
-      'input[name*="chat"]',
-      'input[name*="notification"]',
-      'input[name*="alert"]',
-
-      // User identification
-      'input[name*="userid"]',
-      'input[name*="user_id"]',
-      'input[name*="customer"]',
-      'input[name*="client"]',
-      'input[name*="member"]',
-      'input[name*="subscriber"]',
-
-      // Content and media
-      'input[name*="file"]',
-      'input[name*="upload"]',
-      'input[name*="media"]',
-      'input[name*="image"]',
-      'input[name*="video"]',
-      'input[name*="audio"]',
-
-      // Location and geographic
-      'input[name*="location"]',
-      'input[name*="address"]',
-      'input[name*="geo"]',
-      'input[name*="latitude"]',
-      'input[name*="longitude"]',
-      'input[name*="zip"]',
-      'input[name*="postal"]',
-
-      // Time and scheduling
-      'input[name*="time"]',
-      'input[name*="date"]',
-      'input[name*="schedule"]',
-      'input[name*="event"]',
-      'input[name*="calendar"]',
-
-      // Commerce and transactions
-      'input[name*="order"]',
-      'input[name*="transaction"]',
-      'input[name*="payment"]',
-      'input[name*="invoice"]',
-      'input[name*="billing"]',
-      'input[name*="subscription"]',
-
-      // Analytics and tracking
-      'input[name*="analytics"]',
-      'input[name*="tracking"]',
-      'input[name*="metric"]',
-      'input[name*="statistic"]',
-      'input[name*="report"]',
-
-      // Security and compliance
-      'input[name*="security"]',
-      'input[name*="audit"]',
-      'input[name*="log"]',
-      'input[name*="trace"]',
-      'input[name*="monitor"]',
-      'input[name*="compliance"]',
-
-      // Development and testing
-      'input[name*="dev"]',
-      'input[name*="test"]',
-      'input[name*="staging"]',
-      'input[name*="qa"]',
-      'input[name*="demo"]',
-      'input[name*="sandbox"]',
-
-      // International and localization
-      'input[name*="lang"]',
-      'input[name*="locale"]',
-      'input[name*="country"]',
-      'input[name*="region"]',
-      'input[name*="language"]',
-
-      // Performance and optimization
-      'input[name*="cache"]',
-      'input[name*="performance"]',
-      'input[name*="optimization"]',
-      'input[name*="speed"]',
-      'input[name*="latency"]',
-
-      // Integration and third-party
-      'input[name*="integration"]',
-      'input[name*="webhook"]',
-      'input[name*="callback"]',
-      'input[name*="oauth"]',
-      'input[name*="sso"]',
-      'input[name*="federation"]',
-
-      // Content management
-      'input[name*="content"]',
-      'input[name*="article"]',
-      'input[name*="post"]',
-      'input[name*="page"]',
-      'input[name*="blog"]',
-      'input[name*="news"]',
-
-      // Search and discovery
-      'input[name*="search"]',
-      'input[name*="query"]',
-      'input[name*="filter"]',
-      'input[name*="sort"]',
-      'input[name*="tag"]',
-      'input[name*="category"]',
-
-      // Social and community
-      'input[name*="social"]',
-      'input[name*="community"]',
-      'input[name*="group"]',
-      'input[name*="team"]',
-      'input[name*="friend"]',
-      'input[name*="follower"]',
-
-      // Mobile and device
-      'input[name*="mobile"]',
-      'input[name*="device"]',
-      'input[name*="app"]',
-      'input[name*="platform"]',
-      'input[name*="os"]',
-      'input[name*="browser"]',
-
-      // Advanced selectors for complex patterns
-      'input[placeholder*="token"]',
-      'input[placeholder*="key"]',
-      'input[placeholder*="secret"]',
-      'input[placeholder*="password"]',
-      'input[data-testid*="auth"]',
-      'input[data-cy*="login"]',
-      'input[aria-label*="password"]',
-      'input[aria-label*="token"]',
-
-      // Form-specific patterns
-      'form[action*="auth"] input',
-      'form[action*="login"] input',
+      'textarea[name*="config"]', 'textarea[name*="json"]',
+      'input[name*="private"]', 'input[name*="otp"]', 'input[name*="2fa"]',
+      'input[name*="mfa"]', 'input[name*="recovery"]', 'input[name*="pin"]',
+      'input[name*="card"]', 'input[name*="ccnum"]', 'input[name*="cvv"]',
+      'input[name*="cvc"]', 'input[name*="ssn"]', 'input[name*="passport"]',
+      'input[name*="db"]', 'input[name*="database"]', 'input[name*="connection"]',
+      'input[name*="host"]', 'input[name*="server"]', 'input[name*="endpoint"]',
+      'input[name*="webhook"]', 'input[name*="oauth"]', 'input[name*="sso"]',
+      'input[placeholder*="token"]', 'input[placeholder*="key"]',
+      'input[placeholder*="secret"]', 'input[placeholder*="password"]',
+      'input[aria-label*="password"]', 'input[aria-label*="token"]',
+      'form[action*="auth"] input', 'form[action*="login"] input',
       'form[method="post"] input[name*="credential"]',
-      'form[action*="api"] input',
-
-      // Dynamic content patterns
-      'input[ng-model*="token"]',
-      'input[v-model*="key"]',
-      'input[react-data*="secret"]',
-
-      // Legacy and uncommon patterns
-      'input[name*="legacy"]',
-      'input[name*="deprecated"]',
-      'input[name*="old"]',
-      'input[name*="backup"]',
-      'input[name*="temp"]',
-      'input[name*="tmp"]'
-
+      'textarea[name*="private"]', 'textarea[name*="pem"]',
+      'input[name*="ssh"]', 'input[name*="gpg"]', 'input[name*="pgp"]'
     ];
 
     sensitiveSelectors.forEach(selector => {
@@ -1786,48 +1510,14 @@
     const sensitiveDataAttrs = [
       'data-token', 'data-key', 'data-secret', 'data-password', 'data-auth',
       'data-api', 'data-session', 'data-jwt', 'data-bearer', 'data-credential',
-      'data-user', 'data-email', 'data-private', 'data-internal', 'data-config',
-      'data-setting', 'data-env', 'data-environment', 'data-db', 'data-database',
-      'data-connection', 'data-host', 'data-server', 'data-endpoint', 'data-webhook',
-      'data-callback', 'data-oauth', 'data-sso', 'data-federation', 'data-cache',
-      'data-performance', 'data-metric', 'data-analytic', 'data-tracking',
-      'data-report', 'data-log', 'data-trace', 'data-monitor', 'data-audit',
-      'data-compliance', 'data-security', 'data-dev', 'data-test', 'data-staging',
-      'data-qa', 'data-demo', 'data-sandbox', 'data-lang', 'data-locale',
-      'data-country', 'data-region', 'data-mobile', 'data-device', 'data-app',
-      'data-platform', 'data-os', 'data-browser', 'data-file', 'data-upload',
-      'data-media', 'data-image', 'data-video', 'data-audio', 'data-location',
-      'data-address', 'data-geo', 'data-latitude', 'data-longitude', 'data-zip',
-      'data-postal', 'data-time', 'data-date', 'data-schedule', 'data-event',
-      'data-calendar', 'data-order', 'data-transaction', 'data-payment',
-      'data-invoice', 'data-billing', 'data-subscription', 'data-content',
-      'data-article', 'data-post', 'data-page', 'data-blog', 'data-news',
-      'data-search', 'data-query', 'data-filter', 'data-sort', 'data-tag',
-      'data-category', 'data-social', 'data-community', 'data-group', 'data-team',
-      'data-friend', 'data-follower', 'data-legacy', 'data-deprecated', 'data-old',
-      'data-backup', 'data-temp', 'data-tmp', 'data-card', 'data-ccnum', 'data-cvc',
-      'data-cvv', 'data-iban', 'data-swift', 'data-routing', 'data-account',
-      'data-ssn', 'data-social-security', 'data-national-id', 'data-passport',
-      'data-driver-license', 'data-tax-id', 'data-nin', 'data-otp', 'data-2fa',
-      'data-mfa', 'data-recovery', 'data-challenge', 'data-security-answer',
-      'data-id', 'data-document', 'data-certificate', 'data-pem', 'data-private-key',
-      'data-public-key', 'data-signature', 'data-hash', 'data-checksum', 'data-fingerprint',
-      'data-thumbprint', 'data-digest', 'data-mac', 'data-hmac', 'data-encryption',
-      'data-decryption', 'data-cipher', 'data-keypair', 'data-certificate-chain',
-      'data-truststore', 'data-keystore', 'data-wallet', 'data-seed', 'data-mnemonic',
-      'data-passphrase', 'data-pin', 'data-code', 'data-verification', 'data-confirmation',
-      'data-reset', 'data-activation', 'data-registration', 'data-signup', 'data-onboarding',
-      'data-verification-token', 'data-reset-token', 'data-access-token', 'data-refresh-token',
-      'data-bearer-token', 'data-auth-token', 'data-session-token', 'data-csrf-token',
-      'data-xsrf-token', 'data-nonce', 'data-state', 'data-code-challenge', 'data-code-verifier',
-      'data-client-id', 'data-client-secret', 'data-app-id', 'data-app-secret', 'data-consumer-key',
-      'data-consumer-secret', 'data-access-key', 'data-secret-key', 'data-api-key', 'data-api-secret',
-      'data-webhook-secret', 'data-signing-key', 'data-verification-key', 'data-encryption-key',
-      'data-decryption-key', 'data-master-key', 'data-root-key', 'data-private-key-pem',
-      'data-public-key-pem', 'data-certificate-pem', 'data-ca-certificate', 'data-intermediate-certificate',
-      'data-leaf-certificate', 'data-ssl-certificate', 'data-tls-certificate', 'data-ssh-key',
-      'data-ssh-public-key', 'data-ssh-private-key', 'data-gpg-key', 'data-gpg-public-key',
-      'data-gpg-private-key', 'data-pgp-key', 'data-pgp-public-key', 'data-pgp-private-key'
+      'data-private', 'data-internal', 'data-config', 'data-env', 'data-db',
+      'data-database', 'data-connection', 'data-host', 'data-server', 'data-endpoint',
+      'data-webhook', 'data-oauth', 'data-sso', 'data-access-key', 'data-secret-key',
+      'data-api-key', 'data-api-secret', 'data-client-id', 'data-client-secret',
+      'data-app-id', 'data-app-secret', 'data-signing-key', 'data-encryption-key',
+      'data-master-key', 'data-private-key', 'data-public-key', 'data-certificate',
+      'data-ssh-key', 'data-gpg-key', 'data-wallet', 'data-seed', 'data-mnemonic',
+      'data-passphrase', 'data-otp', 'data-csrf-token', 'data-xsrf-token'
     ];
 
     allElements.forEach((el, index) => {
@@ -3837,6 +3527,470 @@
       console.log("📄 Full findings object:", summary);
       return summary;
     },
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕 20 NEW FEATURES
+    // ═══════════════════════════════════════════════════════════════════
+
+    // 1. CSP Analysis
+    analyzeCSP: function() {
+      const results = [];
+      const metaTags = document.querySelectorAll('meta[http-equiv]');
+      let cspContent = null;
+      metaTags.forEach(meta => {
+        if (meta.getAttribute('http-equiv')?.toLowerCase() === 'content-security-policy') {
+          cspContent = meta.getAttribute('content') || '';
+        }
+      });
+      if (!cspContent) {
+        results.push({ severity: 'HIGH', finding: 'No Content-Security-Policy meta tag found' });
+      } else {
+        if (cspContent.includes("'unsafe-inline'")) results.push({ severity: 'CRITICAL', finding: "CSP allows 'unsafe-inline'" });
+        if (cspContent.includes("'unsafe-eval'")) results.push({ severity: 'CRITICAL', finding: "CSP allows 'unsafe-eval'" });
+        if (cspContent.includes('frame-ancestors *')) results.push({ severity: 'HIGH', finding: 'CSP frame-ancestors allows all origins' });
+      }
+      return results;
+    },
+
+    // 2. Cookie Security Audit
+    auditCookies: function() {
+      const results = [];
+      const cookies = document.cookie.split(';').map(c => c.trim()).filter(Boolean);
+      cookies.forEach(cookie => {
+        const [name] = cookie.split('=');
+        if (name && !cookie.includes('Secure')) results.push({ severity: 'MEDIUM', finding: `Cookie "${name}" missing Secure flag` });
+        if (name && !cookie.includes('HttpOnly')) results.push({ severity: 'MEDIUM', finding: `Cookie "${name}" missing HttpOnly flag` });
+        if (name && !cookie.includes('SameSite')) results.push({ severity: 'LOW', finding: `Cookie "${name}" missing SameSite attribute` });
+      });
+      return results;
+    },
+
+    // 3. Storage Security Scan
+    auditStorage: function() {
+      const results = [];
+      const sensitivePatterns = [/token/i, /jwt/i, /secret/i, /password/i, /key/i, /auth/i];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          const value = localStorage.getItem(key) || '';
+          if (sensitivePatterns.some(p => p.test(key)) && value.length > 10) {
+            results.push({ severity: 'HIGH', finding: `localStorage: ${key} contains sensitive data (${value.length} chars)` });
+          }
+        }
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          const value = sessionStorage.getItem(key) || '';
+          if (sensitivePatterns.some(p => p.test(key)) && value.length > 10) {
+            results.push({ severity: 'MEDIUM', finding: `sessionStorage: ${key} contains sensitive data (${value.length} chars)` });
+          }
+        }
+      } catch (e) { /* storage blocked */ }
+      return results;
+    },
+
+    // 4. Source Map Exposure Check
+    checkSourceMaps: function() {
+      const results = [];
+      const scripts = document.querySelectorAll('script[src]');
+      scripts.forEach(script => {
+        const src = script.src || '';
+        if (src.includes('.map') || src.endsWith('.map')) {
+          results.push({ severity: 'HIGH', finding: `Sourcemap exposed: ${src}` });
+        }
+        if (src.includes('sourceMappingURL')) {
+          results.push({ severity: 'HIGH', finding: `sourceMappingURL in script src: ${src}` });
+        }
+      });
+      return results;
+    },
+
+    // 5. Framework Detection
+    detectFrameworks: function() {
+      const detected = [];
+      if (window.React || document.querySelector('[data-reactroot]')) detected.push('React');
+      if (window.__VUE_DEVTOOLS_GLOBAL_HOOK__ || window.Vue) detected.push('Vue');
+      if (window.ng || document.querySelector('[ng-version]')) detected.push('Angular');
+      if (window.__NEXT_DATA__) detected.push('Next.js');
+      if (window.__NUXT__) detected.push('Nuxt');
+      if (window.Ember) detected.push('Ember');
+      if (window.Backbone) detected.push('Backbone');
+      if (window.jQuery || window.$) detected.push('jQuery');
+      if (window.__REDUX_DEVTOOLS_EXTENSION__) detected.push('Redux DevTools');
+      if (window.__REACT_DEVTOOLS_GLOBAL_HOOK__) detected.push('React DevTools');
+      return detected;
+    },
+
+    // 6. Third-Party Script Analysis
+    analyzeThirdParty: function() {
+      const results = [];
+      const scripts = document.querySelectorAll('script[src]');
+      scripts.forEach(script => {
+        const src = script.src || '';
+        try {
+          const url = new URL(src, window.location.origin);
+          if (url.origin !== window.location.origin) {
+            const hasIntegrity = script.hasAttribute('integrity');
+            results.push({
+              severity: hasIntegrity ? 'LOW' : 'MEDIUM',
+              finding: `Third-party script: ${url.hostname}${hasIntegrity ? ' (has SRI)' : ' (NO SRI)'}`
+            });
+          }
+        } catch (e) { /* malformed URL */ }
+      });
+      return results;
+    },
+
+    // 7. Exposed Debug Endpoints
+    checkDebugEndpoints: function() {
+      const results = [];
+      const endpoints = ['/debug', '/console', '/admin', '/phpinfo', '/server-status',
+        '/actuator', '/trace', '/metrics', '/swagger', '/api-docs', '/graphql',
+        '/.env', '/config', '/backup', '/dump', '/info', '/env'];
+      const scripts = document.querySelectorAll('script');
+      scripts.forEach(script => {
+        const content = script.textContent || '';
+        endpoints.forEach(ep => {
+          if (content.includes(ep)) {
+            results.push({ severity: 'HIGH', finding: `Debug endpoint "${ep}" found in script` });
+          }
+        });
+      });
+      return results;
+    },
+
+    // 8. Hardcoded Secrets Scan
+    scanHardcodedSecrets: function() {
+      const results = [];
+      const patterns = [
+        { regex: /AKIA[0-9A-Z]{16}/, name: 'AWS Access Key' },
+        { regex: /sk_live_[0-9a-zA-Z_-]{20,}/, name: 'Stripe Live Key' },
+        { regex: /sk_test_[0-9a-zA-Z_-]{20,}/, name: 'Stripe Test Key' },
+        { regex: /ghp_[0-9a-zA-Z]{36}/, name: 'GitHub PAT' },
+        { regex: /glpat-[0-9a-zA-Z_-]{20,}/, name: 'GitLab PAT' },
+        { regex: /AIza[0-9A-Za-z-_]{35}/, name: 'Google API Key' },
+        { regex: /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/, name: 'JWT Token' },
+        { regex: /-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----/, name: 'Private Key' },
+        { regex: /mongodb:\/\/[^:]+:[^@]+@[^/]+/, name: 'MongoDB Connection' },
+        { regex: /mysql:\/\/[^:]+:[^@]+@[^/]+/, name: 'MySQL Connection' },
+        { regex: /postgresql:\/\/[^:]+:[^@]+@[^/]+/, name: 'PostgreSQL Connection' },
+        { regex: /redis:\/\/[^:]+:[^@]+@[^/]+/, name: 'Redis Connection' },
+        { regex: /xoxb-[0-9]{12}-[0-9]{12}-[0-9a-zA-Z]{24}/, name: 'Slack Bot Token' }
+      ];
+      const scripts = document.querySelectorAll('script');
+      scripts.forEach(script => {
+        const content = script.textContent || '';
+        patterns.forEach(({ regex, name }) => {
+          if (regex.test(content)) {
+            results.push({ severity: 'CRITICAL', finding: `Hardcoded ${name} found in script` });
+          }
+        });
+      });
+      return results;
+    },
+
+    // 9. Insecure Form Actions
+    checkFormActions: function() {
+      const results = [];
+      const forms = document.querySelectorAll('form');
+      forms.forEach((form, idx) => {
+        const action = form.getAttribute('action') || '';
+        if (action.startsWith('http://')) {
+          results.push({ severity: 'HIGH', finding: `Form #${idx} submits to HTTP: ${action}` });
+        }
+        const method = (form.getAttribute('method') || 'GET').toUpperCase();
+        if (method === 'POST') {
+          const hasCSRF = form.querySelector('input[name*="csrf"], input[name*="token"], input[name*="_token"]');
+          if (!hasCSRF) {
+            results.push({ severity: 'MEDIUM', finding: `Form #${idx} POST without CSRF token` });
+          }
+        }
+      });
+      return results;
+    },
+
+    // 10. Mixed Content Detection
+    checkMixedContent: function() {
+      const results = [];
+      if (window.location.protocol !== 'https:') return results;
+      const elements = document.querySelectorAll('script[src], link[href], img[src], iframe[src]');
+      elements.forEach(el => {
+        const url = el.src || el.href || '';
+        if (url.startsWith('http://')) {
+          results.push({ severity: 'HIGH', finding: `Mixed content: ${el.tagName} loads HTTP resource: ${url}` });
+        }
+      });
+      return results;
+    },
+
+    // 11. Service Worker Detection
+    detectServiceWorkers: function() {
+      const results = [];
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          registrations.forEach(reg => {
+            results.push({ severity: 'INFO', finding: `Service Worker active: ${reg.scope}` });
+          });
+        }).catch(() => {});
+      }
+      return results;
+    },
+
+    // 12. Window.postMessage Audit
+    auditPostMessage: function() {
+      const results = [];
+      const scripts = document.querySelectorAll('script');
+      scripts.forEach(script => {
+        const content = script.textContent || '';
+        if (content.includes('addEventListener("message"') || content.includes("addEventListener('message'")) {
+          if (!content.includes('event.origin') && !content.includes('e.origin') && !content.includes('msg.origin')) {
+            results.push({ severity: 'HIGH', finding: 'postMessage handler without origin check' });
+          }
+        }
+        if (content.includes('postMessage(') && content.includes('*, \'*\'')) {
+          results.push({ severity: 'MEDIUM', finding: 'postMessage sent with wildcard origin' });
+        }
+      });
+      return results;
+    },
+
+    // 13. Open Redirect Detection
+    checkOpenRedirects: function() {
+      const results = [];
+      const params = ['url', 'next', 'redirect', 'return', 'dest', 'continue', 'goto'];
+      const urlParams = new URLSearchParams(window.location.search);
+      params.forEach(param => {
+        const value = urlParams.get(param);
+        if (value && (value.startsWith('http://') || value.startsWith('https://'))) {
+          results.push({ severity: 'HIGH', finding: `Open redirect parameter: ${param}=${value}` });
+        }
+      });
+      return results;
+    },
+
+    // 14. Local File Inclusion Indicators
+    checkLFI: function() {
+      const results = [];
+      const scripts = document.querySelectorAll('script');
+      scripts.forEach(script => {
+        const content = script.textContent || '';
+        if (content.includes('../') || content.includes('..\\')) {
+          results.push({ severity: 'HIGH', finding: 'Path traversal pattern found in script' });
+        }
+        if (content.includes('file://') || content.includes('/etc/passwd') || content.includes('/proc/')) {
+          results.push({ severity: 'CRITICAL', finding: 'Local file inclusion pattern found' });
+        }
+      });
+      return results;
+    },
+
+    // 15. WebSocket Security
+    checkWebSocketSecurity: function() {
+      const results = [];
+      const origWS = window.WebSocket;
+      window.WebSocket = function(url, ...args) {
+        if (url.startsWith('ws://')) {
+          results.push({ severity: 'HIGH', finding: `Insecure WebSocket (ws://): ${url}` });
+        }
+        return new origWS(url, ...args);
+      };
+      window.WebSocket.prototype = origWS.prototype;
+      return results;
+    },
+
+    // 16. DOM Clobbering Check
+    checkDOMClobbering: function() {
+      const results = [];
+      const dangerousIds = ['cookie', 'domain', 'location', 'hostname', 'forms', 'body', 'head'];
+      dangerousIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          results.push({ severity: 'HIGH', finding: `Potential DOM clobbering: id="${id}" on <${el.tagName.toLowerCase()}>` });
+        }
+      });
+      return results;
+    },
+
+    // 17. Findings Severity Filter
+    filterBySeverity: function(severity) {
+      const results = [];
+      Object.keys(findings).forEach(category => {
+        findings[category].forEach(finding => {
+          if (finding.includes(severity.toUpperCase()) || finding.includes(severity)) {
+            results.push({ category, finding });
+          }
+        });
+      });
+      return results;
+    },
+
+    // 18. Get Findings Count by Category
+    getFindingsSummary: function() {
+      const summary = {};
+      let total = 0;
+      Object.keys(findings).forEach(category => {
+        summary[category] = findings[category].size;
+        total += findings[category].size;
+      });
+      summary.total = total;
+      return summary;
+    },
+
+    // 19. Search Findings
+    searchFindings: function(query) {
+      const results = [];
+      const lowerQuery = query.toLowerCase();
+      Object.keys(findings).forEach(category => {
+        findings[category].forEach(finding => {
+          if (finding.toLowerCase().includes(lowerQuery)) {
+            results.push({ category, finding });
+          }
+        });
+      });
+      return results;
+    },
+
+    // 20. Get Top N Critical Findings
+    getTopCritical: function(n = 10) {
+      const critical = [];
+      const patterns = ['VULN_P1', 'CRITICAL', 'HIGH', 'LEAK', 'EXPOSED', 'HARDCODED'];
+      Object.keys(findings).forEach(category => {
+        findings[category].forEach(finding => {
+          if (patterns.some(p => finding.includes(p))) {
+            critical.push({ category, finding });
+          }
+        });
+      });
+      return critical.slice(0, n);
+    },
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 📤 EXPORT MODES (JSON, CSV, Markdown, HTML)
+    // ═══════════════════════════════════════════════════════════════════
+
+    _downloadFile: function(content, filename, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },
+
+    _getExportData: function() {
+      const summary = this._originalViewFindings(false);
+      return {
+        tool: 'Error-Handling-Debugger v3.0',
+        url: window.location.href,
+        timestamp: new Date().toISOString(),
+        summary: {
+          total: summary.totalFindings,
+          highPriority: summary.highPriority,
+          mediumPriority: summary.mediumPriority,
+          infoFindings: summary.infoFindings,
+          counts: summary.counts
+        },
+        findings: summary
+      };
+    },
+
+    exportJSON: function() {
+      const data = this._getExportData();
+      const json = JSON.stringify(data, null, 2);
+      const hostname = window.location.hostname.replace(/[^a-z0-9]/gi, '_');
+      this._downloadFile(json, `error-debug-${hostname}-${Date.now()}.json`, 'application/json');
+      return data.summary;
+    },
+
+    exportCSV: function() {
+      const data = this._getExportData();
+      const headers = ['Category', 'Finding'];
+      const escapeCSV = (val) => {
+        const str = String(val || '');
+        return str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str.replace(/"/g, '""')}"` : str;
+      };
+      let csv = headers.join(',') + '\n';
+      Object.keys(findings).forEach(category => {
+        findings[category].forEach(finding => {
+          csv += `${escapeCSV(category)},${escapeCSV(finding)}\n`;
+        });
+      });
+      const hostname = window.location.hostname.replace(/[^a-z0-9]/gi, '_');
+      this._downloadFile(csv, `error-debug-${hostname}-${Date.now()}.csv`, 'text/csv');
+      return { total: data.summary.total };
+    },
+
+    exportMD: function() {
+      const data = this._getExportData();
+      let md = `# Error & Debug Info Report\n\n`;
+      md += `**URL:** ${window.location.href}  \n`;
+      md += `**Date:** ${data.timestamp}  \n`;
+      md += `**Tool:** Error-Handling-Debugger v3.0  \n\n`;
+      md += `## Summary\n\n`;
+      md += `| Metric | Count |\n|--------|-------|\n`;
+      md += `| Total Findings | ${data.summary.total} |\n`;
+      md += `| High Priority | ${data.summary.highPriority} |\n`;
+      md += `| Medium Priority | ${data.summary.mediumPriority} |\n`;
+      md += `| Info Findings | ${data.summary.infoFindings} |\n\n`;
+      md += `## Findings by Category\n\n`;
+      Object.keys(findings).forEach(category => {
+        if (findings[category].size > 0) {
+          md += `### ${category}\n\n`;
+          [...findings[category]].slice(0, 20).forEach((f, i) => {
+            md += `${i + 1}. ${f.substring(0, 150)}\n`;
+          });
+          if (findings[category].size > 20) {
+            md += `*...and ${findings[category].size - 20} more*\n`;
+          }
+          md += `\n`;
+        }
+      });
+      md += `---\n*Generated by Error-Handling-Debugger v3.0*\n`;
+      const hostname = window.location.hostname.replace(/[^a-z0-9]/gi, '_');
+      this._downloadFile(md, `error-debug-${hostname}-${Date.now()}.md`, 'text/markdown');
+      return { total: data.summary.total };
+    },
+
+    exportHTML: function() {
+      const data = this._getExportData();
+      let rows = '';
+      Object.keys(findings).forEach(category => {
+        [...findings[category]].slice(0, 50).forEach(f => {
+          const sev = f.includes('CRITICAL') || f.includes('P1') ? 'critical' :
+                     f.includes('HIGH') || f.includes('LEAK') ? 'high' :
+                     f.includes('MEDIUM') ? 'medium' : 'low';
+          rows += `<tr class="sev-${sev}"><td>${category}</td><td>${f.substring(0, 150)}</td></tr>\n`;
+        });
+      });
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Error Debug Report - ${window.location.hostname}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui;background:#0d1117;color:#c9d1d9;padding:20px}
+h1{color:#f0f6fc;margin-bottom:10px}table{width:100%;border-collapse:collapse;background:#161b22;border-radius:8px;overflow:hidden}
+th{background:#21262d;padding:10px 16px;text-align:left;font-size:12px;color:#8b949e;text-transform:uppercase}
+td{padding:8px 16px;border-bottom:1px solid #21262d;font-size:13px}
+tr.sev-critical{border-left:3px solid #f85149}tr.sev-high{border-left:3px solid #d29922}
+tr.sev-medium{border-left:3px solid #58a6ff}tr.sev-low{border-left:3px solid #8b949e}
+.summary{display:flex;gap:20px;margin:20px 0}.card{background:#161b22;padding:16px;border-radius:8px;text-align:center}
+.card .num{font-size:24px;font-weight:700}.card .label{font-size:12px;color:#8b949e}
+</style></head><body>
+<h1>Error & Debug Info Report</h1>
+<p>${window.location.href} | ${data.timestamp}</p>
+<div class="summary">
+<div class="card"><div class="num">${data.summary.total}</div><div class="label">Total</div></div>
+<div class="card"><div class="num" style="color:#f85149">${data.summary.highPriority}</div><div class="label">High</div></div>
+<div class="card"><div class="num" style="color:#d29922">${data.summary.mediumPriority}</div><div class="label">Medium</div></div>
+<div class="card"><div class="num" style="color:#8b949e">${data.summary.infoFindings}</div><div class="label">Info</div></div>
+</div>
+<table><thead><tr><th>Category</th><th>Finding</th></tr></thead><tbody>${rows}</tbody></table>
+<p style="margin-top:20px;color:#484f58;font-size:12px">Generated by Error-Handling-Debugger v3.0</p>
+</body></html>`;
+      const hostname = window.location.hostname.replace(/[^a-z0-9]/gi, '_');
+      this._downloadFile(html, `error-debug-${hostname}-${Date.now()}.html`, 'text/html');
+      return { total: data.summary.total };
+    }
   };
 
   console.log("✅ Enhanced monitoring initialized with comprehensive bug bounty features.");
