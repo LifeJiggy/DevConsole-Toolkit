@@ -5120,26 +5120,23 @@ tr.severity-medium{border-left:3px solid #58a6ff}
 // 🚀 ULTRA-SILENT PROFESSIONAL JAVASCRIPT VULNERABILITY HUNTER
 // Complete suppression of all console output for clean professional use
 
-// IMMEDIATE COMPLETE SILENCE - Override ALL console methods before anything else
-const originalConsoleMethods = {
-    log: console.log,
-    error: console.error,
-    warn: console.warn,
-    info: console.info,
-    debug: console.debug,
-    clear: console.clear,
-    table: console.table,
-    group: console.group,
-    groupEnd: console.groupEnd,
-    groupCollapsed: console.groupCollapsed
+// Save REAL originals BEFORE silencing
+const _realConsole = {
+    log: console.log.bind(console),
+    error: console.error.bind(console),
+    warn: console.warn.bind(console),
+    info: console.info.bind(console),
+    debug: console.debug.bind(console),
+    clear: console.clear.bind(console),
+    table: console.table.bind(console),
+    group: console.group.bind(console),
+    groupEnd: console.groupEnd.bind(console),
+    groupCollapsed: console.groupCollapsed.bind(console)
 };
 
-// Replace ALL console methods with ultra-silent versions
-Object.keys(originalConsoleMethods).forEach(key => {
-    console[key] = function(...args) {
-        // Only show menu-related messages when explicitly needed
-        return;
-    };
+// IMMEDIATE COMPLETE SILENCE - Override ALL console methods before anything else
+Object.keys(_realConsole).forEach(key => {
+    console[key] = function(...args) { return; };
 });
 
 // Override global error handlers immediately (silent mode)
@@ -5205,6 +5202,19 @@ window.JSHunter.JS = {
         }
 
         window.JS_MULTI_RESULTS = results;
+
+        // Log results summary
+        const summary = results.instant || results.fast || results.full;
+        if (summary && summary.summary) {
+            _realConsole.log('');
+            _realConsole.log('  ╔═══════════════════════════════════════════════════════════════╗');
+            _realConsole.log('  ║                    SCAN RESULTS                              ║');
+            _realConsole.log('  ╚═══════════════════════════════════════════════════════════════╝');
+            _realConsole.log(`  Total: ${summary.summary.total} | Crit: ${summary.summary.critical} | High: ${summary.summary.high} | Med/Low: ${summary.summary.mediumLow}`);
+            _realConsole.log(`  Scripts: ${summary.summary.scripts}`);
+            _realConsole.log('  Export: window.JSHunter.JSFILE.exportJSON() / exportCSV() / exportMD()');
+        }
+
         return results;
     },
 
@@ -5417,17 +5427,11 @@ setTimeout(async () => {
 
 // Show professional menu after a brief delay
 setTimeout(() => {
-    // Use a temporary console override just for the menu
-    const tempLog = console.log;
-    console.log = function(...args) {
-        // Only allow our menu messages through
-        const message = args.join(' ');
-        if (message.includes('🎯') || message.includes('📋') || message.includes('✅') ||
-            message.includes('💡') || message.includes('🔧') || message.includes('📊') ||
-            message.includes('🔍') || message.includes('📄') || message.includes('🎯')) {
-            tempLog.apply(console, args);
-        }
-    };
+    // Temporarily restore console.log for banner display only
+    console.log = _realConsole.log;
+    console.group = _realConsole.group;
+    console.groupEnd = _realConsole.groupEnd;
+    console.table = _realConsole.table;
 
     console.log('');
     console.log('  ╔═══════════════════════════════════════════════════════════════════╗');
@@ -5474,9 +5478,11 @@ setTimeout(() => {
     console.log('  └──────────────────────────────────────────────────────────────────┘');
     console.log('');
 
-    // Restore full silence after menu display
+    // Silence console after banner (5s)
     setTimeout(() => {
-        console.log = () => {};
+        Object.keys(_realConsole).forEach(key => {
+            console[key] = function(...args) { return; };
+        });
     }, 5000);
 }, 2000);
 
