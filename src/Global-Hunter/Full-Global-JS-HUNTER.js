@@ -5120,19 +5120,21 @@ tr.severity-medium{border-left:3px solid #58a6ff}
 // 🚀 ULTRA-SILENT PROFESSIONAL JAVASCRIPT VULNERABILITY HUNTER
 // Complete suppression of all console output for clean professional use
 
-// Save REAL originals BEFORE silencing
-const _realConsole = {
-    log: console.log.bind(console),
-    error: console.error.bind(console),
-    warn: console.warn.bind(console),
-    info: console.info.bind(console),
-    debug: console.debug.bind(console),
-    clear: console.clear.bind(console),
-    table: console.table.bind(console),
-    group: console.group.bind(console),
-    groupEnd: console.groupEnd.bind(console),
-    groupCollapsed: console.groupCollapsed.bind(console)
-};
+// Save REAL originals BEFORE silencing (persist on window for script reloads)
+if (!window.__jsHunterRealConsole) {
+    window.__jsHunterRealConsole = {
+        log: console.log.bind(console),
+        error: console.error.bind(console),
+        warn: console.warn.bind(console),
+        info: console.info.bind(console),
+        debug: console.debug.bind(console),
+        clear: console.clear.bind(console),
+        table: console.table.bind(console),
+        group: console.group.bind(console),
+        groupEnd: console.groupEnd.bind(console)
+    };
+}
+const _realConsole = window.__jsHunterRealConsole;
 
 // IMMEDIATE COMPLETE SILENCE - Override ALL console methods before anything else
 Object.keys(_realConsole).forEach(key => {
