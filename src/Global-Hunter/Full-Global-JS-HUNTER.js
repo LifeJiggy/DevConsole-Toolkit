@@ -1354,7 +1354,7 @@ class CompleteJSVulnHunter {
                     'if\\s*\\(\\s*origin\\s*\\)\\s*\\{[^}]*setHeader[^}]*["\']Access-Control-Allow-Origin["\']',
                     // CORS with any subdomain allowed
                     'origin\\s*:\\s*\\/\\^[\\^)]*\\$/',
-                    'origin\\s*:\\s*\\(?:req|origin)\\.replace'
+                    'origin\\s*:\\s*(?:req|origin)\\.replace'
                 ],
                 severity: 'MEDIUM',
                 description: 'CORS origin reflection - server reflects any Origin, allowing credential theft from any site'
