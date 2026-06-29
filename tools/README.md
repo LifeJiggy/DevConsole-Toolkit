@@ -2,6 +2,16 @@
 
 Core utility functions for the DevConsole Toolkit ecosystem.
 
+## Modules
+
+| File | Module | Description |
+|------|--------|-------------|
+| `utils.js` | `DCTUtils` | URL, encoding, hashing, validation, DOM, export |
+| `crypto.js` | `DCTCrypto` | AES-GCM, HMAC, PBKDF2, random bytes, timing-safe compare |
+| `dom.js` | `DCTDom` | DOM query, inspect, highlight, mutation observer |
+| `network.js` | `DCTNetwork` | Fetch wrapper, CORS analysis, mixed content, performance |
+| `analyze.js` | `DCTAnalyze` | URL/function extraction, complexity, dead code, minification |
+
 ## Usage
 
 Paste `tools/utils.js` into browser console, then use `DCTUtils.*`
