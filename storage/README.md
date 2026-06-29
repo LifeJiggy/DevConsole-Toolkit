@@ -2,6 +2,16 @@
 
 Audit, monitor, and manage browser storage (localStorage, sessionStorage, cookies).
 
+## Modules
+
+| File | Module | Description |
+|------|--------|-------------|
+| `storage.js` | `DCTStorage` | Core storage audit, monitoring, export |
+| `IndexedDB-manager.js` | `DCTIndexedDB` | Simplified IndexedDB CRUD operations |
+| `cookie-parser.js` | `DCTCookieParser` | Advanced cookie parsing and security audit |
+| `quota-monitor.js` | `DCTQuotaMonitor` | Storage quota monitoring and reporting |
+| `migrate.js` | `DCTMigrate` | Storage migration and export/import |
+
 ## Usage
 
 Paste `storage/storage.js` into browser console, then use `DCTStorage.*`
