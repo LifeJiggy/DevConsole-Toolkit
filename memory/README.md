@@ -2,6 +2,16 @@
 
 Store and recall scan results, preferences, and history across sessions.
 
+## Modules
+
+| File | Module | Description |
+|------|--------|-------------|
+| `memory.js` | `DCTMemory` | Core memory with TTL, history, preferences, export |
+| `scan-history.js` | `DCTScanHistory` | Scan history with comparison and trend analysis |
+| `user-prefs.js` | `DCTUserPrefs` | User preferences with schema validation |
+| `bookmarks.js` | `DCTBookmarks` | Bookmark and tag findings |
+| `cache.js` | `DCTCache` | LRU cache with memoization |
+
 ## Usage
 
 Paste `memory/memory.js` into browser console, then use `DCTMemory.*`
