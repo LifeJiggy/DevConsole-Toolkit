@@ -2,6 +2,16 @@
 
 Orchestrate tools, chain scans, and auto-analyze results.
 
+## Modules
+
+| File | Module | Description |
+|------|--------|-------------|
+| `agent.js` | `DCTAgent` | Core workflow engine with pre-built workflows |
+| `recon-agent.js` | `DCTReconAgent` | Automated reconnaissance (fingerprint, security, content, third-party) |
+| `vuln-agent.js` | `DCTVulnAgent` | Vulnerability scanning (XSS, secrets, misconfig, cookies, storage) |
+| `report-agent.js` | `DCTReportAgent` | Report generation (JSON, Markdown, CSV) with download |
+| `schedule-agent.js` | `DCTScheduleAgent` | Scheduled recurring tasks with pause/resume |
+
 ## Usage
 
 Paste `agents/agent.js` into browser console, then use `DCTAgent.*`
