@@ -206,35 +206,99 @@ Each tool card has a **Load Tool** button that injects the script into the curre
 DevConsole-Toolkit/
 ├── LICENSE
 ├── README.md
-├── NPM_PUBLISH_GUIDE.md
 ├── package.json
 ├── index.js
-├── .qodo/
+├── dct.js                    # CLI Launcher
+├── dashboard.js              # Unified Browser Console Dashboard
+├── agents/
+│   ├── agent.js              # Intelligent Automation Agent
+│   └── README.md
+├── rules/
+│   ├── rules.js              # Security Rules Engine
+│   └── README.md
+├── memory/
+│   ├── memory.js             # Persistent State Management
+│   └── README.md
+├── storage/
+│   ├── storage.js            # Browser Storage Manager
+│   └── README.md
+├── tools/
+│   ├── utils.js              # Utility Functions
+│   └── README.md
+├── dashboard/
+│   └── README.md
 └── src/
+    ├── Error-debug-handling/
+    ├── Global-Hunter/
     ├── Interactive-Mapping/
-    │   ├── claude-flow.js
-    │   ├── claude-README.md
-    │   ├── Qwen-flow.js
-    │   └── README-User-Action-Flow-Analyzer.md
     ├── Network/
-    │   ├── GPT-NETWORK-MAPPER.js
-    │   ├── NextRay-DevTools-V2.js
-    │   ├── README-NETWORK-MAPPER.md
-    │   └── README-NextRay-V2.md
     ├── Parameter/
-    │   ├── 🧠-Universal-Parameter-Extractor-Client-Side.js
-    │   └── README.md
     ├── Sensitive-Disclousure/
-    │   ├── Claude-README-CRITICAL-FLAW-HUNTER.md
-    │   ├── Claude.js
-    │   ├── Qwen-Gold-README.md
-    │   └── Qwen-Gold.js
     └── User-Input/
-        ├── 🧠-Universal-User-Input-Extractor-Client-Side.js
-        ├── Input-README.md
-        ├── input.txt
-        ├── NextRay-README.md
-        └── Validation&Exploit Helper-all‑in‑one Snippet.js
+```
+
+## 🆕 New Modules (v6.1.0)
+
+### Dashboard (Quick Start)
+Paste `dashboard.js` into browser console for instant security scan with scoring:
+
+```js
+DCTDashboard.scan()       // Run scan + display results
+DCTDashboard.export()     // Download JSON report
+DCTDashboard.exportCSV()  // Download CSV report
+DCTDashboard.history()    // View scan history
+DCTDashboard.help()       // Show all commands
+```
+
+### Tools (`tools/utils.js`)
+Utility functions for URL parsing, encoding, hashing, validation:
+
+```js
+DCTUtils.parseURL(url)
+DCTUtils.b64Encode(str)
+DCTUtils.sha256(str)
+DCTUtils.isJWT(str)
+DCTUtils.downloadJSON(data)
+```
+
+### Rules (`rules/rules.js`)
+Custom security detection rules engine:
+
+```js
+DCTRules.add('my-rule', { pattern: /secret/i, severity: 'critical' })
+DCTRules.execute(content, source)
+DCTRules.executeOnDOM()
+DCTRules.save()  // Persist to localStorage
+```
+
+### Memory (`memory/memory.js`)
+Persistent state for scan results and preferences:
+
+```js
+DCTMemory.set('key', value)
+DCTMemory.get('key')
+DCTMemory.saveScanResult('tool', results)
+DCTMemory.compareScans('tool')
+```
+
+### Storage (`storage/storage.js`)
+Browser storage audit and monitoring:
+
+```js
+DCTStorage.auditLocalStorage()
+DCTStorage.auditCookies()
+DCTStorage.startMonitoring()
+DCTStorage.exportJSON()
+```
+
+### Agents (`agents/agent.js`)
+Intelligent automation workflows:
+
+```js
+await DCTAgent.quickAudit()
+await DCTAgent.fullRecon()
+await DCTAgent.secretHunter()
+await DCTAgent.runWorkflow('custom', steps)
 ```
 
 ## 🛠️ Usage
