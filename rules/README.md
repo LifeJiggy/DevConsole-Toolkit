@@ -2,6 +2,16 @@
 
 Custom security detection rules that can be defined, executed, persisted, and shared.
 
+## Rule Sets
+
+| File | Module | Rules | Description |
+|------|--------|-------|-------------|
+| `rules.js` | `DCTRules` | 10 built-in | Core engine with management API |
+| `xss-rules.js` | `XSSRules` | 14 rules | XSS detection (innerHTML, eval, postMessage, etc.) |
+| `sqli-rules.js` | `SQLiRules` | 8 rules | SQL injection (concatenation, $where, $regex) |
+| `secrets-rules.js` | `SecretsRules` | 17 rules | Secrets (AWS, GitHub, Stripe, Slack, JWT, etc.) |
+| `misconfig-rules.js` | `MisconfigRules` | 10 rules | Misconfiguration (CSP, cookies, mixed content) |
+
 ## Usage
 
 Paste `rules/rules.js` into browser console, then use `DCTRules.*`
